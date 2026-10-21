@@ -1,0 +1,24 @@
+name: 开发或文档任务
+description: 小范围真实成果与可检查的验收
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: 目标和需求依据
+      description: 谁遇到什么问题，为什么值得做
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: 范围和协作
+      description: 改哪些模块、不做什么，建议负责人和评审人
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 验收证据
+      description: 复现步骤、预期结果和测试方法
+    validations:
+      required: true

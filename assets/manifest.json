@@ -1,0 +1,32 @@
+{
+  "art_family": "Tiny Swords (Update 010)",
+  "author": "Pixel Frog",
+  "source": "https://pixelfrog-assets.itch.io/tiny-swords",
+  "downloaded": "2026-10-19",
+  "official_download_name": "TS_old version_CC0 Licensed",
+  "upload_id": 9428013,
+  "license": "CC0-1.0",
+  "license_url": "https://creativecommons.org/publicdomain/zero/1.0/legalcode",
+  "original_archive_name": "tiny_swords_cc0.zip (preserved in local archive, not tracked in public Git)",
+  "archive_sha256": "E4D79BD4514BAD153CFA1CC8F4C8D8BF10ED39BF69BD98B83BDC46C03D14BB9C",
+  "asset_root": "assets/tiny_swords/Tiny Swords (Update 010)",
+  "used_groups": [
+    "Terrain/Ground/Tilemap_Flat.png",
+    "Deco/*.png",
+    "Resources/Trees/Tree.png",
+    "Resources/Gold Mine/GoldMine_Inactive.png",
+    "Factions/Knights/Buildings/Castle/Castle_Blue.png",
+    "Factions/Knights/Buildings/Tower/Tower_Blue.png",
+    "Factions/Knights/Buildings/Tower/Tower_Purple.png",
+    "Factions/Knights/Buildings/Tower/Tower_Yellow.png",
+    "Factions/Knights/Buildings/House/House_Yellow.png",
+    "Factions/Knights/Troops/Archer/Archer + Bow/Archer_Blue_(NoArms).png",
+    "Factions/Knights/Troops/Archer/Archer + Bow/Archer_Bow_Blue.png",
+    "Factions/Goblins/Troops/Torch/Red/Torch_Red.png",
+    "Factions/Goblins/Troops/TNT/Red/TNT_Red.png",
+    "Factions/Goblins/Troops/Barrel/Red/Barrel_Red.png"
+  ],
+  "modifications": "Runtime sprite framing, nearest filtering, scale, terrain color treatment; custom turret attachments, crystal, chest, projectiles, HUD and telegraphs are code-native drawings.",
+  "audio": "Original procedural short samples in scripts/sound.gd; no recordings or external tracks.",
+  "fonts": "SystemFont loads fonts installed on the player's Windows system. No Windows font files are redistributed."
+}

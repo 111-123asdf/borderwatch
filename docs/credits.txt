@@ -1,0 +1,21 @@
+边境守望 0.3 · 资源来源与许可
+
+主要美术：Tiny Swords (Update 010)，Pixel Frog。
+官方页面：https://pixelfrog-assets.itch.io/tiny-swords
+使用官方明确标为 TS_old version_CC0 Licensed 的旧包，上传号9428013，2026-10-19下载。
+该旧包采用CC0 1.0；不混用现行新版的限制再分发许可，也未使用付费Enemy Pack。
+CC0文本：https://creativecommons.org/publicdomain/zero/1.0/legalcode
+游戏内使用同包地形、角色、建筑、树木和装饰；法炮部件、晶体、宝匣、弹道、预警和界面由代码构建。
+十二种被动技能图标：2026-10-19通过OpenAI图像生成工具制作的原创图集，未使用商业游戏图标。
+三位英雄立绘与六帧跑步图集：同日通过OpenAI图像生成工具创作，蓝羽甲骑士、林影游侠、星纹秘术师为本项目独立形象。场内持械、瞄向、双持、挥砍与后坐力由独立武器骨架驱动。
+用户提供的商业游戏截图与视频只作机制研究，不进入发行包。
+木箱与残墙掩体图集：同日通过OpenAI图像生成工具创作，用于替换临时几何块；与英雄图集均保存在工程内。
+声音：本项目程序合成的短音效，无外部录音素材。系统字体由运行机器提供，不分发Windows字体文件。
+
+引擎：Godot Engine 4.7.2，MIT License。
+Copyright (c) 2014-present Godot Engine contributors.
+Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
+Godot许可与第三方组件：https://godotengine.org/license/
+完整引擎许可和第三方声明见godot-copyright.txt。
+
+没有使用《王国保卫战》《星露谷物语》或《元气骑士》的代码、美术或音频。
