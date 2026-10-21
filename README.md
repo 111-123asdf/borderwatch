@@ -19,9 +19,11 @@
 ## 打开与验证
 
 ```powershell
-git clone https://github.com/haberlevogtman655-cmyk/borderwatch.git
+git clone https://github.com/111-123asdf/borderwatch.git
 cd borderwatch
 ```
+
+仓库为私有，需先接受仓库所有者的协作者邀请；克隆时用被邀请的那个账号登录。
 
 1. 从[官方发行页](https://github.com/godotengine/godot-builds/releases/tag/4.7.2-stable)安装 **Godot 4.7.2 Standard**，导入根目录project.godot，等首次导入完成后F5。
 2. 主场景只有挂脚本的根节点，世界与UI运行时创建；编辑器空白不是缺地图。
