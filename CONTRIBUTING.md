@@ -43,4 +43,4 @@ git push -u origin HEAD
 
 课程文档经组长审阅再入docs/course；未审草稿不进首个代码提交。每人尽早完成一次真实成果提交，不攒到期末、不倒签。PR区分已执行、计划执行、未验证；特定种子/构筑全通不是所有玩法都平衡。
 
-参考：[GitHub创建仓库](https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-new-repository)、[协作者访问](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/managing-repository-settings/managing-access-to-your-repository/inviting-collaborators-to-a-personal-repository)。
+参考：[GitHub创建仓库](https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-new-repository)、[协作者访问](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/repository-access-and-collaboration/inviting-collaborators-to-a-personal-repository)。

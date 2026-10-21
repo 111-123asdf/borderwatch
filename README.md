@@ -18,7 +18,12 @@
 
 ## 打开与验证
 
-1. 安装 **Godot 4.7.2 Standard**，导入根目录project.godot，等首次导入完成后F5。
+```powershell
+git clone https://github.com/haberlevogtman655-cmyk/borderwatch.git
+cd borderwatch
+```
+
+1. 从[官方发行页](https://github.com/godotengine/godot-builds/releases/tag/4.7.2-stable)安装 **Godot 4.7.2 Standard**，导入根目录project.godot，等首次导入完成后F5。
 2. 主场景只有挂脚本的根节点，世界与UI运行时创建；编辑器空白不是缺地图。
 3. Windows可双击开发编辑器.bat；仓库不含编辑器/模板，需设置GODOT_BIN或把Godot加入PATH。本机的便携工具链不进Git。
 
