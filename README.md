@@ -45,6 +45,6 @@ WASD/方向键移动；右键、选中或拖动英雄指定行军；按住左键
 
 ## 开发导航
 
-[环境](docs/DEVELOPMENT.md) · [架构](docs/ARCHITECTURE.md) · [当前玩法](docs/CURRENT_SLICE.md) · [测试](docs/TESTING.md) · [四人协作](CONTRIBUTING.md) · [素材来源](docs/ASSET_SOURCES.md)
+[环境](docs/DEVELOPMENT.md) · [架构](docs/ARCHITECTURE.md) · [当前玩法](docs/CURRENT_SLICE.md) · [测试](docs/TESTING.md) · [真人首玩清单](docs/FIRST_PLAYTEST.md) · [四人协作](CONTRIBUTING.md) · [素材来源](docs/ASSET_SOURCES.md)
 
 AI先读AGENTS.md。课程报告由组长审阅后另行入库；不公开个人对话、未审草稿、商业研究截图和用户配置。源码尚未指定开放源码许可证；公开可读不等于授权任意再分发，第三方素材按各自许可。
