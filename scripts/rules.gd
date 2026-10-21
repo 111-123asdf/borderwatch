@@ -42,7 +42,7 @@ const LEAK_DAMAGE := {"torch": 16, "tnt": 16, "shooter": 16, "barrel": 32, "shie
 
 ## ── 核心切片 ────────────────────────────────────────────────
 ## 只有下面这几项真正进入游戏。上面的定义表保持完整，作为素材库：
-## 恢复某项内容 = 把它加回这些列表，玩法代码不用改。清单见 docs/LIBRARY.md。
+## 恢复某项内容 = 把它加回这些列表，玩法代码不用改。清单见 docs/CURRENT_SLICE.md。
 const ACTIVE_WEAPONS := ["sword", "scatter", "sniper", "boomerang"]
 const ACTIVE_RELICS := ["lone", "swarm", "vanguard", "command", "raid", "hold"]
 const CAMP_NODES := 1
