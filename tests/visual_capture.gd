@@ -1,4 +1,4 @@
-extends SceneTree
+﻿extends SceneTree
 
 var game: Node2D
 
@@ -7,9 +7,11 @@ func _initialize() -> void:
 
 func capture(key: String) -> void:
 	await RenderingServer.frame_post_draw
-	root.get_texture().get_image().save_png("res://test-results/0.3-" + key + ".png")
+	var error := root.get_texture().get_image().save_png("res://test-results/0.3-" + key + ".png")
+	if error != OK: push_error("截图写入失败：%s（错误码 %d）" % [key, error])
 
 func _run() -> void:
+	DirAccess.make_dir_recursive_absolute("res://test-results")
 	game = load("res://scenes/main.tscn").instantiate()
 	root.add_child(game)
 	await process_frame

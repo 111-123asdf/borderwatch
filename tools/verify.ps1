@@ -14,7 +14,22 @@ function Invoke-CheckedGodot([string[]]$GodotArguments, [string]$LogName) {
     }
     $logPath = Join-Path $projectRoot ('test-results\' + $LogName)
     $output | Set-Content -LiteralPath $logPath -Encoding utf8
+    # 引擎环境噪声（系统证书存储不可读、user:// 目录不可写）不代表源码或测试失败。
+    $environmentNoise = @(
+        'Failed to read the root certificate store',
+        "Could not create directory: 'user://",
+        'Failed to open log file for writing: user://',
+        "Could not open 'user://' directory"
+    )
     $problem = $output | Where-Object { $_ -match 'SCRIPT ERROR:|Parse Error|^ERROR:|FAIL:' }
+    $problem = $problem | Where-Object {
+        $text = [string]$_
+        $isNoise = $false
+        foreach ($noiseText in $environmentNoise) {
+            if ($text.Contains($noiseText)) { $isNoise = $true; break }
+        }
+        -not $isNoise
+    }
     if ($code -ne 0 -or $problem) {
         $output | Write-Output
         throw "Godot check failed: $LogName"

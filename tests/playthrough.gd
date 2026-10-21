@@ -63,7 +63,13 @@ func _run() -> void:
 	paused = false
 	report.merge({"elapsed": game.elapsed, "wave": game.wave, "core": game.core_health, "health": game.hero.health, "shield": game.hero.shield, "energy": game.hero.energy, "nodes": game.camps.map(func(camp): return camp.progress), "level": game.level, "gold": game.gold, "towers": game.towers.size(), "relics": game.relic_ranks, "camps": game.camps.map(func(camp): return camp.chest_claimed), "weapon": game.hero.weapon_id, "weapon_level": game.hero.weapon_level, "skill_level": game.hero.skill_level, "stats": game.stats, "boss_defeated": game.boss_defeated, "terminal": game.hud.modal_kind == "result", "phase": phase})
 	var path := "user://exported_playthrough-%s.json" % game.hero.class_id if "--export-check" in OS.get_cmdline_user_args() else "res://test-results/playthrough-0.3-%s-%d.json" % [game.hero.class_id, test_seed]
+	DirAccess.make_dir_recursive_absolute("res://test-results")
 	var output := FileAccess.open(path, FileAccess.WRITE)
+	if output == null:
+		push_error("无法写入报告：" + path)
+		game.queue_free()
+		quit(1)
+		return
 	output.store_string(JSON.stringify(report, "\t"))
 	output.close()
 	print(JSON.stringify(report))
