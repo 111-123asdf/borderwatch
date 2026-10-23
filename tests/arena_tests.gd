@@ -80,6 +80,11 @@ func _run() -> void:
 	click_event.position = click_button.get_global_rect().get_center()
 	game._unhandled_input(click_event)
 	check(game.towers.size() == before_manual_click + 1, "Build menu click event places a tower")
+	var before_confirmed = game.towers.size()
+	game.number_build("bolt")
+	check(game.towers.size() == before_confirmed and game.build_mode, "First number key only enters build mode")
+	game.number_build("bolt")
+	check(game.towers.size() == before_confirmed + 1, "Second press of the same number builds")
 
 	game.hero.position = game.CORE + Vector2(160, 0)
 	var gold_before: int = game.gold

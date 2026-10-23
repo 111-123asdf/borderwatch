@@ -124,7 +124,7 @@ func _physics_process(delta: float) -> void:
 	if kind == "boss":
 		if core_distance < 300.0 and boss_core_cooldown <= 0.0:
 			boss_core_cooldown = 1.0
-			game.core_hit(20.0)
+			game.core_hit(22.0)
 		queue_redraw()
 		return
 	if core_distance < 58.0:

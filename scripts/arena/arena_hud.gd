@@ -28,6 +28,7 @@ var hero_selecting := false
 var relic_panel: Panel
 var relic_selecting := false
 var passive_panel: Panel
+var minimap: Control
 var passive_buttons: Array[Button] = []
 var passive_selected := ""
 var passive_confirm: Button
@@ -55,6 +56,17 @@ func _ready() -> void:
 	theme.default_font = font
 	theme.default_font_size = 16
 	root.theme = theme
+	minimap = ArenaMinimap.new()
+	minimap.game = game
+	minimap.anchor_left = 1.0
+	minimap.anchor_right = 1.0
+	minimap.anchor_top = 0.0
+	minimap.anchor_bottom = 0.0
+	minimap.offset_left = -232.0
+	minimap.offset_right = -16.0
+	minimap.offset_top = 86.0
+	minimap.offset_bottom = 308.0
+	root.add_child(minimap)
 	status = _label(Rect2(18, 16, 420, 28), 20, CREAM)
 	shield_bar = ProgressBar.new()
 	shield_bar.position = Vector2(18, 44)
@@ -355,7 +367,7 @@ func _build_palette() -> void:
 		button.add_theme_color_override("font_color", CREAM)
 		button.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_style_button(button)
-		button.pressed.connect(game.build_from_menu.bind(kind))
+		button.pressed.connect(game.number_build.bind(kind))
 		build_palette.add_child(button)
 		palette_buttons[kind] = button
 		index += 1
@@ -445,6 +457,7 @@ func _process(delta: float) -> void:
 		node.visible = show_hud
 	core_bar.visible = show_hud
 	shield_bar.visible = show_hud
+	minimap.visible = show_hud
 	focus_bar.visible = show_hud and game.build_mode
 	build_palette.visible = false
 	boss_label.visible = show_hud and game.boss != null and is_instance_valid(game.boss) and not game.boss.dead
@@ -457,7 +470,7 @@ func _process(delta: float) -> void:
 	shield_bar.value = game.hero.shield
 	resources.text = "金币 %d    Lv.%d    击杀 %d" % [game.gold, game.hero.level, game.stats.kills]
 	xp_label.text = "经验 %d/%d    场上 %d    预算 %d" % [game.hero.xp, game.hero.xp_target, game.enemies.size(), game.spawn_budget]
-	skill_label.text = "武器 %s Lv.%d    技能 %s    %s" % [Rules.weapon(game.hero.weapon_key).name, game.hero.weapon_level, game.hero.skill_name, "冷却 %ds" % ceili(game.hero.skill_cooldown) if game.hero.skill_cooldown > 0.0 else "可用"]
+	skill_label.text = "武器 %s Lv.%d    技能 %s · 空格    %s" % [Rules.weapon(game.hero.weapon_key).name, game.hero.weapon_level, game.hero.skill_name, "冷却 %ds" % ceili(game.hero.skill_cooldown) if game.hero.skill_cooldown > 0.0 else "可用"]
 	core_label.text = "核心 %d / %d" % [game.core_health, game.core_max]
 	core_label.add_theme_color_override("font_color", Color("ff8b7d") if game.core_health < game.core_max * 0.35 else CREAM)
 	core_bar.max_value = game.core_max
@@ -468,9 +481,9 @@ func _process(delta: float) -> void:
 	if game.build_mode and game.build_reason != "":
 		hint_label.text = "不能建造：" + game.build_reason
 	if game.build_mode:
-		build_label.text = "空格建造：点图标或 1/2/3 直接建 · 右键取消"
+		build_label.text = "1/2/3 选塔：再按同键建造 · 换数字切塔 · 右键取消"
 	else:
-		build_label.text = "空格建造 · 1/2/3 直接建塔 · 左键点塔升级 · Q 技能 · R 重开"
+		build_label.text = "1/2/3 选塔并再按一次建造 · 左键点塔升级 · 空格技能 · R 重开"
 	_update_build_menu()
 	_update_tower_panel()
 	if game.boss != null and is_instance_valid(game.boss) and not game.boss.dead:

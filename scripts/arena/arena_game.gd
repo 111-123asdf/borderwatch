@@ -22,8 +22,8 @@ var hero_selected := false
 var game_over := false
 var victory := false
 var gold := START_GOLD
-var core_health := 400.0
-var core_max := 400.0
+var core_health := 450.0
+var core_max := 450.0
 var cycle := 1
 var phase := "rest"
 var phase_clock := 5.0
@@ -56,8 +56,8 @@ var build_valid := false
 var build_site_ok := false
 var build_reason := ""
 var selected_tower: ArenaTower
-var focus := 4.0
-var focus_max := 4.0
+var focus := 10.0
+var focus_max := 10.0
 var sim_speed := 1.0
 var elapsed := 0.0
 var shake_amount := 0.0
@@ -151,7 +151,7 @@ func _configure_input() -> void:
 		"move_right": [KEY_D, KEY_RIGHT],
 		"move_up": [KEY_W, KEY_UP],
 		"move_down": [KEY_S, KEY_DOWN],
-		"skill": [KEY_Q],
+		"skill": [KEY_SPACE],
 		"repair": [KEY_E],
 		"restart": [KEY_R],
 	}
@@ -447,6 +447,13 @@ func number_build(kind: String) -> void:
 	if not build_mode:
 		toggle_build_mode()
 		if not build_mode: return
+		set_build_kind(kind)
+		hud.toast("已选择 %s：再按一次数字键建造" % ArenaTower.STATS[kind].name, 2)
+		return
+	if build_kind != kind:
+		set_build_kind(kind)
+		hud.toast("切换到 %s：再按一次建造" % ArenaTower.STATS[kind].name, 2)
+		return
 	build_from_menu(kind)
 
 func select_tower_at_mouse() -> void:
@@ -497,7 +504,7 @@ func start_spawn() -> void:
 	expire_normal_drops()
 	phase = "spawn"
 	phase_clock = 30.0
-	spawn_budget = 30 + 9 * (cycle - 1)
+	spawn_budget = 34 + 10 * (cycle - 1)
 	spawn_interval = 30.0 / maxf(1.0, ceilf(float(spawn_budget) / 4.0))
 	spawn_timer = 0.0
 	if cycle >= 6 and not boss_spawned:
@@ -651,8 +658,9 @@ func spawn_cluster() -> void:
 		if kind == "brute": health *= 3.0
 		if kind == "shielded": health *= 2.2
 		if kind == "armored": health *= 2.6
-		var elite := cycle >= 2 and rng.randf() < 0.10
-		if elite: health *= 2.5
+		if kind != "boss": health *= 1.08
+		var elite := cycle >= 2 and rng.randf() < 0.12
+		if elite: health *= 3.0
 		spawn_enemy(kind, point, health, elite)
 		spawn_budget -= 1
 	spawn_timer = spawn_interval
@@ -662,7 +670,7 @@ func spawn_cluster() -> void:
 func _spawn_boss() -> void:
 	boss_spawned = true
 	var point: Vector2 = spawn_points[hot_region]
-	boss = spawn_enemy("boss", point, 4500.0)
+	boss = spawn_enemy("boss", point, 5000.0)
 	hud.toast("焚林统领从%s林线走来" % _region_name(hot_region), 4)
 
 func boss_summon(point: Vector2) -> void:
@@ -891,7 +899,7 @@ func _unhandled_input(event: InputEvent) -> void:
 					for kind in hud.palette_buttons:
 						var button: Button = hud.palette_buttons[kind]
 						if button.get_global_rect().has_point(mouse):
-							build_from_menu(kind)
+							number_build(kind)
 							get_viewport().set_input_as_handled()
 							return
 				select_tower_at_mouse()
@@ -903,9 +911,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
-			KEY_SPACE:
-				toggle_build_mode()
-				get_viewport().set_input_as_handled()
 			KEY_1:
 				number_build("bolt")
 			KEY_2:
@@ -945,11 +950,11 @@ func _process(delta: float) -> void:
 
 func _update_build_mode(delta: float) -> void:
 	if build_mode and phase != "rest":
-		focus = maxf(0.0, focus - delta / 0.45)
+		focus = maxf(0.0, focus - delta / 1.0)
 		if focus <= 0.0:
 			build_mode = false
 	if not build_mode:
-		focus = minf(focus_max, focus + delta * 0.9)
+		focus = minf(focus_max, focus + delta * 1.5)
 	Engine.time_scale = 0.45 if build_mode else sim_speed
 
 func _update_camera(delta: float) -> void:
@@ -1018,6 +1023,13 @@ func _draw() -> void:
 			var rect := Rect2(cell_center(build_cell) - Vector2.ONE * CELL * 0.5, Vector2.ONE * CELL)
 			draw_rect(rect, Color(0.4, 0.95, 0.65, 0.28) if build_valid else Color(0.95, 0.35, 0.3, 0.28))
 			draw_rect(rect, Color(0.4, 0.95, 0.65, 0.8) if build_valid else Color(0.95, 0.35, 0.3, 0.8), false, 2)
+			var tower_color: Color = ArenaTower.STATS[build_kind].color
+			var ghost_center := cell_center(build_cell)
+			var alpha := 0.32 if build_valid else 0.14
+			draw_circle(ghost_center + Vector2(0, 2), 27, Color(tower_color, alpha * 0.55))
+			draw_arc(ghost_center + Vector2(0, 2), 27, 0, TAU, 32, Color(tower_color, alpha * 1.6), 2, true)
+			draw_circle(ghost_center + Vector2(0, -18), 17, Color(tower_color, alpha * 1.2))
+			draw_arc(ghost_center + Vector2(0, -18), 17, 0, TAU, 24, Color(tower_color, alpha * 2.0), 2, true)
 			var range_value := float(ArenaTower.STATS[build_kind].range)
 			draw_arc(cell_center(build_cell), range_value, 0, TAU, 64, Color(0.55, 0.9, 0.75, 0.45), 2, true)
 		var route_point: Vector2 = spawn_points[hot_region]

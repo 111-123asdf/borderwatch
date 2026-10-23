@@ -19,7 +19,7 @@ func _process(delta: float) -> void:
 	var radius: float = game.hero.pickup_radius
 	var distance: float = game.hero.position.distance_to(position)
 	if distance < radius:
-		var speed := clampf(distance * 2.6, 34.0, 420.0)
+		var speed := clampf(distance * 3.2, 150.0, 520.0)
 		position = position.move_toward(game.hero.position, speed * delta)
 	if distance < 18.0:
 		game.collect_drop(self)
