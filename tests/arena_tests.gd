@@ -40,6 +40,12 @@ func _run() -> void:
 	check(is_instance_valid(drop) == false, "Drops are collected on contact")
 	check(game.gold >= gold_before + 5, "Collected gold reaches the hero wallet")
 
+	var core_before: float = game.core_health
+	var leaked = game.spawn_enemy("torch", game.CORE, 30.0)
+	await create_timer(0.25).timeout
+	check(game.enemies.is_empty(), "Leaked enemies are removed from the live array")
+	check(game.core_health < core_before, "Leaked enemies damage the core")
+
 	game.spawn_budget = 4
 	game.start_spawn()
 	game.spawn_cluster()

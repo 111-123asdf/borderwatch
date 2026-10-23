@@ -56,6 +56,7 @@ func _physics_process(delta: float) -> void:
 	visual.advance(delta, direction * speed, direction)
 	if position.distance_to(game.CORE) < 58.0:
 		game.core_hit(9999.0 if kind == "boss" else (34.0 if kind == "armored" else 16.0))
+		game.enemy_escaped(self)
 		dead = true
 		queue_free()
 		return

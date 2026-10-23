@@ -88,7 +88,7 @@ func _process(delta: float) -> void:
 	hint_label.text = phase_hint
 	if game.build_mode and game.build_reason != "":
 		hint_label.text = "不能建造：" + game.build_reason
-	build_label.text = "B 慢速建造 · 1 弩 / 2 炮 / 3 霜 · 点已有塔升级 · E 修理 · Space 冲刺" if not game.build_mode else "建造模式：左键放塔/升级 · 1/2/3 选塔 · 松开 B 退出"
+	build_label.text = "B 慢速建造 · 1 弩 / 2 炮 / 3 霜 · 点已有塔升级 · E 修理 · Space 冲刺 · R 重开" if not game.build_mode else "建造模式：左键放塔/升级 · 1/2/3 选塔 · 松开 B 退出"
 	focus_bar.visible = game.build_mode
 	focus_bar.value = game.focus / game.focus_max * 100.0
 	toast_time = maxf(0.0, toast_time - delta)

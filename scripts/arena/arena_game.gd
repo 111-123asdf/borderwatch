@@ -53,8 +53,20 @@ var build_valid := false
 var build_reason := ""
 var focus := 4.0
 var focus_max := 4.0
+var sim_speed := 1.0
 var elapsed := 0.0
 var stats := {"kills": 0, "hero_kills": 0, "tower_kills": 0, "built": 0, "cycles": 0}
+var debug := {
+	"leaks": 0,
+	"leak_damage": 0.0,
+	"spawns": 0,
+	"drops_spawned": 0,
+	"drops_collected": 0,
+	"drops_expired": 0,
+	"towers_lost": 0,
+	"build_rejected": 0,
+	"regions": [0, 0, 0, 0, 0, 0, 0, 0],
+}
 
 func _ready() -> void:
 	rng.randomize()
@@ -234,6 +246,7 @@ func _tower_at(cell: Vector2i) -> ArenaTower:
 func place_tower(cell: Vector2i) -> bool:
 	var reason := can_place(cell)
 	if reason != "":
+		debug.build_rejected += 1
 		build_reason = reason
 		hud.toast(reason, 2)
 		return false
@@ -254,6 +267,7 @@ func place_tower(cell: Vector2i) -> bool:
 
 func tower_destroyed(tower: ArenaTower) -> void:
 	if not is_instance_valid(tower): return
+	debug.towers_lost += 1
 	blocked[cell_index(tower.cell)] = false
 	towers.erase(tower)
 	tower.queue_free()
@@ -355,6 +369,7 @@ func spawn_cluster() -> void:
 		spawn_budget -= 1
 	spawn_timer = 0.9
 	spawned_this_phase += count
+	debug.regions[region] += 1
 
 func _spawn_boss() -> void:
 	boss_spawned = true
@@ -371,6 +386,7 @@ func spawn_enemy(kind: String, point: Vector2, health: float) -> ArenaEnemy:
 	enemy.position = point
 	add_child(enemy)
 	enemies.append(enemy)
+	debug.spawns += 1
 	return enemy
 
 func enemy_died(enemy: ArenaEnemy) -> void:
@@ -388,8 +404,13 @@ func enemy_died(enemy: ArenaEnemy) -> void:
 	if boss_dead and cycle >= 6 and enemies.is_empty():
 		finish(true)
 
+func enemy_escaped(enemy: ArenaEnemy) -> void:
+	enemies.erase(enemy)
+
 func core_hit(amount: float) -> void:
 	if game_over: return
+	debug.leaks += 1
+	debug.leak_damage += amount
 	core_health = maxf(0.0, core_health - amount)
 	if core_health <= 0: finish(false)
 
@@ -417,6 +438,7 @@ func spawn_drop(point: Vector2, xp: int, gold_value: int, big: bool, cache := fa
 	drop.position = point
 	add_child(drop)
 	drops.append(drop)
+	debug.drops_spawned += 1
 	if drops.size() > 150:
 		for index in range(drops.size()):
 			if not drops[index].big:
@@ -429,6 +451,7 @@ func spawn_drop(point: Vector2, xp: int, gold_value: int, big: bool, cache := fa
 func collect_drop(drop: ArenaDrop) -> void:
 	if not is_instance_valid(drop): return
 	drops.erase(drop)
+	debug.drops_collected += 1
 	if hero != null:
 		hero.add_xp(drop.xp)
 		gold += drop.gold_value
@@ -439,6 +462,7 @@ func expire_normal_drops() -> void:
 	for drop in drops.duplicate():
 		if is_instance_valid(drop) and (not drop.big or drop.cache):
 			drops.erase(drop)
+			debug.drops_expired += 1
 			drop.queue_free()
 
 func nearest_enemy(point: Vector2, radius: float) -> ArenaEnemy:
@@ -486,9 +510,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_2: build_kind = "cannon"
 			KEY_3: build_kind = "frost"
 			KEY_E: repair_nearest()
-			KEY_R:
-				if game_over: get_tree().reload_current_scene()
-				elif phase == "rest": start_spawn()
+			KEY_R: get_tree().reload_current_scene()
 			KEY_B:
 				pass
 
@@ -514,7 +536,7 @@ func _update_build_mode(delta: float) -> void:
 		if focus <= 0.0: build_mode = false
 	if not build_mode:
 		focus = minf(focus_max, focus + delta * 0.9)
-	Engine.time_scale = 0.35 if build_mode else 1.0
+	Engine.time_scale = 0.35 if build_mode else sim_speed
 
 func _update_camera(delta: float) -> void:
 	var target := CORE
