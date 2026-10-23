@@ -301,8 +301,11 @@ func start_rest(seconds: float) -> void:
 	spawn_timer = 0.0
 	spawned_this_phase = 0
 	hot_region = rng.randi_range(0, REGION_COUNT - 1)
-	_set_phase_text("休息：下一轮热点 %s；建塔/修塔/捡掉落；普通掉落会在休息结束时消失" % _region_name(hot_region))
-	hud.toast("休息段：下一轮热点 %s；建塔/修塔/捡掉落；普通掉落会在休息结束时消失" % _region_name(hot_region), 3)
+	var cache_region := (hot_region + 4) % REGION_COUNT
+	var cache_point: Vector2 = spawn_points[cache_region] + Vector2(rng.randf_range(-50, 50), rng.randf_range(-50, 50))
+	spawn_drop(cache_point, 18, 24, true, true)
+	_set_phase_text("休息：下一轮热点 %s；补给箱在 %s；建塔/修塔/捡掉落" % [_region_name(hot_region), _region_name(cache_region)])
+	hud.toast("休息段：下一轮热点 %s；补给箱在 %s（休息结束消失）" % [_region_name(hot_region), _region_name(cache_region)], 3)
 
 func start_spawn() -> void:
 	expire_normal_drops()
@@ -404,12 +407,13 @@ func finish(win: bool) -> void:
 	_set_phase_text("")
 
 # ── drops / projectiles ────────────────────────────────────
-func spawn_drop(point: Vector2, xp: int, gold_value: int, big: bool) -> ArenaDrop:
+func spawn_drop(point: Vector2, xp: int, gold_value: int, big: bool, cache := false) -> ArenaDrop:
 	var drop := ArenaDrop.new()
 	drop.game = self
 	drop.xp = xp
 	drop.gold_value = gold_value
 	drop.big = big
+	drop.cache = cache
 	drop.position = point
 	add_child(drop)
 	drops.append(drop)
@@ -433,7 +437,7 @@ func collect_drop(drop: ArenaDrop) -> void:
 
 func expire_normal_drops() -> void:
 	for drop in drops.duplicate():
-		if is_instance_valid(drop) and not drop.big:
+		if is_instance_valid(drop) and (not drop.big or drop.cache):
 			drops.erase(drop)
 			drop.queue_free()
 
