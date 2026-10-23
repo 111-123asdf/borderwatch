@@ -432,7 +432,13 @@ func build_from_menu(kind: String) -> void:
 	if build_cell.x < 0:
 		hud.toast("先选一个建造位置", 2)
 		return
-	if place_tower(build_cell):
+	var target := build_cell
+	var built := place_tower(target)
+	if not built:
+		var fallback := _nearest_build_cell(target)
+		if fallback != target:
+			built = place_tower(fallback)
+	if built:
 		build_mode = false
 		Engine.time_scale = sim_speed
 		get_viewport().gui_release_focus()
@@ -874,6 +880,14 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			if build_mode:
+				var mouse: Vector2 = event.position
+				if hud.build_palette.visible and hud.build_palette.get_global_rect().has_point(mouse):
+					for kind in hud.palette_buttons:
+						var button: Button = hud.palette_buttons[kind]
+						if button.get_global_rect().has_point(mouse):
+							build_from_menu(kind)
+							get_viewport().set_input_as_handled()
+							return
 				select_tower_at_mouse()
 				get_viewport().set_input_as_handled()
 				return
@@ -886,9 +900,15 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_SPACE:
 				toggle_build_mode()
 				get_viewport().set_input_as_handled()
-			KEY_1: set_build_kind("bolt")
-			KEY_2: set_build_kind("cannon")
-			KEY_3: set_build_kind("frost")
+			KEY_1:
+				if build_mode: build_from_menu("bolt")
+				else: set_build_kind("bolt")
+			KEY_2:
+				if build_mode: build_from_menu("cannon")
+				else: set_build_kind("cannon")
+			KEY_3:
+				if build_mode: build_from_menu("frost")
+				else: set_build_kind("frost")
 			KEY_E: repair_nearest()
 			KEY_R: get_tree().reload_current_scene()
 

@@ -69,6 +69,17 @@ func _run() -> void:
 	game.build_valid = true
 	game.hud.palette_buttons["bolt"].emit_signal("pressed")
 	check(game.towers.size() == before_second_build + 1, "Build menu can be used again after a build")
+	var before_manual_click: int = game.towers.size()
+	game.toggle_build_mode()
+	game.build_cell = game._nearest_build_cell(Vector2i(24, 24))
+	await create_timer(0.1).timeout
+	var click_button: Button = game.hud.palette_buttons["bolt"]
+	var click_event := InputEventMouseButton.new()
+	click_event.button_index = MOUSE_BUTTON_LEFT
+	click_event.pressed = true
+	click_event.position = click_button.get_global_rect().get_center()
+	game._unhandled_input(click_event)
+	check(game.towers.size() == before_manual_click + 1, "Build menu click event places a tower")
 
 	game.hero.position = game.CORE + Vector2(160, 0)
 	var gold_before: int = game.gold
@@ -78,6 +89,7 @@ func _run() -> void:
 	check(game.gold >= gold_before + 5, "Collected gold reaches the hero wallet")
 
 	var core_before: float = game.core_health
+	game.hero.set_physics_process(false)
 	for placed in game.towers:
 		placed.active = false
 	var leaked = game.spawn_enemy("torch", game.CORE, 30.0)

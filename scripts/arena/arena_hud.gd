@@ -301,6 +301,7 @@ func _build_palette() -> void:
 	build_palette = Panel.new()
 	build_palette.size = Vector2(276, 92)
 	build_palette.visible = false
+	build_palette.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color("142a28")
 	style.border_color = Color("58796d")
@@ -317,6 +318,7 @@ func _build_palette() -> void:
 		button.text = "%s\n%d金" % [data.name, data.cost]
 		button.add_theme_font_size_override("font_size", 13)
 		button.add_theme_color_override("font_color", CREAM)
+		button.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_style_button(button)
 		button.pressed.connect(game.build_from_menu.bind(kind))
 		build_palette.add_child(button)
@@ -431,7 +433,7 @@ func _process(delta: float) -> void:
 	if game.build_mode and game.build_reason != "":
 		hint_label.text = "不能建造：" + game.build_reason
 	if game.build_mode:
-		build_label.text = "空格建造：点塔型图标建在光标处 · 右键取消"
+		build_label.text = "空格建造：点塔型图标或 1/2/3 建在锁定格 · 右键取消"
 	else:
 		build_label.text = "空格建造 · 左键点塔升级/修理 · Q 技能 · R 重开"
 	_update_build_menu()
