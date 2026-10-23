@@ -14,7 +14,7 @@ function Invoke-CheckedGodot([string[]]$GodotArguments, [string]$LogName) {
     }
     $logPath = Join-Path $projectRoot ('test-results\' + $LogName)
     $output | Set-Content -LiteralPath $logPath -Encoding utf8
-    $problem = $output | Where-Object { $_ -match 'SCRIPT ERROR:|Parse Error|^ERROR:|FAIL:' }
+    $problem = $output | Where-Object { $_ -match 'SCRIPT ERROR:|Parse Error|^ERROR:|FAIL:' -and $_ -notmatch 'Failed to read the root certificate store' }
     if ($code -ne 0 -or $problem) {
         $output | Write-Output
         throw "Godot check failed: $LogName"

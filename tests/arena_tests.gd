@@ -1,0 +1,56 @@
+extends SceneTree
+
+var game: Node2D
+var checks := 0
+var failures: Array[String] = []
+
+func check(condition: bool, message: String) -> void:
+	checks += 1
+	if not condition:
+		failures.append(message)
+		push_error("ARENA FAIL: " + message)
+
+func _initialize() -> void:
+	call_deferred("_run")
+
+func _run() -> void:
+	game = load("res://scenes/arena.tscn").instantiate()
+	root.add_child(game)
+	await process_frame
+	check(game.hero != null, "Arena creates a hero")
+	check(game.core_health == game.core_max, "Arena creates a core")
+	check(game.spawn_points.size() == 8, "Arena has eight spawn regions")
+	check(game.flow_at(game.CORE + Vector2(300, 0)).length() > 0.0, "Flow field points toward the core")
+
+	game.gold = 600
+	game.build_kind = "bolt"
+	var cell: Vector2i = game.world_to_cell(game.CORE + Vector2(260, 0))
+	check(game.can_place(cell) == "", "A legal cell can host a tower")
+	var tower = game.place_tower(cell)
+	check(tower != null and game.towers.size() == 1, "Placing a tower consumes a slot")
+	check(game.blocked[game.cell_index(cell)], "Tower blocks its grid cell")
+	check(game.can_place(cell + Vector2i(1, 0)) == "不能挨着其他塔", "Towers cannot be adjacent")
+	check(game.can_place(game.world_to_cell(game.CORE + Vector2(1000, 0))) == "超出建造范围", "Build radius is enforced")
+	check(game.towers[0].upgrade() and game.towers[0].level == 2, "Towers can be upgraded with gold")
+
+	game.hero.position = game.CORE + Vector2(160, 0)
+	var gold_before: int = game.gold
+	var drop = game.spawn_drop(game.hero.position, 10, 5, false)
+	await create_timer(0.35).timeout
+	check(is_instance_valid(drop) == false, "Drops are collected on contact")
+	check(game.gold >= gold_before + 5, "Collected gold reaches the hero wallet")
+
+	game.spawn_budget = 4
+	game.start_spawn()
+	game.spawn_cluster()
+	check(game.enemies.size() > 0, "Spawn director creates enemies")
+	check(game.flow_at(game.spawn_points[0]).length() > 0.0, "Spawned enemies have a flow direction")
+
+	game.hero.take_damage(9999.0)
+	check(game.game_over and not game.running, "Hero death ends the run")
+	check(game.hud.result_panel.visible, "Death shows the result panel")
+
+	print("ARENA CHECKS: %d, FAILURES: %d" % [checks, failures.size()])
+	game.queue_free()
+	await process_frame
+	quit(0 if failures.is_empty() else 1)
