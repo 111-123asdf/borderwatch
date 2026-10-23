@@ -55,6 +55,13 @@ func _run() -> void:
 	check(game.can_place(cell + Vector2i(1, 0)) == "不能挨着其他塔", "Towers cannot be adjacent")
 	check(game.can_place(game.world_to_cell(game.CORE + Vector2(1000, 0))) == "超出建造范围", "Build radius is enforced")
 	check(game.towers[0].upgrade() and game.towers[0].level == 2, "Towers can be upgraded with gold")
+	var before_menu_build: int = game.towers.size()
+	game.toggle_build_mode()
+	game.build_cell = game._nearest_build_cell(Vector2i(25, 20))
+	game.build_site_ok = true
+	game.build_valid = true
+	game.hud.palette_buttons["bolt"].emit_signal("pressed")
+	check(game.towers.size() == before_menu_build + 1, "Build menu icon places a tower")
 
 	game.hero.position = game.CORE + Vector2(160, 0)
 	var gold_before: int = game.gold
@@ -64,6 +71,8 @@ func _run() -> void:
 	check(game.gold >= gold_before + 5, "Collected gold reaches the hero wallet")
 
 	var core_before: float = game.core_health
+	for placed in game.towers:
+		placed.active = false
 	var leaked = game.spawn_enemy("torch", game.CORE, 30.0)
 	await create_timer(0.25).timeout
 	check(game.enemies.is_empty(), "Leaked enemies are removed from the live array")

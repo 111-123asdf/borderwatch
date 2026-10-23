@@ -316,7 +316,7 @@ func _build_palette() -> void:
 		index += 1
 
 func _update_build_menu() -> void:
-	if not game.build_mode or not game.build_site_ok or game.build_cell.x < 0:
+	if not game.build_mode or game.build_cell.x < 0:
 		build_palette.visible = false
 		return
 	var screen: Vector2 = game.get_viewport().get_canvas_transform() * game.cell_center(game.build_cell)

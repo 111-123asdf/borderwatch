@@ -313,6 +313,19 @@ func _build_site_ok(cell: Vector2i) -> bool:
 			if _tower_at(cell + Vector2i(ox, oy)) != null: return false
 	return true
 
+func _nearest_build_cell(origin: Vector2i) -> Vector2i:
+	if _build_site_ok(origin): return origin
+	for radius in range(1, 8):
+		for x in range(origin.x - radius, origin.x + radius + 1):
+			for y in [origin.y - radius, origin.y + radius]:
+				var candidate := Vector2i(x, y)
+				if _build_site_ok(candidate): return candidate
+		for y in range(origin.y - radius + 1, origin.y + radius):
+			for x in [origin.x - radius, origin.x + radius]:
+				var candidate := Vector2i(x, y)
+				if _build_site_ok(candidate): return candidate
+	return world_to_cell(CORE + Vector2(CELL * 3.0, 0))
+
 func place_tower(cell: Vector2i) -> bool:
 	var reason := can_place(cell)
 	if reason != "":
@@ -408,7 +421,8 @@ func toggle_build_mode() -> void:
 	build_mode = true
 	selected_tower = null
 	hud.show_tower_panel(null)
-	build_cell = world_to_cell(get_global_mouse_position())
+	build_cell = _nearest_build_cell(world_to_cell(get_global_mouse_position()))
+	build_site_ok = true
 	build_reason = can_place(build_cell)
 	build_valid = build_reason == ""
 
@@ -896,8 +910,12 @@ func _process(delta: float) -> void:
 		if hud.build_palette.visible and hud.build_palette.get_global_rect().has_point(mouse_screen):
 			pass
 		else:
-			build_cell = world_to_cell(get_global_mouse_position())
-			build_site_ok = _build_site_ok(build_cell)
+			var raw_cell := world_to_cell(get_global_mouse_position())
+			if _build_site_ok(raw_cell):
+				build_cell = raw_cell
+			elif not _build_site_ok(build_cell):
+				build_cell = _nearest_build_cell(raw_cell)
+			build_site_ok = true
 			build_reason = can_place(build_cell)
 			build_valid = build_reason == ""
 	queue_redraw()
