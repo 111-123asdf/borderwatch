@@ -28,6 +28,9 @@ var hero_selecting := false
 var relic_panel: Panel
 var relic_selecting := false
 var passive_panel: Panel
+var passive_buttons: Array[Button] = []
+var passive_selected := ""
+var passive_confirm: Button
 var build_palette: Panel
 var palette_buttons := {}
 var tower_panel: Panel
@@ -258,9 +261,11 @@ func hide_relic_choice() -> void:
 func show_passive_choice(choices: Array[String], source: String) -> void:
 	if passive_panel != null:
 		passive_panel.queue_free()
+	passive_buttons.clear()
+	passive_selected = ""
 	passive_panel = Panel.new()
-	passive_panel.position = Vector2(-360, -230)
-	passive_panel.size = Vector2(720, 460)
+	passive_panel.position = Vector2(-360, -250)
+	passive_panel.size = Vector2(720, 500)
 	passive_panel.set_anchors_preset(Control.PRESET_CENTER, true)
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color("162b2b")
@@ -277,7 +282,7 @@ func show_passive_choice(choices: Array[String], source: String) -> void:
 	var subtitle := _label(Rect2(20, 60, 680, 24), 14, MUTED)
 	root.remove_child(subtitle)
 	passive_panel.add_child(subtitle)
-	subtitle.text = "三选一，效果立即生效" if source != "camp" else "营地宝匣三选一，效果立即生效"
+	subtitle.text = "先点一张卡，再点下方确认；不会一点就选"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	for index in range(choices.size()):
 		var key: String = choices[index]
@@ -289,12 +294,42 @@ func show_passive_choice(choices: Array[String], source: String) -> void:
 		button.add_theme_font_size_override("font_size", 16)
 		button.add_theme_color_override("font_color", CREAM)
 		_style_button(button)
-		button.pressed.connect(game.choose_passive.bind(key))
+		button.toggle_mode = false
+		button.pressed.connect(_select_passive.bind(key))
 		passive_panel.add_child(button)
+		passive_buttons.append(button)
+	passive_confirm = Button.new()
+	passive_confirm.position = Vector2(250, 432)
+	passive_confirm.size = Vector2(220, 44)
+	passive_confirm.text = "先选择一张卡"
+	passive_confirm.disabled = true
+	passive_confirm.add_theme_font_size_override("font_size", 17)
+	passive_confirm.add_theme_color_override("font_color", GOLD)
+	_style_button(passive_confirm)
+	passive_confirm.pressed.connect(_confirm_passive)
+	passive_panel.add_child(passive_confirm)
+
+func _select_passive(key: String) -> void:
+	passive_selected = key
+	for index in range(passive_buttons.size()):
+		var selected: bool = index < 3 and game.passive_choices.size() > index and game.passive_choices[index] == key
+		passive_buttons[index].modulate = Color(1.0, 0.9, 0.62) if selected else Color.WHITE
+	if passive_confirm != null:
+		passive_confirm.disabled = false
+		passive_confirm.text = "确认选择"
+
+func _confirm_passive() -> void:
+	if passive_selected == "":
+		return
+	var key := passive_selected
+	passive_selected = ""
+	if game != null:
+		game.choose_passive(key)
 
 func hide_passive_choice() -> void:
 	if passive_panel != null:
 		passive_panel.visible = false
+	passive_selected = ""
 	_release_focus()
 
 func _build_palette() -> void:
@@ -433,9 +468,9 @@ func _process(delta: float) -> void:
 	if game.build_mode and game.build_reason != "":
 		hint_label.text = "不能建造：" + game.build_reason
 	if game.build_mode:
-		build_label.text = "空格建造：点塔型图标或 1/2/3 建在锁定格 · 右键取消"
+		build_label.text = "空格建造：点图标或 1/2/3 直接建 · 右键取消"
 	else:
-		build_label.text = "空格建造 · 左键点塔升级/修理 · Q 技能 · R 重开"
+		build_label.text = "空格建造 · 1/2/3 直接建塔 · 左键点塔升级 · Q 技能 · R 重开"
 	_update_build_menu()
 	_update_tower_panel()
 	if game.boss != null and is_instance_valid(game.boss) and not game.boss.dead:

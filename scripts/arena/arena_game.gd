@@ -443,6 +443,12 @@ func build_from_menu(kind: String) -> void:
 		Engine.time_scale = sim_speed
 		get_viewport().gui_release_focus()
 
+func number_build(kind: String) -> void:
+	if not build_mode:
+		toggle_build_mode()
+		if not build_mode: return
+	build_from_menu(kind)
+
 func select_tower_at_mouse() -> void:
 	if not running: return
 	var tower := nearest_tower(get_global_mouse_position(), 58.0)
@@ -901,14 +907,11 @@ func _unhandled_input(event: InputEvent) -> void:
 				toggle_build_mode()
 				get_viewport().set_input_as_handled()
 			KEY_1:
-				if build_mode: build_from_menu("bolt")
-				else: set_build_kind("bolt")
+				number_build("bolt")
 			KEY_2:
-				if build_mode: build_from_menu("cannon")
-				else: set_build_kind("cannon")
+				number_build("cannon")
 			KEY_3:
-				if build_mode: build_from_menu("frost")
-				else: set_build_kind("frost")
+				number_build("frost")
 			KEY_E: repair_nearest()
 			KEY_R: get_tree().reload_current_scene()
 
