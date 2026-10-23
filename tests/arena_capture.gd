@@ -28,7 +28,10 @@ func _run() -> void:
 	await create_timer(1.4).timeout
 	await capture("field")
 	game.toggle_build_mode()
-	await create_timer(0.7).timeout
+	await create_timer(0.55).timeout
+	var preview_screen: Vector2 = game.get_viewport().get_canvas_transform() * game.cell_center(Vector2i(24, 20))
+	Input.warp_mouse(preview_screen)
+	await create_timer(0.35).timeout
 	await capture("build")
 	game.select_tower(game.towers[0])
 	await create_timer(0.2).timeout

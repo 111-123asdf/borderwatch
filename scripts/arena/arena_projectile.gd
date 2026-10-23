@@ -10,6 +10,7 @@ var splash := 0.0
 var slow := 0.0
 var hostile := false
 var pierce := 0
+var execute_bonus := 0.0
 var hit_ids := {}
 var life := 1.6
 
@@ -34,8 +35,13 @@ func _physics_process(delta: float) -> void:
 			hit_ids[enemy_id] = true
 			if splash > 0.0:
 				game.damage_radius(position, splash, damage)
+				game.hit_feedback(position, damage)
 			else:
-				enemy.take_damage(damage)
+				var applied := damage
+				if execute_bonus > 0.0 and enemy.health < enemy.max_health * 0.35:
+					applied *= 1.0 + execute_bonus
+				enemy.take_damage(applied)
+				game.hit_feedback(enemy.center(), applied)
 			enemy.slow_time = maxf(enemy.slow_time, slow)
 			if pierce > 0:
 				pierce -= 1

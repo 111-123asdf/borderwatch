@@ -22,8 +22,8 @@ var hero_selected := false
 var game_over := false
 var victory := false
 var gold := START_GOLD
-var core_health := 340.0
-var core_max := 340.0
+var core_health := 400.0
+var core_max := 400.0
 var cycle := 1
 var phase := "rest"
 var phase_clock := 5.0
@@ -53,6 +53,7 @@ var build_mode := false
 var build_kind := "bolt"
 var build_cell := Vector2i(-1, -1)
 var build_valid := false
+var build_site_ok := false
 var build_reason := ""
 var selected_tower: ArenaTower
 var focus := 4.0
@@ -60,6 +61,9 @@ var focus_max := 4.0
 var sim_speed := 1.0
 var elapsed := 0.0
 var shake_amount := 0.0
+var bolts: Array[Dictionary] = []
+var rings: Array[Dictionary] = []
+var floaters: Array[Dictionary] = []
 var camps_cleared := 0
 var camp_weapons := ["sword", "sniper", "boomerang"]
 var relics: Array[String] = []
@@ -85,8 +89,15 @@ const PASSIVES := {
 	"greed": {"name": "贪婪", "desc": "金币获取 +25%"},
 	"scholar": {"name": "博学", "desc": "经验获取 +25%"},
 	"multishot": {"name": "分裂", "desc": "额外弹道 +1"},
+	"chain": {"name": "连锁", "desc": "每第 3 发弹射两名敌人"},
+	"nova": {"name": "霜环", "desc": "每第 5 发冻结周围敌人"},
+	"execute": {"name": "处决", "desc": "对 35% 以下敌人伤害 +60%"},
+	"deathblast": {"name": "尸爆", "desc": "敌人死亡时爆炸"},
+	"storm": {"name": "雷暴", "desc": "每 6 秒劈向最近敌人"},
+	"lifesteal": {"name": "吸血", "desc": "击杀回复 6 生命"},
+	"dash_reset": {"name": "猎杀", "desc": "击杀减少技能冷却 1 秒"},
 }
-const CAMP_PASSIVES := ["power", "rapid", "crit", "multishot", "pierce", "blast", "aegis", "vitality", "focus", "greed", "scholar", "frost", "magnet", "swift"]
+const CAMP_PASSIVES := ["power", "rapid", "crit", "multishot", "pierce", "blast", "aegis", "vitality", "focus", "greed", "scholar", "frost", "magnet", "swift", "chain", "nova", "execute", "deathblast", "storm", "lifesteal", "dash_reset"]
 var debug := {
 	"leaks": 0,
 	"leak_damage": 0.0,
@@ -115,7 +126,7 @@ func _ready() -> void:
 	hero.configure("knight")
 	camera = Camera2D.new()
 	camera.position = CORE
-	camera.zoom = Vector2(0.58, 0.58)
+	camera.zoom = Vector2(0.72, 0.72)
 	add_child(camera)
 	camera.make_current()
 	hud = ArenaHUD.new()
@@ -140,7 +151,7 @@ func _configure_input() -> void:
 		"move_right": [KEY_D, KEY_RIGHT],
 		"move_up": [KEY_W, KEY_UP],
 		"move_down": [KEY_S, KEY_DOWN],
-		"skill": [KEY_SPACE],
+		"skill": [KEY_Q],
 		"repair": [KEY_E],
 		"restart": [KEY_R],
 	}
@@ -290,6 +301,18 @@ func _tower_at(cell: Vector2i) -> ArenaTower:
 		if is_instance_valid(tower) and tower.cell == cell: return tower
 	return null
 
+func _build_site_ok(cell: Vector2i) -> bool:
+	if cell.x < 0 or cell.y < 0 or cell.x >= GRID_W or cell.y >= GRID_H: return false
+	var point := cell_center(cell)
+	if point.distance_to(CORE) < CORE_EXCLUSION: return false
+	if point.distance_to(CORE) > BUILD_RADIUS: return false
+	if blocked[cell_index(cell)]: return false
+	for oy in range(-1, 2):
+		for ox in range(-1, 2):
+			if ox == 0 and oy == 0: continue
+			if _tower_at(cell + Vector2i(ox, oy)) != null: return false
+	return true
+
 func place_tower(cell: Vector2i) -> bool:
 	var reason := can_place(cell)
 	if reason != "":
@@ -372,8 +395,11 @@ func set_build_kind(kind: String) -> void:
 
 func toggle_build_mode() -> void:
 	if game_over or not running: return
+	get_viewport().gui_release_focus()
 	if build_mode:
 		build_mode = false
+		selected_tower = null
+		hud.show_tower_panel(null)
 		Engine.time_scale = sim_speed
 		return
 	if phase != "rest" and focus <= 0.0:
@@ -382,6 +408,20 @@ func toggle_build_mode() -> void:
 	build_mode = true
 	selected_tower = null
 	hud.show_tower_panel(null)
+	build_cell = world_to_cell(get_global_mouse_position())
+	build_reason = can_place(build_cell)
+	build_valid = build_reason == ""
+
+func build_from_menu(kind: String) -> void:
+	if not build_mode: return
+	set_build_kind(kind)
+	if build_cell.x < 0:
+		hud.toast("先选一个建造位置", 2)
+		return
+	if place_tower(build_cell):
+		build_mode = false
+		Engine.time_scale = sim_speed
+		get_viewport().gui_release_focus()
 
 func select_tower_at_mouse() -> void:
 	if not running: return
@@ -431,7 +471,7 @@ func start_spawn() -> void:
 	expire_normal_drops()
 	phase = "spawn"
 	phase_clock = 30.0
-	spawn_budget = 26 + 8 * (cycle - 1)
+	spawn_budget = 30 + 9 * (cycle - 1)
 	spawn_interval = 30.0 / maxf(1.0, ceilf(float(spawn_budget) / 4.0))
 	spawn_timer = 0.0
 	if cycle >= 6 and not boss_spawned:
@@ -571,6 +611,7 @@ func spawn_cluster() -> void:
 		var kind := "torch"
 		if cycle >= 2 and rng.randf() < 0.25: kind = "shooter"
 		if cycle >= 3 and rng.randf() < 0.16: kind = "charger"
+		if cycle >= 3 and rng.randf() < 0.10: kind = "bomber"
 		if cycle >= 3 and rng.randf() < 0.18: kind = "barrel"
 		if cycle >= 4 and rng.randf() < 0.08: kind = "sapper"
 		if cycle >= 4 and rng.randf() < 0.12: kind = "brute"
@@ -580,6 +621,7 @@ func spawn_cluster() -> void:
 		if kind == "barrel": health *= 1.6
 		if kind == "sapper": health *= 2.2
 		if kind == "charger": health *= 0.75
+		if kind == "bomber": health *= 1.5
 		if kind == "brute": health *= 3.0
 		if kind == "shielded": health *= 2.2
 		if kind == "armored": health *= 2.6
@@ -634,6 +676,13 @@ func enemy_died(enemy: ArenaEnemy) -> void:
 		spawn_drop(enemy.position, 6, 5, false)
 	if boss_dead and cycle >= 6 and enemies.is_empty():
 		finish(true)
+	if hero != null:
+		if hero.passives.has("lifesteal"):
+			hero.health = minf(hero.max_health, hero.health + 6.0)
+		if hero.passives.has("dash_reset"):
+			hero.skill_cooldown = maxf(0.0, hero.skill_cooldown - 1.0)
+		if hero.passives.has("deathblast"):
+			damage_radius(enemy.position, 80.0, 38.0)
 
 func enemy_escaped(enemy: ArenaEnemy) -> void:
 	enemies.erase(enemy)
@@ -716,7 +765,7 @@ func nearest_enemy(point: Vector2, radius: float) -> ArenaEnemy:
 			result = enemy
 	return result
 
-func spawn_projectile(origin: Vector2, target: Vector2, damage: float, color: Color, splash := 0.0, slow := 0.0, speed := 760.0, pierce := 0) -> ArenaProjectile:
+func spawn_projectile(origin: Vector2, target: Vector2, damage: float, color: Color, splash := 0.0, slow := 0.0, speed := 760.0, pierce := 0, execute_bonus := 0.0) -> ArenaProjectile:
 	var projectile := ArenaProjectile.new()
 	projectile.game = self
 	projectile.position = origin
@@ -727,6 +776,7 @@ func spawn_projectile(origin: Vector2, target: Vector2, damage: float, color: Co
 	projectile.splash = splash
 	projectile.slow = slow
 	projectile.pierce = pierce
+	projectile.execute_bonus = execute_bonus
 	add_child(projectile)
 	return projectile
 
@@ -742,6 +792,50 @@ func enemy_shot(origin: Vector2, target: Vector2, damage: float, speed := 190.0)
 	add_child(projectile)
 	projectile.add_to_group("hostile_projectile")
 	return projectile
+
+func chain_strike(origin: Vector2, damage: float, jumps: int) -> void:
+	var from := origin
+	var hit: Array[int] = []
+	for index in range(jumps):
+		var target: ArenaEnemy
+		var best := 360.0
+		for enemy in enemies:
+			if not is_instance_valid(enemy) or enemy.dead: continue
+			if enemy.get_instance_id() in hit: continue
+			var distance := from.distance_to(enemy.position)
+			if distance < best:
+				best = distance
+				target = enemy
+		if target == null: break
+		hit.append(target.get_instance_id())
+		bolts.append({"start": from, "end": target.center(), "life": 0.14})
+		target.take_damage(damage)
+		from = target.center()
+	shake(2.0)
+
+func frost_nova(point: Vector2, radius: float, damage: float, slow: float) -> void:
+	rings.append({"point": point, "radius": radius, "life": 0.35})
+	for enemy in enemies.duplicate():
+		if is_instance_valid(enemy) and not enemy.dead and enemy.position.distance_to(point) < radius:
+			enemy.take_damage(damage)
+			enemy.slow_time = maxf(enemy.slow_time, slow)
+	shake(3.0)
+
+func storm_strike(target: ArenaEnemy, damage: float) -> void:
+	if not is_instance_valid(target): return
+	bolts.append({"start": target.center() + Vector2(0, -320), "end": target.center(), "life": 0.18})
+	target.take_damage(damage)
+	shake(4.0)
+
+func hit_feedback(point: Vector2, amount: float) -> void:
+	if amount <= 0.0: return
+	floaters.append({
+		"point": point + Vector2(randf_range(-12, 12), randf_range(-8, 8)),
+		"text": str(int(round(amount))),
+		"life": 0.5,
+		"max_life": 0.5,
+	})
+	shake(minf(3.0, amount * 0.03))
 
 func clear_hostile_projectiles() -> void:
 	for projectile in get_tree().get_nodes_in_group("hostile_projectile"):
@@ -760,12 +854,13 @@ func _set_phase_text(text: String) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_RIGHT:
-			toggle_build_mode()
-			get_viewport().set_input_as_handled()
+			if build_mode:
+				toggle_build_mode()
+				get_viewport().set_input_as_handled()
 			return
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			if build_mode:
-				try_build_at_mouse()
+				select_tower_at_mouse()
 				get_viewport().set_input_as_handled()
 				return
 			select_tower_at_mouse()
@@ -774,6 +869,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
+			KEY_SPACE:
+				toggle_build_mode()
+				get_viewport().set_input_as_handled()
 			KEY_1: set_build_kind("bolt")
 			KEY_2: set_build_kind("cannon")
 			KEY_3: set_build_kind("frost")
@@ -787,33 +885,45 @@ func _process(delta: float) -> void:
 	_update_build_mode(delta)
 	_update_phase(delta)
 	_update_camera(delta)
+	for bolt in bolts: bolt.life -= delta
+	bolts = bolts.filter(func(item): return item.life > 0.0)
+	for ring in rings: ring.life -= delta
+	rings = rings.filter(func(item): return item.life > 0.0)
+	for floater in floaters: floater.life -= delta
+	floaters = floaters.filter(func(item): return item.life > 0.0)
 	if build_mode:
-		build_cell = world_to_cell(get_global_mouse_position())
-		build_reason = can_place(build_cell)
-		build_valid = build_reason == ""
+		var mouse_screen := get_viewport().get_mouse_position()
+		if hud.build_palette.visible and hud.build_palette.get_global_rect().has_point(mouse_screen):
+			pass
+		else:
+			build_cell = world_to_cell(get_global_mouse_position())
+			build_site_ok = _build_site_ok(build_cell)
+			build_reason = can_place(build_cell)
+			build_valid = build_reason == ""
 	queue_redraw()
 
 func _update_build_mode(delta: float) -> void:
 	if build_mode and phase != "rest":
-		focus = maxf(0.0, focus - delta / 0.35)
+		focus = maxf(0.0, focus - delta / 0.45)
 		if focus <= 0.0:
 			build_mode = false
 	if not build_mode:
 		focus = minf(focus_max, focus + delta * 0.9)
-	Engine.time_scale = 0.35 if build_mode else sim_speed
+	Engine.time_scale = 0.45 if build_mode else sim_speed
 
 func _update_camera(delta: float) -> void:
 	var target := CORE
-	var zoom := 0.58
+	var zoom := 0.72
 	if build_mode:
 		target = CORE
-		zoom = 0.46
+		zoom = 0.60
 	elif hero != null:
-		target = (hero.position + hero.velocity * 0.16).clamp(Vector2(500, 500), ARENA_SIZE - Vector2(500, 500))
-		zoom = 0.64
-	camera.position = camera.position.lerp(target, 1.0 - exp(-5.0 * delta))
-	camera.zoom = camera.zoom.lerp(Vector2(zoom, zoom), 1.0 - exp(-6.0 * delta))
-	shake_amount = maxf(0.0, shake_amount - delta * 24.0)
+		var framing := hero.position * 0.72 + CORE * 0.28 + hero.velocity * 0.12
+		target = framing.clamp(Vector2(420, 420), ARENA_SIZE - Vector2(420, 420))
+		zoom = 0.78
+	camera.position = camera.position.lerp(target, 1.0 - exp(-6.0 * delta))
+	camera.zoom = camera.zoom.lerp(Vector2(zoom, zoom), 1.0 - exp(-7.0 * delta))
+	shake_amount = maxf(0.0, shake_amount - delta * 28.0)
 	camera.offset = Vector2(randf_range(-shake_amount, shake_amount), randf_range(-shake_amount, shake_amount))
 
 func shake(amount: float) -> void:
@@ -879,6 +989,14 @@ func _draw() -> void:
 	for rock in obstacles:
 		draw_rect(rock, Color("4a4d44"))
 		draw_rect(rock, Color("252b25"), false, 3)
+	for bolt in bolts:
+		draw_line(bolt.start, bolt.end, Color(0.7, 0.95, 1.0, bolt.life / 0.18), 4, true)
+		draw_line(bolt.start, bolt.end, Color.WHITE, 1.5, true)
+	for ring in rings:
+		var progress: float = 1.0 - ring.life / 0.35
+		draw_arc(ring.point, ring.radius * (0.4 + progress * 0.6), 0, TAU, 40, Color(0.65, 0.95, 1.0, ring.life / 0.35), 4, true)
+	for floater in floaters:
+		draw_string(ThemeDB.fallback_font, floater.point, floater.text, HORIZONTAL_ALIGNMENT_CENTER, -1, 14, Color(1.0, 0.9, 0.55, floater.life / floater.max_life))
 	if build_mode:
 		for cell in range(GRID_W * GRID_H):
 			if reach[cell] == 0: continue

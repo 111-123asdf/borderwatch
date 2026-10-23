@@ -194,6 +194,12 @@ func hide_hero_select() -> void:
 	hero_selecting = false
 	if hero_panel != null:
 		hero_panel.visible = false
+	_release_focus()
+
+func _release_focus() -> void:
+	var viewport := get_viewport()
+	if viewport != null:
+		viewport.gui_release_focus()
 
 func show_relic_choice(group: String) -> void:
 	relic_selecting = true
@@ -239,6 +245,7 @@ func hide_relic_choice() -> void:
 	relic_selecting = false
 	if relic_panel != null:
 		relic_panel.visible = false
+	_release_focus()
 
 func show_passive_choice(choices: Array[String], source: String) -> void:
 	if passive_panel != null:
@@ -280,12 +287,11 @@ func show_passive_choice(choices: Array[String], source: String) -> void:
 func hide_passive_choice() -> void:
 	if passive_panel != null:
 		passive_panel.visible = false
+	_release_focus()
 
 func _build_palette() -> void:
 	build_palette = Panel.new()
-	build_palette.position = Vector2(-280, -190)
-	build_palette.size = Vector2(560, 98)
-	build_palette.set_anchors_preset(Control.PRESET_CENTER_BOTTOM, true)
+	build_palette.size = Vector2(276, 92)
 	build_palette.visible = false
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color("142a28")
@@ -298,17 +304,28 @@ func _build_palette() -> void:
 	for kind in ["bolt", "cannon", "frost"]:
 		var data: Dictionary = ArenaTower.STATS[kind]
 		var button := Button.new()
-		button.position = Vector2(8 + index * 182, 8)
-		button.size = Vector2(174, 82)
-		button.toggle_mode = true
-		button.text = "%s\n%d 金" % [data.name, data.cost]
-		button.add_theme_font_size_override("font_size", 15)
+		button.position = Vector2(8 + index * 88, 8)
+		button.size = Vector2(82, 76)
+		button.text = "%s\n%d金" % [data.name, data.cost]
+		button.add_theme_font_size_override("font_size", 13)
 		button.add_theme_color_override("font_color", CREAM)
 		_style_button(button)
-		button.pressed.connect(game.set_build_kind.bind(kind))
+		button.pressed.connect(game.build_from_menu.bind(kind))
 		build_palette.add_child(button)
 		palette_buttons[kind] = button
 		index += 1
+
+func _update_build_menu() -> void:
+	if not game.build_mode or not game.build_site_ok or game.build_cell.x < 0:
+		build_palette.visible = false
+		return
+	var screen: Vector2 = game.get_viewport().get_canvas_transform() * game.cell_center(game.build_cell)
+	var viewport_size: Vector2 = game.get_viewport().get_visible_rect().size
+	var position := screen + Vector2(34, -104)
+	position.x = clampf(position.x, 12, viewport_size.x - build_palette.size.x - 12)
+	position.y = clampf(position.y, 12, viewport_size.y - build_palette.size.y - 12)
+	build_palette.position = position
+	build_palette.visible = true
 
 func _build_tower_panel() -> void:
 	tower_panel = Panel.new()
@@ -353,6 +370,7 @@ func _build_tower_panel() -> void:
 func show_tower_panel(tower: ArenaTower) -> void:
 	if tower == null:
 		tower_panel.visible = false
+		_release_focus()
 		return
 	tower_panel.visible = true
 	_update_tower_panel()
@@ -382,7 +400,7 @@ func _process(delta: float) -> void:
 		node.visible = show_hud
 	core_bar.visible = show_hud
 	focus_bar.visible = show_hud and game.build_mode
-	build_palette.visible = show_hud and game.build_mode
+	build_palette.visible = false
 	boss_label.visible = show_hud and game.boss != null and is_instance_valid(game.boss) and not game.boss.dead
 	boss_bar.visible = boss_label.visible
 	if hero_selecting or relic_selecting or game.passive_selecting:
@@ -402,12 +420,10 @@ func _process(delta: float) -> void:
 	if game.build_mode and game.build_reason != "":
 		hint_label.text = "不能建造：" + game.build_reason
 	if game.build_mode:
-		var stats: Dictionary = ArenaTower.STATS[game.build_kind]
-		build_label.text = "建造 %s · %d 金 · 左键放塔 / 点塔升级 · 右键退出" % [stats.name, stats.cost]
+		build_label.text = "空格建造：点塔型图标建在光标处 · 右键取消"
 	else:
-		build_label.text = "右键建造 · 左键点塔升级/修理 · Space 技能 · R 重开"
-	for key in palette_buttons:
-		palette_buttons[key].button_pressed = key == game.build_kind
+		build_label.text = "空格建造 · 左键点塔升级/修理 · Q 技能 · R 重开"
+	_update_build_menu()
 	_update_tower_panel()
 	if game.boss != null and is_instance_valid(game.boss) and not game.boss.dead:
 		boss_label.text = "焚林统领  %d / %d" % [game.boss.health, game.boss.max_health]

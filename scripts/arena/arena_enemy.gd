@@ -17,6 +17,9 @@ var boss_core_cooldown := 0.0
 var visual: ActorVisual
 var hit_flash := 0.0
 
+func center() -> Vector2:
+	return position + Vector2(0, -24 if kind != "boss" else -46)
+
 func _ready() -> void:
 	visual = ActorVisual.new()
 	add_child(visual)
@@ -30,6 +33,12 @@ func _ready() -> void:
 		factor = 0.82
 		speed = 128.0
 		radius = 20.0
+	elif kind == "bomber":
+		family = "barrel"
+		color = "Purple"
+		factor = 0.92
+		speed = 58.0
+		radius = 24.0
 	elif kind == "brute":
 		family = "barrel"
 		color = "Blue"
@@ -64,9 +73,9 @@ func _ready() -> void:
 	if elite:
 		radius *= 1.3
 		speed *= 0.90
-		visual.scale = Vector2.ONE * 0.78
+		visual.scale = Vector2.ONE * 0.96
 	else:
-		visual.scale = Vector2.ONE * 0.62
+		visual.scale = Vector2.ONE * 0.78
 
 func _physics_process(delta: float) -> void:
 	if dead or not game.running or game.game_over: return
@@ -106,11 +115,12 @@ func _physics_process(delta: float) -> void:
 		position += direction * speed * slow_factor * delta
 	var visual_motion := Vector2.ZERO if boss_holding else direction * speed
 	visual.advance(delta, visual_motion, direction)
-	if kind in ["shooter", "boss"] and game.hero != null:
-		var shot_range := 430.0 if kind == "shooter" else 520.0
+	if kind in ["shooter", "boss", "bomber"] and game.hero != null:
+		var shot_range := 430.0 if kind == "shooter" else (520.0 if kind == "boss" else 480.0)
 		if position.distance_to(game.hero.position) < shot_range and ranged_cooldown <= 0.0:
-			ranged_cooldown = 1.8 if kind == "shooter" else 1.3
-			game.enemy_shot(position + Vector2(0, -24), game.hero.center(), 7.0 if kind == "shooter" else 12.0, 190.0 if kind == "shooter" else 230.0)
+			ranged_cooldown = 1.8 if kind == "shooter" else (1.3 if kind == "boss" else 2.1)
+			var shot_damage := 7.0 if kind == "shooter" else (12.0 if kind == "boss" else 10.0)
+			game.enemy_shot(position + Vector2(0, -24), game.hero.center(), shot_damage, 190.0 if kind == "shooter" else (230.0 if kind == "boss" else 170.0))
 	if kind == "boss":
 		if core_distance < 300.0 and boss_core_cooldown <= 0.0:
 			boss_core_cooldown = 1.0
@@ -159,3 +169,5 @@ func _draw() -> void:
 		draw_arc(Vector2.ZERO, 46, 0, TAU, 32, Color(0.9, 0.45, 0.35, 0.6), 4, true)
 	if elite:
 		draw_arc(Vector2.ZERO, radius + 8, 0, TAU, 24, Color(1.0, 0.85, 0.4, 0.7), 3, true)
+	if kind == "bomber":
+		draw_arc(Vector2.ZERO, 28, 0, TAU, 20, Color(0.8, 0.55, 1.0, 0.45), 3, true)

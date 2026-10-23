@@ -40,6 +40,8 @@ var skill_cd_mult := 1.0
 var gold_mult := 1.0
 var xp_mult := 1.0
 var multishot := 0
+var shots_fired := 0
+var storm_cooldown := 0.0
 
 func _ready() -> void:
 	collision_layer = 2
@@ -61,7 +63,7 @@ func configure(key: String) -> void:
 	health = max_health
 	max_shield = float(data.shield)
 	shield = max_shield
-	speed = float(data.speed) * 1.12
+	speed = float(data.speed) * 1.20
 	if key == "ranger":
 		max_health += 10.0
 		health = max_health
@@ -80,7 +82,7 @@ func configure(key: String) -> void:
 	dash_time = 0.0
 	weapon_key = String(data.start)
 	weapon_level = 1
-	visual.setup("player", String(data.color), 0.9, true)
+	visual.setup("player", String(data.color), 1.05, true)
 	visual.hero_identity = key
 	visual.held_weapon = weapon_key
 
@@ -123,11 +125,14 @@ func apply_passive(key: String) -> void:
 		"greed": gold_mult += 0.25
 		"scholar": xp_mult += 0.25
 		"multishot": multishot += 1
+		"chain", "nova", "execute", "deathblast", "storm", "lifesteal", "dash_reset":
+			pass
 
 func _physics_process(delta: float) -> void:
 	if not game.running or game.game_over: return
 	fire_cooldown = maxf(0.0, fire_cooldown - delta)
 	skill_cooldown = maxf(0.0, skill_cooldown - delta)
+	storm_cooldown = maxf(0.0, storm_cooldown - delta)
 	skill_time = maxf(0.0, skill_time - delta)
 	barrier_time = maxf(0.0, barrier_time - delta)
 	invulnerability = maxf(0.0, invulnerability - delta)
@@ -140,7 +145,7 @@ func _physics_process(delta: float) -> void:
 		velocity = dash_direction * 620.0
 	else:
 		var desired_velocity := movement * speed * speed_mult
-		var acceleration := 2600.0 if movement.length() > 0.1 else 3200.0
+		var acceleration := 3000.0 if movement.length() > 0.1 else 3800.0
 		velocity = velocity.move_toward(desired_velocity, acceleration * delta)
 	move_and_slide()
 	position = position.clamp(Vector2(50, 50), game.ARENA_SIZE - Vector2(50, 50))
@@ -153,6 +158,9 @@ func _physics_process(delta: float) -> void:
 		facing = aim
 		if Input.is_action_pressed("shoot") and not game.build_mode and fire_cooldown <= 0.0:
 			fire(target)
+	if passives.has("storm") and storm_cooldown <= 0.0 and target != null:
+		storm_cooldown = 6.0
+		game.storm_strike(target, 48.0 + level * 3.0)
 	visual.dual_active = class_id == "knight" and skill_time > 0.0
 	visual.advance(delta, velocity, facing)
 	queue_redraw()
@@ -168,25 +176,37 @@ func fire(target: ArenaEnemy) -> void:
 	if randf() < crit_chance: base_damage *= 2.0
 	var weapon_color: Color = definition.color
 	var dual := class_id == "knight" and skill_time > 0.0
+	var execute_bonus := 0.6 if passives.has("execute") else 0.0
+	shots_fired += 1
 	visual.attack(direction, 0.18)
 	if weapon_key == "sword":
 		game.damage_radius(center() + direction * 55, float(definition.reach), base_damage * (2.0 if dual else 1.0))
 		return
 	if weapon_key == "scatter":
 		for angle in [-0.24, -0.12, 0.0, 0.12, 0.24]:
-			game.spawn_projectile(center(), center() + direction.rotated(angle) * 800.0, base_damage, weapon_color, splash_bonus, slow_bonus, 900.0)
+			game.spawn_projectile(center(), center() + direction.rotated(angle) * 800.0, base_damage, weapon_color, splash_bonus, slow_bonus, 900.0, 0, execute_bonus)
+		_trigger_on_hit(target, base_damage)
 		return
 	if weapon_key == "sniper":
-		game.spawn_projectile(center(), center() + direction * 800.0, base_damage, weapon_color, splash_bonus, slow_bonus, 1100.0, 3 + pierce_bonus)
+		game.spawn_projectile(center(), center() + direction * 800.0, base_damage, weapon_color, splash_bonus, slow_bonus, 1100.0, 3 + pierce_bonus, execute_bonus)
+		_trigger_on_hit(target, base_damage)
 		return
 	if weapon_key == "boomerang":
 		for angle in [-0.12, 0.12]:
-			game.spawn_projectile(center(), center() + direction.rotated(angle) * 800.0, base_damage, weapon_color, splash_bonus, slow_bonus, 700.0, pierce_bonus)
+			game.spawn_projectile(center(), center() + direction.rotated(angle) * 800.0, base_damage, weapon_color, splash_bonus, slow_bonus, 700.0, pierce_bonus, execute_bonus)
+		_trigger_on_hit(target, base_damage)
 		return
 	var shots := (2 if dual else 1) + multishot
 	for index in range(shots):
 		var offset := (index - (shots - 1) * 0.5) * 22.0
-		game.spawn_projectile(center() + direction.orthogonal() * offset, center() + direction * 800.0 + direction.orthogonal() * offset, base_damage, weapon_color, splash_bonus, slow_bonus, 900.0, pierce_bonus)
+		game.spawn_projectile(center() + direction.orthogonal() * offset, center() + direction * 800.0 + direction.orthogonal() * offset, base_damage, weapon_color, splash_bonus, slow_bonus, 900.0, pierce_bonus, execute_bonus)
+	_trigger_on_hit(target, base_damage)
+
+func _trigger_on_hit(target: ArenaEnemy, base_damage: float) -> void:
+	if passives.has("chain") and shots_fired % 3 == 0:
+		game.chain_strike(center(), base_damage * 0.6, 2)
+	if passives.has("nova") and shots_fired % 5 == 0 and is_instance_valid(target):
+		game.frost_nova(target.position, 90.0, base_damage * 0.35, 2.0)
 
 func use_skill(movement: Vector2) -> void:
 	skill_cooldown = skill_cooldown_max * skill_cd_mult
