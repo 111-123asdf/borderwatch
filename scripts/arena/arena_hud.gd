@@ -9,6 +9,7 @@ const GOLD := Color("e7c47b")
 var game: Node2D
 var root: Control
 var status: Label
+var shield_bar: ProgressBar
 var resources: Label
 var xp_label: Label
 var skill_label: Label
@@ -52,9 +53,15 @@ func _ready() -> void:
 	theme.default_font_size = 16
 	root.theme = theme
 	status = _label(Rect2(18, 16, 420, 28), 20, CREAM)
-	resources = _label(Rect2(18, 48, 420, 24), 16, GOLD)
-	xp_label = _label(Rect2(18, 74, 420, 24), 15, MUTED)
-	skill_label = _label(Rect2(18, 100, 460, 24), 15, Color("cfe3d4"))
+	shield_bar = ProgressBar.new()
+	shield_bar.position = Vector2(18, 44)
+	shield_bar.size = Vector2(220, 8)
+	shield_bar.show_percentage = false
+	_style_bar(shield_bar, Color("76c9f0"), Color("1b2c2a"))
+	root.add_child(shield_bar)
+	resources = _label(Rect2(18, 54, 420, 24), 16, GOLD)
+	xp_label = _label(Rect2(18, 78, 420, 24), 15, MUTED)
+	skill_label = _label(Rect2(18, 102, 460, 24), 15, Color("cfe3d4"))
 	phase_label = _label(Rect2(-320, 16, 640, 26), 20, GOLD)
 	phase_label.set_anchors_preset(Control.PRESET_CENTER_TOP, true)
 	phase_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -176,6 +183,7 @@ func show_hero_select() -> void:
 		hero_panel.add_child(button)
 
 func _style_button(button: Button) -> void:
+	button.focus_mode = Control.FOCUS_NONE
 	var normal := StyleBoxFlat.new()
 	normal.bg_color = Color("1e3a36")
 	normal.border_color = Color("58796d")
@@ -399,6 +407,7 @@ func _process(delta: float) -> void:
 	for node in [status, resources, xp_label, skill_label, phase_label, hint_label, core_label, build_label]:
 		node.visible = show_hud
 	core_bar.visible = show_hud
+	shield_bar.visible = show_hud
 	focus_bar.visible = show_hud and game.build_mode
 	build_palette.visible = false
 	boss_label.visible = show_hud and game.boss != null and is_instance_valid(game.boss) and not game.boss.dead
@@ -407,6 +416,8 @@ func _process(delta: float) -> void:
 		tower_panel.visible = false
 		return
 	status.text = "生命 %d/%d    护盾 %d/%d" % [game.hero.health, game.hero.max_health, game.hero.shield, game.hero.max_shield]
+	shield_bar.max_value = game.hero.max_shield
+	shield_bar.value = game.hero.shield
 	resources.text = "金币 %d    Lv.%d    击杀 %d" % [game.gold, game.hero.level, game.stats.kills]
 	xp_label.text = "经验 %d/%d    场上 %d    预算 %d" % [game.hero.xp, game.hero.xp_target, game.enemies.size(), game.spawn_budget]
 	skill_label.text = "武器 %s Lv.%d    技能 %s    %s" % [Rules.weapon(game.hero.weapon_key).name, game.hero.weapon_level, game.hero.skill_name, "冷却 %ds" % ceili(game.hero.skill_cooldown) if game.hero.skill_cooldown > 0.0 else "可用"]

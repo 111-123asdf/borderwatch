@@ -8,6 +8,8 @@ var health := 120.0
 var max_health := 120.0
 var shield := 60.0
 var max_shield := 60.0
+var shield_regen := 3.0
+var shield_regen_delay := 0.0
 var speed := 270.0
 var aim := Vector2.RIGHT
 var facing := Vector2.RIGHT
@@ -63,6 +65,8 @@ func configure(key: String) -> void:
 	health = max_health
 	max_shield = float(data.shield)
 	shield = max_shield
+	shield_regen = float(data.regen)
+	shield_regen_delay = 0.0
 	speed = float(data.speed) * 1.20
 	if key == "ranger":
 		max_health += 10.0
@@ -137,6 +141,9 @@ func _physics_process(delta: float) -> void:
 	barrier_time = maxf(0.0, barrier_time - delta)
 	invulnerability = maxf(0.0, invulnerability - delta)
 	hurt_flash = maxf(0.0, hurt_flash - delta)
+	shield_regen_delay = maxf(0.0, shield_regen_delay - delta)
+	if shield_regen_delay <= 0.0:
+		shield = minf(max_shield, shield + shield_regen * delta)
 	var movement := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	if Input.is_action_just_pressed("skill") and skill_cooldown <= 0.0:
 		use_skill(movement)
@@ -225,13 +232,18 @@ func use_skill(movement: Vector2) -> void:
 
 func take_damage(amount: float) -> void:
 	if invulnerability > 0.0 or game.game_over: return
+	var shield_before := shield
 	var shield_loss := minf(shield, amount)
 	shield -= shield_loss
 	health -= amount - shield_loss
+	shield_regen_delay = 3.0
 	invulnerability = 0.35
 	hurt_flash = 0.12
-	game.shake(5.0)
-	game.hud.toast("受伤", 0.8)
+	if shield_before > 0.0 and shield <= 0.0:
+		game.shake(8.0)
+		game.hud.toast("护盾破碎", 1.2)
+	else:
+		game.hud.toast("护盾吸收", 0.6)
 	if health <= 0.0:
 		health = 0.0
 		game.hero_died()
@@ -247,7 +259,8 @@ func add_xp(amount: int) -> void:
 func _draw() -> void:
 	draw_arc(Vector2(0, 2), 21, 0, TAU, 32, Color(0.65, 0.92, 0.82, 0.65), 1.5, true)
 	if shield > 0.0:
-		draw_arc(Vector2(0, -24), 31, -PI * 0.8, PI * 0.8, 28, Color(0.55, 0.85, 1.0, 0.35), 2, true)
+		var ratio := shield / max_shield
+		draw_arc(Vector2(0, -24), 31, -PI * 0.8, -PI * 0.8 + PI * 1.6 * ratio, 28, Color(0.55, 0.85, 1.0, 0.65), 2.5, true)
 	if barrier_time > 0.0:
 		draw_arc(Vector2(0, -10), 62, 0, TAU, 40, Color(0.65, 0.85, 1.0, 0.55), 3, true)
 	if hurt_flash > 0.0:

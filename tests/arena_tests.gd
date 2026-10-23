@@ -62,6 +62,13 @@ func _run() -> void:
 	game.build_valid = true
 	game.hud.palette_buttons["bolt"].emit_signal("pressed")
 	check(game.towers.size() == before_menu_build + 1, "Build menu icon places a tower")
+	var before_second_build: int = game.towers.size()
+	game.toggle_build_mode()
+	game.build_cell = game._nearest_build_cell(Vector2i(26, 20))
+	game.build_site_ok = true
+	game.build_valid = true
+	game.hud.palette_buttons["bolt"].emit_signal("pressed")
+	check(game.towers.size() == before_second_build + 1, "Build menu can be used again after a build")
 
 	game.hero.position = game.CORE + Vector2(160, 0)
 	var gold_before: int = game.gold
