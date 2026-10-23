@@ -26,6 +26,14 @@ var hero_panel: Panel
 var hero_selecting := false
 var relic_panel: Panel
 var relic_selecting := false
+var passive_panel: Panel
+var build_palette: Panel
+var palette_buttons := {}
+var tower_panel: Panel
+var tower_title: Label
+var tower_upgrade: Button
+var tower_repair: Button
+var tower_close: Button
 var toast_label: Label
 var toast_time := 0.0
 var phase_hint := ""
@@ -98,6 +106,8 @@ func _ready() -> void:
 	result_label = _label(Rect2(28, 28, 464, 220), 20, CREAM)
 	root.remove_child(result_label)
 	result_panel.add_child(result_label)
+	_build_palette()
+	_build_tower_panel()
 
 func _label(rect: Rect2, font_size: int, color: Color) -> Label:
 	var label := Label.new()
@@ -149,7 +159,7 @@ func show_hero_select() -> void:
 	var subtitle := _label(Rect2(20, 58, 620, 24), 14, MUTED)
 	root.remove_child(subtitle)
 	hero_panel.add_child(subtitle)
-	subtitle.text = "三名英雄各有主动；宝匣会带来旧模式武器"
+	subtitle.text = "三名英雄各有主动；营地宝匣会带来强力被动"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var keys := ["knight", "ranger", "mage"]
 	for index in range(keys.size()):
@@ -230,16 +240,153 @@ func hide_relic_choice() -> void:
 	if relic_panel != null:
 		relic_panel.visible = false
 
+func show_passive_choice(choices: Array[String], source: String) -> void:
+	if passive_panel != null:
+		passive_panel.queue_free()
+	passive_panel = Panel.new()
+	passive_panel.position = Vector2(-360, -230)
+	passive_panel.size = Vector2(720, 460)
+	passive_panel.set_anchors_preset(Control.PRESET_CENTER, true)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color("162b2b")
+	style.border_color = Color("d6bd7a")
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(10)
+	passive_panel.add_theme_stylebox_override("panel", style)
+	root.add_child(passive_panel)
+	var title := _label(Rect2(20, 20, 680, 34), 24, GOLD)
+	root.remove_child(title)
+	passive_panel.add_child(title)
+	title.text = "营地宝匣 · 强力被动" if source == "camp" else "升级 · 选择被动"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var subtitle := _label(Rect2(20, 60, 680, 24), 14, MUTED)
+	root.remove_child(subtitle)
+	passive_panel.add_child(subtitle)
+	subtitle.text = "三选一，效果立即生效" if source != "camp" else "营地宝匣三选一，效果立即生效"
+	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	for index in range(choices.size()):
+		var key: String = choices[index]
+		var data: Dictionary = game.passive_info(key)
+		var button := Button.new()
+		button.position = Vector2(40, 100 + index * 108)
+		button.size = Vector2(640, 96)
+		button.text = "%s  ·  %s\n%s" % [data.name, data.get("tag", "被动"), data.desc]
+		button.add_theme_font_size_override("font_size", 16)
+		button.add_theme_color_override("font_color", CREAM)
+		_style_button(button)
+		button.pressed.connect(game.choose_passive.bind(key))
+		passive_panel.add_child(button)
+
+func hide_passive_choice() -> void:
+	if passive_panel != null:
+		passive_panel.visible = false
+
+func _build_palette() -> void:
+	build_palette = Panel.new()
+	build_palette.position = Vector2(-280, -190)
+	build_palette.size = Vector2(560, 98)
+	build_palette.set_anchors_preset(Control.PRESET_CENTER_BOTTOM, true)
+	build_palette.visible = false
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color("142a28")
+	style.border_color = Color("58796d")
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(9)
+	build_palette.add_theme_stylebox_override("panel", style)
+	root.add_child(build_palette)
+	var index := 0
+	for kind in ["bolt", "cannon", "frost"]:
+		var data: Dictionary = ArenaTower.STATS[kind]
+		var button := Button.new()
+		button.position = Vector2(8 + index * 182, 8)
+		button.size = Vector2(174, 82)
+		button.toggle_mode = true
+		button.text = "%s\n%d 金" % [data.name, data.cost]
+		button.add_theme_font_size_override("font_size", 15)
+		button.add_theme_color_override("font_color", CREAM)
+		_style_button(button)
+		button.pressed.connect(game.set_build_kind.bind(kind))
+		build_palette.add_child(button)
+		palette_buttons[kind] = button
+		index += 1
+
+func _build_tower_panel() -> void:
+	tower_panel = Panel.new()
+	tower_panel.position = Vector2(-350, -250)
+	tower_panel.size = Vector2(330, 220)
+	tower_panel.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT, true)
+	tower_panel.visible = false
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color("142a28")
+	style.border_color = Color("d6bd7a")
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(9)
+	tower_panel.add_theme_stylebox_override("panel", style)
+	root.add_child(tower_panel)
+	tower_title = _label(Rect2(18, 14, 294, 28), 18, GOLD)
+	root.remove_child(tower_title)
+	tower_panel.add_child(tower_title)
+	tower_upgrade = Button.new()
+	tower_upgrade.position = Vector2(18, 60)
+	tower_upgrade.size = Vector2(294, 46)
+	tower_upgrade.add_theme_font_size_override("font_size", 15)
+	_style_button(tower_upgrade)
+	tower_upgrade.pressed.connect(game.upgrade_selected)
+	tower_panel.add_child(tower_upgrade)
+	tower_repair = Button.new()
+	tower_repair.position = Vector2(18, 116)
+	tower_repair.size = Vector2(140, 42)
+	tower_repair.text = "修理 30 金"
+	tower_repair.add_theme_font_size_override("font_size", 14)
+	_style_button(tower_repair)
+	tower_repair.pressed.connect(game.repair_selected)
+	tower_panel.add_child(tower_repair)
+	tower_close = Button.new()
+	tower_close.position = Vector2(172, 116)
+	tower_close.size = Vector2(140, 42)
+	tower_close.text = "关闭"
+	tower_close.add_theme_font_size_override("font_size", 14)
+	_style_button(tower_close)
+	tower_close.pressed.connect(game.close_tower_panel)
+	tower_panel.add_child(tower_close)
+
+func show_tower_panel(tower: ArenaTower) -> void:
+	if tower == null:
+		tower_panel.visible = false
+		return
+	tower_panel.visible = true
+	_update_tower_panel()
+
+func _update_tower_panel() -> void:
+	if game.selected_tower == null or not is_instance_valid(game.selected_tower):
+		tower_panel.visible = false
+		return
+	var tower: ArenaTower = game.selected_tower
+	tower_panel.visible = not hero_selecting and not relic_selecting and not game.passive_selecting
+	tower_title.text = "%s  Lv.%d" % [ArenaTower.STATS[tower.kind].name, tower.level]
+	if tower.level >= ArenaTower.MAX_LEVEL:
+		tower_upgrade.text = "已满级"
+		tower_upgrade.disabled = true
+	else:
+		tower_upgrade.text = "升级 Lv.%d · %d 金" % [tower.level + 1, tower.upgrade_price()]
+		tower_upgrade.disabled = game.gold < tower.upgrade_price()
+	tower_repair.disabled = tower.health >= tower.max_health or game.gold < 30
+
+func _update_tower_panel_old() -> void:
+	pass
+
 func _process(delta: float) -> void:
 	if game == null: return
-	var show_hud := not hero_selecting and not relic_selecting
+	var show_hud: bool = not hero_selecting and not relic_selecting and not game.passive_selecting
 	for node in [status, resources, xp_label, skill_label, phase_label, hint_label, core_label, build_label]:
 		node.visible = show_hud
 	core_bar.visible = show_hud
 	focus_bar.visible = show_hud and game.build_mode
+	build_palette.visible = show_hud and game.build_mode
 	boss_label.visible = show_hud and game.boss != null and is_instance_valid(game.boss) and not game.boss.dead
 	boss_bar.visible = boss_label.visible
-	if hero_selecting or relic_selecting:
+	if hero_selecting or relic_selecting or game.passive_selecting:
+		tower_panel.visible = false
 		return
 	status.text = "生命 %d/%d    护盾 %d/%d" % [game.hero.health, game.hero.max_health, game.hero.shield, game.hero.max_shield]
 	resources.text = "金币 %d    Lv.%d    击杀 %d" % [game.gold, game.hero.level, game.stats.kills]
@@ -256,18 +403,16 @@ func _process(delta: float) -> void:
 		hint_label.text = "不能建造：" + game.build_reason
 	if game.build_mode:
 		var stats: Dictionary = ArenaTower.STATS[game.build_kind]
-		build_label.text = "建造 %s · %d 金 · 左键放置 / 点已有塔升级 · 松开 B 退出" % [stats.name, stats.cost]
+		build_label.text = "建造 %s · %d 金 · 左键放塔 / 点塔升级 · 右键退出" % [stats.name, stats.cost]
 	else:
-		build_label.text = "B 慢速建造 · 1 弩 / 2 炮 / 3 霜 · 点已有塔升级 · E 修理 · Space 技能 · R 重开"
+		build_label.text = "右键建造 · 左键点塔升级/修理 · Space 技能 · R 重开"
+	for key in palette_buttons:
+		palette_buttons[key].button_pressed = key == game.build_kind
+	_update_tower_panel()
 	if game.boss != null and is_instance_valid(game.boss) and not game.boss.dead:
-		boss_label.visible = true
-		boss_bar.visible = true
 		boss_label.text = "焚林统领  %d / %d" % [game.boss.health, game.boss.max_health]
 		boss_bar.max_value = game.boss.max_health
 		boss_bar.value = game.boss.health
-	else:
-		boss_label.visible = false
-		boss_bar.visible = false
 	focus_bar.visible = game.build_mode
 	focus_bar.value = game.focus / game.focus_max * 100.0
 	toast_time = maxf(0.0, toast_time - delta)

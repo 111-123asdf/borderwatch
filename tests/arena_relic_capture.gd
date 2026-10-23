@@ -12,7 +12,7 @@ func _run() -> void:
 	game.start_with_hero("knight")
 	await process_frame
 	for drop in game.drops:
-		if is_instance_valid(drop) and drop.weapon_key != "":
+		if is_instance_valid(drop) and drop.cache:
 			game.hero.position = drop.position
 			break
 	await create_timer(0.4).timeout

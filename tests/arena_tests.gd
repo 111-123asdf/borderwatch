@@ -25,17 +25,25 @@ func _run() -> void:
 
 	var camp_drop: ArenaDrop
 	for drop in game.drops:
-		if is_instance_valid(drop) and drop.weapon_key != "":
+		if is_instance_valid(drop) and drop.cache:
 			camp_drop = drop
-	check(camp_drop != null, "The first rest spawns a camp weapon cache")
+	check(camp_drop != null, "The first rest spawns a camp chest")
 	if camp_drop != null:
 		game.hero.position = camp_drop.position
 		await create_timer(0.25).timeout
-		check(game.camps_cleared == 1, "Collecting a camp cache advances camp progression")
-		check(game.hero.weapon_key != "pistol", "Camp cache equips the old-mode weapon")
-		check(game.relic_choice_pending, "Camp cache opens a route choice")
-		game.choose_relic("lone")
-		check("lone" in game.relics, "Route choice applies to the arena run")
+		check(game.camps_cleared == 1, "Collecting a camp chest advances camp progression")
+		check(game.passive_selecting, "Camp chest opens a powerful passive choice")
+		var passive_key: String = game.passive_choices[0]
+		game.choose_passive(passive_key)
+		check(not game.passive_selecting, "Choosing a camp passive resumes the run")
+		check(game.hero.passives.size() > 0 or "lone" in game.relics or "swarm" in game.relics or "vanguard" in game.relics or "command" in game.relics or "raid" in game.relics or "hold" in game.relics, "Camp passive applies")
+
+	var level_before: int = game.hero.level
+	game.hero.add_xp(500)
+	check(game.passive_selecting, "Level up opens a passive choice")
+	while game.passive_selecting:
+		game.choose_passive(game.passive_choices[0])
+	check(game.hero.level > level_before, "Level up advances the hero")
 
 	game.gold = 600
 	game.build_kind = "bolt"

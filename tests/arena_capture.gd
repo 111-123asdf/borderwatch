@@ -27,10 +27,13 @@ func _run() -> void:
 		game.spawn_cluster()
 	await create_timer(1.4).timeout
 	await capture("field")
-	Input.action_press("build")
+	game.toggle_build_mode()
 	await create_timer(0.7).timeout
 	await capture("build")
-	Input.action_release("build")
+	game.select_tower(game.towers[0])
+	await create_timer(0.2).timeout
+	await capture("tower")
+	game.toggle_build_mode()
 	await create_timer(0.2).timeout
 	game.queue_free()
 	await process_frame

@@ -3,6 +3,8 @@ extends Node2D
 
 var game: Node2D
 var kind := "torch"
+var elite := false
+var boss_phase := 0
 var health := 60.0
 var max_health := 60.0
 var speed := 72.0
@@ -23,7 +25,18 @@ func _ready() -> void:
 	var factor := 0.76
 	if kind == "shooter":
 		family = "archer"
-	if kind == "sapper":
+	elif kind == "charger":
+		family = "torch"
+		factor = 0.82
+		speed = 128.0
+		radius = 20.0
+	elif kind == "brute":
+		family = "barrel"
+		color = "Blue"
+		factor = 1.08
+		speed = 46.0
+		radius = 32.0
+	elif kind == "sapper":
 		family = "tnt"
 		factor = 0.85
 		speed = 96.0
@@ -48,7 +61,12 @@ func _ready() -> void:
 		radius = 40.0
 		speed = 36.0
 	visual.setup(family, color, factor)
-	visual.scale = Vector2.ONE * 0.62
+	if elite:
+		radius *= 1.3
+		speed *= 0.90
+		visual.scale = Vector2.ONE * 0.78
+	else:
+		visual.scale = Vector2.ONE * 0.62
 
 func _physics_process(delta: float) -> void:
 	if dead or not game.running or game.game_over: return
@@ -64,12 +82,21 @@ func _physics_process(delta: float) -> void:
 			position += tower_direction * speed * delta
 			visual.advance(delta, tower_direction * speed, tower_direction)
 			if position.distance_to(tower.position) < 48.0:
-				tower.health -= 40.0 * delta
+				tower.health -= 32.0 * delta
 				if tower.health <= 0.0:
 					game.tower_destroyed(tower)
 			queue_redraw()
 			return
+	if kind == "boss":
+		if health < max_health * 0.66 and boss_phase == 0:
+			boss_phase = 1
+			game.boss_summon(position)
+		elif health < max_health * 0.33 and boss_phase == 1:
+			boss_phase = 2
+			game.boss_summon(position)
 	var direction: Vector2 = game.flow_at(position)
+	if kind == "charger" and game.hero != null and position.distance_to(game.hero.position) < 500.0:
+		direction = (game.hero.position - position).normalized()
 	if direction == Vector2.ZERO:
 		direction = (game.CORE - position).normalized()
 	var slow_factor := 0.55 if slow_time > 0.0 else 1.0
@@ -87,18 +114,23 @@ func _physics_process(delta: float) -> void:
 	if kind == "boss":
 		if core_distance < 300.0 and boss_core_cooldown <= 0.0:
 			boss_core_cooldown = 1.0
-			game.core_hit(18.0)
+			game.core_hit(20.0)
 		queue_redraw()
 		return
 	if core_distance < 58.0:
-		game.core_hit(28.0 if kind == "armored" else 14.0)
+		var leak := 28.0 if kind == "armored" else (36.0 if kind == "brute" else 14.0)
+		game.core_hit(leak)
 		game.enemy_escaped(self)
 		dead = true
 		queue_free()
 		return
 	if game.hero != null and game.hero.position.distance_to(position) < 34.0 and attack_cooldown <= 0.0:
 		attack_cooldown = 1.0
-		game.hero.take_damage(10.0 if kind != "boss" else 22.0)
+		var contact := 10.0
+		if kind == "boss": contact = 22.0
+		elif kind == "brute": contact = 18.0
+		elif kind == "charger": contact = 12.0
+		game.hero.take_damage(contact)
 	queue_redraw()
 
 func take_damage(amount: float) -> void:
@@ -125,3 +157,5 @@ func _draw() -> void:
 		draw_arc(Vector2.ZERO, 29, 0, TAU, 24, Color(0.8, 0.85, 0.9, 0.5), 4, true)
 	elif kind == "boss":
 		draw_arc(Vector2.ZERO, 46, 0, TAU, 32, Color(0.9, 0.45, 0.35, 0.6), 4, true)
+	if elite:
+		draw_arc(Vector2.ZERO, radius + 8, 0, TAU, 24, Color(1.0, 0.85, 0.4, 0.7), 3, true)

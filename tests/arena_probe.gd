@@ -103,6 +103,8 @@ func _press_direction(direction: Vector2) -> void:
 	if direction.y < -0.15: Input.action_press("move_up", minf(1.0, -direction.y))
 
 func _drive() -> void:
+	if game.passive_selecting:
+		game.choose_passive(game.passive_choices[0])
 	if game.relic_choice_pending:
 		var choices := {"defense": "lone", "lead": "vanguard", "tempo": "hold"}
 		game.choose_relic(choices.get(game.pending_relic_group, "lone"))

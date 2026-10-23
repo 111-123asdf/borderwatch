@@ -22,8 +22,8 @@ var hero_selected := false
 var game_over := false
 var victory := false
 var gold := START_GOLD
-var core_health := 300.0
-var core_max := 300.0
+var core_health := 340.0
+var core_max := 340.0
 var cycle := 1
 var phase := "rest"
 var phase_clock := 5.0
@@ -54,16 +54,39 @@ var build_kind := "bolt"
 var build_cell := Vector2i(-1, -1)
 var build_valid := false
 var build_reason := ""
+var selected_tower: ArenaTower
 var focus := 4.0
 var focus_max := 4.0
 var sim_speed := 1.0
 var elapsed := 0.0
+var shake_amount := 0.0
 var camps_cleared := 0
 var camp_weapons := ["sword", "sniper", "boomerang"]
 var relics: Array[String] = []
 var relic_choice_pending := false
 var pending_relic_group := ""
+var passive_selecting := false
+var passive_choices: Array[String] = []
+var passive_source := ""
+var pending_level_choices := 0
 var stats := {"kills": 0, "hero_kills": 0, "tower_kills": 0, "built": 0, "cycles": 0}
+const PASSIVES := {
+	"swift": {"name": "疾行", "desc": "移动速度 +15%"},
+	"power": {"name": "过载", "desc": "武器伤害 +25%"},
+	"rapid": {"name": "速射", "desc": "攻击速度 +20%"},
+	"crit": {"name": "致命", "desc": "25% 概率双倍伤害"},
+	"pierce": {"name": "穿透", "desc": "弹道额外穿透 +1"},
+	"blast": {"name": "爆裂", "desc": "命中附加 50 范围伤害"},
+	"frost": {"name": "霜附", "desc": "命中减速 +1.5 秒"},
+	"magnet": {"name": "磁力", "desc": "拾取范围 +90"},
+	"aegis": {"name": "重盾", "desc": "最大护盾 +40 并回满"},
+	"vitality": {"name": "体魄", "desc": "最大生命 +35 并回复"},
+	"focus": {"name": "专注", "desc": "技能冷却 -20%"},
+	"greed": {"name": "贪婪", "desc": "金币获取 +25%"},
+	"scholar": {"name": "博学", "desc": "经验获取 +25%"},
+	"multishot": {"name": "分裂", "desc": "额外弹道 +1"},
+}
+const CAMP_PASSIVES := ["power", "rapid", "crit", "multishot", "pierce", "blast", "aegis", "vitality", "focus", "greed", "scholar", "frost", "magnet", "swift"]
 var debug := {
 	"leaks": 0,
 	"leak_damage": 0.0,
@@ -118,7 +141,6 @@ func _configure_input() -> void:
 		"move_up": [KEY_W, KEY_UP],
 		"move_down": [KEY_S, KEY_DOWN],
 		"skill": [KEY_SPACE],
-		"build": [KEY_B],
 		"repair": [KEY_E],
 		"restart": [KEY_R],
 	}
@@ -339,10 +361,57 @@ func try_build_at_mouse() -> void:
 	var cell := world_to_cell(get_global_mouse_position())
 	var tower := _tower_at(cell)
 	if tower != null:
-		if not tower.upgrade():
-			hud.toast("金币不足或已满级", 2)
+		select_tower(tower)
 		return
 	place_tower(cell)
+
+func set_build_kind(kind: String) -> void:
+	if ArenaTower.STATS.has(kind):
+		build_kind = kind
+		build_reason = ""
+
+func toggle_build_mode() -> void:
+	if game_over or not running: return
+	if build_mode:
+		build_mode = false
+		Engine.time_scale = sim_speed
+		return
+	if phase != "rest" and focus <= 0.0:
+		hud.toast("专注不足，先等休息段", 2)
+		return
+	build_mode = true
+	selected_tower = null
+	hud.show_tower_panel(null)
+
+func select_tower_at_mouse() -> void:
+	if not running: return
+	var tower := nearest_tower(get_global_mouse_position(), 58.0)
+	if tower != null:
+		select_tower(tower)
+
+func select_tower(tower: ArenaTower) -> void:
+	selected_tower = tower
+	hud.show_tower_panel(tower)
+
+func upgrade_selected() -> void:
+	if selected_tower == null or not is_instance_valid(selected_tower): return
+	if not selected_tower.upgrade():
+		hud.toast("金币不足或已满级", 2)
+	hud.show_tower_panel(selected_tower)
+
+func repair_selected() -> void:
+	if selected_tower == null or not is_instance_valid(selected_tower): return
+	if gold < 30:
+		hud.toast("修理需要 30 金", 2)
+		return
+	selected_tower.health = selected_tower.max_health
+	gold -= 30
+	hud.toast("塔已修复", 1)
+	hud.show_tower_panel(selected_tower)
+
+func close_tower_panel() -> void:
+	selected_tower = null
+	hud.show_tower_panel(null)
 
 # ── cycle / spawning ────────────────────────────────────────
 func start_rest(seconds: float) -> void:
@@ -354,16 +423,15 @@ func start_rest(seconds: float) -> void:
 	hot_region = rng.randi_range(0, REGION_COUNT - 1)
 	var cache_region := (hot_region + 4) % REGION_COUNT
 	var cache_point: Vector2 = spawn_points[cache_region] + Vector2(rng.randf_range(-50, 50), rng.randf_range(-50, 50))
-	var weapon_key: String = camp_weapons[camps_cleared] if camps_cleared < camp_weapons.size() else ""
-	var camp_name: String = Rules.CAMP_NAMES[camps_cleared] if camps_cleared < Rules.CAMP_NAMES.size() else "补给"
-	spawn_drop(cache_point, 20, 30, true, true, weapon_key, camp_name)
+	var camp_name: String = Rules.CAMP_NAMES[mini(camps_cleared, Rules.CAMP_NAMES.size() - 1)]
+	spawn_drop(cache_point, 20, 30, true, true, "", camp_name)
 	_set_phase_text("休息：下一轮热点 %s；%s宝匣在 %s；建塔/修塔/捡宝匣" % [_region_name(hot_region), camp_name, _region_name(cache_region)])
 	hud.toast("休息段：热点 %s；%s宝匣在 %s（休息结束消失）" % [_region_name(hot_region), camp_name, _region_name(cache_region)], 3)
 func start_spawn() -> void:
 	expire_normal_drops()
 	phase = "spawn"
 	phase_clock = 30.0
-	spawn_budget = 20 + 6 * (cycle - 1)
+	spawn_budget = 26 + 8 * (cycle - 1)
 	spawn_interval = 30.0 / maxf(1.0, ceilf(float(spawn_budget) / 4.0))
 	spawn_timer = 0.0
 	if cycle >= 6 and not boss_spawned:
@@ -414,6 +482,61 @@ func open_relic_choice(group: String) -> void:
 	running = false
 	hud.show_relic_choice(group)
 
+func passive_info(key: String) -> Dictionary:
+	if Rules.RELICS.has(key):
+		var relic: Dictionary = Rules.RELICS[key]
+		return {"name": relic.name, "desc": relic.text, "tag": relic.tag}
+	if PASSIVES.has(key):
+		return PASSIVES[key]
+	return {"name": key, "desc": "", "tag": "被动"}
+
+func queue_level_choice() -> void:
+	pending_level_choices += 1
+	if not passive_selecting:
+		open_passive_choice("level")
+
+func _relic_available(key: String) -> bool:
+	if not Rules.RELICS.has(key): return true
+	var group: String = String(Rules.RELICS[key].group)
+	for owned in relics:
+		if Rules.RELICS.has(owned) and String(Rules.RELICS[owned].group) == group:
+			return false
+	return true
+
+func open_passive_choice(source: String) -> void:
+	if passive_selecting: return
+	passive_source = source
+	var source_pool: Array = CAMP_PASSIVES.duplicate() if source == "camp" else PASSIVES.keys()
+	var pool: Array[String] = []
+	for entry in source_pool:
+		var key := String(entry)
+		if _relic_available(key):
+			pool.append(key)
+	pool.shuffle()
+	passive_choices.clear()
+	for index in range(mini(3, pool.size())):
+		passive_choices.append(String(pool[index]))
+	passive_selecting = true
+	running = false
+	hud.show_passive_choice(passive_choices, source)
+
+func choose_passive(key: String) -> void:
+	if not passive_selecting or not passive_choices.has(key): return
+	if Rules.RELICS.has(key):
+		relics.append(key)
+	else:
+		hero.apply_passive(key)
+	var was_level := passive_source == "level"
+	passive_selecting = false
+	if was_level and pending_level_choices > 0:
+		pending_level_choices -= 1
+	if pending_level_choices > 0:
+		open_passive_choice("level")
+	else:
+		running = true
+		hud.hide_passive_choice()
+		hud.toast("获得：%s" % passive_info(key).name, 2)
+
 func choose_relic(key: String) -> void:
 	if not relic_choice_pending or not Rules.RELICS.has(key): return
 	var data: Dictionary = Rules.RELICS[key]
@@ -447,16 +570,22 @@ func spawn_cluster() -> void:
 		var point := base + Vector2(rng.randf_range(-70, 70), rng.randf_range(-70, 70))
 		var kind := "torch"
 		if cycle >= 2 and rng.randf() < 0.25: kind = "shooter"
+		if cycle >= 3 and rng.randf() < 0.16: kind = "charger"
 		if cycle >= 3 and rng.randf() < 0.18: kind = "barrel"
-		if cycle >= 4 and rng.randf() < 0.12: kind = "sapper"
+		if cycle >= 4 and rng.randf() < 0.08: kind = "sapper"
+		if cycle >= 4 and rng.randf() < 0.12: kind = "brute"
 		if cycle >= 4 and rng.randf() < 0.15: kind = "shielded"
 		if cycle >= 5 and rng.randf() < 0.15: kind = "armored"
 		var health := 38.0 + cycle * 10.0
 		if kind == "barrel": health *= 1.6
-		if kind == "sapper": health *= 3.0
+		if kind == "sapper": health *= 2.2
+		if kind == "charger": health *= 0.75
+		if kind == "brute": health *= 3.0
 		if kind == "shielded": health *= 2.2
 		if kind == "armored": health *= 2.6
-		spawn_enemy(kind, point, health)
+		var elite := cycle >= 2 and rng.randf() < 0.10
+		if elite: health *= 2.5
+		spawn_enemy(kind, point, health, elite)
 		spawn_budget -= 1
 	spawn_timer = spawn_interval
 	spawned_this_phase += count
@@ -465,13 +594,23 @@ func spawn_cluster() -> void:
 func _spawn_boss() -> void:
 	boss_spawned = true
 	var point: Vector2 = spawn_points[hot_region]
-	boss = spawn_enemy("boss", point, 2600.0)
-	hud.toast("焚林统领从%s林线走来", 4)
+	boss = spawn_enemy("boss", point, 4500.0)
+	hud.toast("焚林统领从%s林线走来" % _region_name(hot_region), 4)
 
-func spawn_enemy(kind: String, point: Vector2, health: float) -> ArenaEnemy:
+func boss_summon(point: Vector2) -> void:
+	hud.toast("焚林统领召来援军", 2)
+	for index in range(3):
+		var angle := TAU * index / 3.0
+		var spawn_point := point + Vector2.RIGHT.rotated(angle) * 90.0
+		var kind := "charger" if index % 2 == 0 else "shooter"
+		var health := 70.0 + cycle * 12.0
+		spawn_enemy(kind, spawn_point, health, index == 0)
+
+func spawn_enemy(kind: String, point: Vector2, health: float, elite := false) -> ArenaEnemy:
 	var enemy := ArenaEnemy.new()
 	enemy.game = self
 	enemy.kind = kind
+	enemy.elite = elite
 	enemy.max_health = health
 	enemy.health = health
 	enemy.position = point
@@ -489,8 +628,8 @@ func enemy_died(enemy: ArenaEnemy) -> void:
 		boss = null
 		spawn_drop(enemy.position, 80, 120, true)
 		hud.toast("焚林统领倒下", 3)
-	elif enemy.kind in ["shielded", "armored"]:
-		spawn_drop(enemy.position, 14, 10, true)
+	elif enemy.kind in ["shielded", "armored"] or enemy.elite:
+		spawn_drop(enemy.position, 20, 15, true)
 	else:
 		spawn_drop(enemy.position, 6, 5, false)
 	if boss_dead and cycle >= 6 and enemies.is_empty():
@@ -547,17 +686,16 @@ func collect_drop(drop: ArenaDrop) -> void:
 	drops.erase(drop)
 	debug.drops_collected += 1
 	if hero != null:
-		hero.add_xp(drop.xp)
-		var gold_value := int(drop.gold_value * kill_gold_scale())
+		var gold_value := int(drop.gold_value * kill_gold_scale() * hero.gold_mult)
 		gold += gold_value
 		hero.gold_gained += gold_value
-		if drop.weapon_key != "":
-			var camp_index := camps_cleared
-			hero.equip_weapon(drop.weapon_key, mini(camps_cleared + 1, 3))
-			hud.toast("%s宝匣：%s" % [drop.camp_name, Rules.weapon(drop.weapon_key).name], 3)
-			camps_cleared += 1
-			if camp_index < Rules.RELIC_GROUPS.size():
-				open_relic_choice(Rules.RELIC_GROUPS[camp_index])
+		if drop.cache:
+			if camps_cleared < Rules.CAMP_NAMES.size():
+				camps_cleared += 1
+				open_passive_choice("camp")
+			else:
+				hud.toast("营地已全部肃清，宝匣只留下金币", 2)
+		hero.add_xp(drop.xp)
 	drop.queue_free()
 
 func expire_normal_drops() -> void:
@@ -620,20 +758,27 @@ func _set_phase_text(text: String) -> void:
 
 # ── input ──────────────────────────────────────────────────
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		if build_mode:
-			try_build_at_mouse()
+	if event is InputEventMouseButton and event.pressed:
+		if event.button_index == MOUSE_BUTTON_RIGHT:
+			toggle_build_mode()
 			get_viewport().set_input_as_handled()
-		return
+			return
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			if build_mode:
+				try_build_at_mouse()
+				get_viewport().set_input_as_handled()
+				return
+			select_tower_at_mouse()
+			if selected_tower != null:
+				get_viewport().set_input_as_handled()
+			return
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
-			KEY_1: build_kind = "bolt"
-			KEY_2: build_kind = "cannon"
-			KEY_3: build_kind = "frost"
+			KEY_1: set_build_kind("bolt")
+			KEY_2: set_build_kind("cannon")
+			KEY_3: set_build_kind("frost")
 			KEY_E: repair_nearest()
 			KEY_R: get_tree().reload_current_scene()
-			KEY_B:
-				pass
 
 # ── process ────────────────────────────────────────────────
 func _process(delta: float) -> void:
@@ -649,12 +794,10 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 func _update_build_mode(delta: float) -> void:
-	var wants := Input.is_action_pressed("build") and not game_over
-	var can_slow := phase == "rest" or focus > 0.0
-	build_mode = wants and can_slow
 	if build_mode and phase != "rest":
 		focus = maxf(0.0, focus - delta / 0.35)
-		if focus <= 0.0: build_mode = false
+		if focus <= 0.0:
+			build_mode = false
 	if not build_mode:
 		focus = minf(focus_max, focus + delta * 0.9)
 	Engine.time_scale = 0.35 if build_mode else sim_speed
@@ -666,10 +809,15 @@ func _update_camera(delta: float) -> void:
 		target = CORE
 		zoom = 0.46
 	elif hero != null:
-		target = hero.position.clamp(Vector2(500, 500), ARENA_SIZE - Vector2(500, 500))
-		zoom = 0.62
-	camera.position = camera.position.lerp(target, 1.0 - exp(-4.0 * delta))
-	camera.zoom = camera.zoom.lerp(Vector2(zoom, zoom), 1.0 - exp(-5.0 * delta))
+		target = (hero.position + hero.velocity * 0.16).clamp(Vector2(500, 500), ARENA_SIZE - Vector2(500, 500))
+		zoom = 0.64
+	camera.position = camera.position.lerp(target, 1.0 - exp(-5.0 * delta))
+	camera.zoom = camera.zoom.lerp(Vector2(zoom, zoom), 1.0 - exp(-6.0 * delta))
+	shake_amount = maxf(0.0, shake_amount - delta * 24.0)
+	camera.offset = Vector2(randf_range(-shake_amount, shake_amount), randf_range(-shake_amount, shake_amount))
+
+func shake(amount: float) -> void:
+	shake_amount = maxf(shake_amount, amount)
 
 func _update_phase(delta: float) -> void:
 	match phase:

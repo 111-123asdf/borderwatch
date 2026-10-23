@@ -12,8 +12,8 @@ var game: Node2D
 var kind := "bolt"
 var cell := Vector2i.ZERO
 var level := 1
-var health := 280.0
-var max_health := 280.0
+var health := 320.0
+var max_health := 320.0
 var active := false
 var build_clock := 2.0
 var cooldown := 0.0

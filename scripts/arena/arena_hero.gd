@@ -24,9 +24,22 @@ var barrier_time := 0.0
 var invulnerability := 0.0
 var xp := 0
 var level := 1
-var xp_target := 25
+var xp_target := 35
 var gold_gained := 0
 var hurt_flash := 0.0
+var passives := {}
+var damage_mult := 1.0
+var attack_speed_mult := 1.0
+var crit_chance := 0.0
+var pierce_bonus := 0
+var splash_bonus := 0.0
+var slow_bonus := 0.0
+var pickup_radius := 230.0
+var speed_mult := 1.0
+var skill_cd_mult := 1.0
+var gold_mult := 1.0
+var xp_mult := 1.0
+var multishot := 0
 
 func _ready() -> void:
 	collision_layer = 2
@@ -48,7 +61,17 @@ func configure(key: String) -> void:
 	health = max_health
 	max_shield = float(data.shield)
 	shield = max_shield
-	speed = float(data.speed)
+	speed = float(data.speed) * 1.12
+	if key == "ranger":
+		max_health += 10.0
+		health = max_health
+		max_shield += 10.0
+		shield = max_shield
+	elif key == "mage":
+		max_health += 15.0
+		health = max_health
+		max_shield += 10.0
+		shield = max_shield
 	skill_cooldown_max = float(data.cooldown)
 	skill_cooldown = 0.0
 	skill_name = String(data.skill)
@@ -68,7 +91,9 @@ func weapon_definition() -> Dictionary:
 	return Rules.weapon(weapon_key)
 
 func class_damage_scale() -> float:
-	return 1.15 if class_id == "ranger" else 1.0
+	if class_id == "ranger": return 1.25
+	if class_id == "mage": return 1.25
+	return 1.0
 
 func equip_weapon(key: String, upgrade_level := 1) -> void:
 	if not Rules.weapon_keys().has(key): return
@@ -76,6 +101,28 @@ func equip_weapon(key: String, upgrade_level := 1) -> void:
 	weapon_level = clampi(upgrade_level, 1, 3)
 	visual.held_weapon = key
 	game.hud.toast("宝匣：%s Lv.%d" % [Rules.weapon(key).name, weapon_level], 2)
+
+func apply_passive(key: String) -> void:
+	passives[key] = int(passives.get(key, 0)) + 1
+	match key:
+		"swift": speed_mult += 0.15
+		"power": damage_mult += 0.25
+		"rapid": attack_speed_mult += 0.20
+		"crit": crit_chance = minf(0.75, crit_chance + 0.25)
+		"pierce": pierce_bonus += 1
+		"blast": splash_bonus += 50.0
+		"frost": slow_bonus += 1.5
+		"magnet": pickup_radius += 90.0
+		"aegis":
+			max_shield += 40.0
+			shield = max_shield
+		"vitality":
+			max_health += 35.0
+			health = minf(max_health, health + 35.0)
+		"focus": skill_cd_mult = maxf(0.35, skill_cd_mult - 0.20)
+		"greed": gold_mult += 0.25
+		"scholar": xp_mult += 0.25
+		"multishot": multishot += 1
 
 func _physics_process(delta: float) -> void:
 	if not game.running or game.game_over: return
@@ -92,7 +139,9 @@ func _physics_process(delta: float) -> void:
 		dash_time -= delta
 		velocity = dash_direction * 620.0
 	else:
-		velocity = movement * speed
+		var desired_velocity := movement * speed * speed_mult
+		var acceleration := 2600.0 if movement.length() > 0.1 else 3200.0
+		velocity = velocity.move_toward(desired_velocity, acceleration * delta)
 	move_and_slide()
 	position = position.clamp(Vector2(50, 50), game.ARENA_SIZE - Vector2(50, 50))
 	if movement.length() > 0.1:
@@ -110,12 +159,13 @@ func _physics_process(delta: float) -> void:
 
 func fire(target: ArenaEnemy) -> void:
 	var definition := weapon_definition()
-	fire_cooldown = float(definition.interval)
+	fire_cooldown = float(definition.interval) / attack_speed_mult
 	var direction := aim
 	if is_instance_valid(target):
 		direction = (target.position - center()).normalized()
 		aim = direction
-	var base_damage: float = float(definition.damage) * (1.0 + (level - 1) * 0.05) * game.hero_damage_scale() * class_damage_scale()
+	var base_damage: float = float(definition.damage) * (1.0 + (level - 1) * 0.05) * game.hero_damage_scale() * class_damage_scale() * damage_mult
+	if randf() < crit_chance: base_damage *= 2.0
 	var weapon_color: Color = definition.color
 	var dual := class_id == "knight" and skill_time > 0.0
 	visual.attack(direction, 0.18)
@@ -124,22 +174,22 @@ func fire(target: ArenaEnemy) -> void:
 		return
 	if weapon_key == "scatter":
 		for angle in [-0.24, -0.12, 0.0, 0.12, 0.24]:
-			game.spawn_projectile(center(), center() + direction.rotated(angle) * 800.0, base_damage, weapon_color, 0.0, 0.0, 900.0)
+			game.spawn_projectile(center(), center() + direction.rotated(angle) * 800.0, base_damage, weapon_color, splash_bonus, slow_bonus, 900.0)
 		return
 	if weapon_key == "sniper":
-		game.spawn_projectile(center(), center() + direction * 800.0, base_damage, weapon_color, 0.0, 0.0, 1100.0, 3)
+		game.spawn_projectile(center(), center() + direction * 800.0, base_damage, weapon_color, splash_bonus, slow_bonus, 1100.0, 3 + pierce_bonus)
 		return
 	if weapon_key == "boomerang":
 		for angle in [-0.12, 0.12]:
-			game.spawn_projectile(center(), center() + direction.rotated(angle) * 800.0, base_damage, weapon_color, 0.0, 0.0, 700.0)
+			game.spawn_projectile(center(), center() + direction.rotated(angle) * 800.0, base_damage, weapon_color, splash_bonus, slow_bonus, 700.0, pierce_bonus)
 		return
-	var shots := 2 if dual else 1
+	var shots := (2 if dual else 1) + multishot
 	for index in range(shots):
 		var offset := (index - (shots - 1) * 0.5) * 22.0
-		game.spawn_projectile(center() + direction.orthogonal() * offset, center() + direction * 800.0 + direction.orthogonal() * offset, base_damage, weapon_color, 0.0, 0.0, 900.0)
+		game.spawn_projectile(center() + direction.orthogonal() * offset, center() + direction * 800.0 + direction.orthogonal() * offset, base_damage, weapon_color, splash_bonus, slow_bonus, 900.0, pierce_bonus)
 
 func use_skill(movement: Vector2) -> void:
-	skill_cooldown = skill_cooldown_max
+	skill_cooldown = skill_cooldown_max * skill_cd_mult
 	if class_id == "ranger":
 		dash_time = 0.18
 		invulnerability = maxf(invulnerability, 0.24)
@@ -160,20 +210,19 @@ func take_damage(amount: float) -> void:
 	health -= amount - shield_loss
 	invulnerability = 0.35
 	hurt_flash = 0.12
+	game.shake(5.0)
 	game.hud.toast("受伤", 0.8)
 	if health <= 0.0:
 		health = 0.0
 		game.hero_died()
 
 func add_xp(amount: int) -> void:
-	xp += amount
+	xp += int(amount * xp_mult)
 	while xp >= xp_target:
 		xp -= xp_target
 		level += 1
-		xp_target += 12
-		max_health += 8.0
-		health = minf(max_health, health + 10.0)
-		game.hud.toast("升级 Lv.%d · 生命提升" % level, 2)
+		xp_target += 25
+		game.queue_level_choice()
 
 func _draw() -> void:
 	draw_arc(Vector2(0, 2), 21, 0, TAU, 32, Color(0.65, 0.92, 0.82, 0.65), 1.5, true)

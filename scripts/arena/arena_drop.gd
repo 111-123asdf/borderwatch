@@ -16,8 +16,9 @@ func _process(delta: float) -> void:
 	bob += delta * 3.0
 	if game.hero == null or game.game_over:
 		return
+	var radius: float = game.hero.pickup_radius
 	var distance: float = game.hero.position.distance_to(position)
-	if distance < 230.0:
+	if distance < radius:
 		var speed := clampf(distance * 2.6, 34.0, 420.0)
 		position = position.move_toward(game.hero.position, speed * delta)
 	if distance < 18.0:
