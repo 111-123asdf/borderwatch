@@ -33,7 +33,7 @@ func attack_range() -> float:
 	return (float(STATS[kind].range) + (level - 1) * 24.0) * (1.12 if game.hero != null and game.hero.position.distance_to(position) < 340.0 else 1.0)
 
 func upgrade_price() -> int:
-	return int(float(STATS[kind].cost) * (0.55 + level * 0.25))
+	return int(float(STATS[kind].cost) * (0.55 + level * 0.25) * game.upgrade_scale())
 
 func upgrade() -> bool:
 	if level >= MAX_LEVEL or game.gold < upgrade_price(): return false
@@ -69,7 +69,7 @@ func fire(target: ArenaEnemy) -> void:
 	var definition: Dictionary = STATS[kind]
 	cooldown = float(definition.interval)
 	aim = (target.position - position).normalized()
-	var damage: float = float(definition.damage) * (1.0 + (level - 1) * 0.6)
+	var damage: float = float(definition.damage) * (1.0 + (level - 1) * 0.6) * game.tower_damage_scale()
 	var splash := 0.0
 	var slow := 0.0
 	if kind == "cannon": splash = 68.0

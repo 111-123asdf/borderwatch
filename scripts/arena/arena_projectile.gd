@@ -9,6 +9,8 @@ var color := Color("ffe3a1")
 var splash := 0.0
 var slow := 0.0
 var hostile := false
+var pierce := 0
+var hit_ids := {}
 var life := 1.6
 
 func _physics_process(delta: float) -> void:
@@ -27,13 +29,19 @@ func _physics_process(delta: float) -> void:
 	for enemy in game.enemies.duplicate():
 		if not is_instance_valid(enemy) or enemy.dead: continue
 		if enemy.position.distance_to(position) < enemy.radius + 10.0:
+			var enemy_id: int = enemy.get_instance_id()
+			if hit_ids.has(enemy_id): continue
+			hit_ids[enemy_id] = true
 			if splash > 0.0:
 				game.damage_radius(position, splash, damage)
 			else:
 				enemy.take_damage(damage)
 			enemy.slow_time = maxf(enemy.slow_time, slow)
-			queue_free()
-			return
+			if pierce > 0:
+				pierce -= 1
+			else:
+				queue_free()
+				return
 	queue_redraw()
 
 func _draw() -> void:

@@ -17,10 +17,25 @@ func _run() -> void:
 	game = load("res://scenes/arena.tscn").instantiate()
 	root.add_child(game)
 	await process_frame
+	game.start_with_hero("knight")
 	check(game.hero != null, "Arena creates a hero")
 	check(game.core_health == game.core_max, "Arena creates a core")
 	check(game.spawn_points.size() == 8, "Arena has eight spawn regions")
 	check(game.flow_at(game.CORE + Vector2(300, 0)).length() > 0.0, "Flow field points toward the core")
+
+	var camp_drop: ArenaDrop
+	for drop in game.drops:
+		if is_instance_valid(drop) and drop.weapon_key != "":
+			camp_drop = drop
+	check(camp_drop != null, "The first rest spawns a camp weapon cache")
+	if camp_drop != null:
+		game.hero.position = camp_drop.position
+		await create_timer(0.25).timeout
+		check(game.camps_cleared == 1, "Collecting a camp cache advances camp progression")
+		check(game.hero.weapon_key != "pistol", "Camp cache equips the old-mode weapon")
+		check(game.relic_choice_pending, "Camp cache opens a route choice")
+		game.choose_relic("lone")
+		check("lone" in game.relics, "Route choice applies to the arena run")
 
 	game.gold = 600
 	game.build_kind = "bolt"

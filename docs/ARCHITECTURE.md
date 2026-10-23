@@ -1,5 +1,7 @@
 # 工程架构与修改入口
 
+> 2026-10-24：主场景已切到 `scenes/arena.tscn`；旧 `scenes/main.tscn` 保留为旧模式/回归基线。竞技场入口在 `scripts/arena/`，迁移映射见[竞技场迁移记录](ARENA_MIGRATION.md)。下表仍描述旧 core-slice 模块，避免把旧架构当新竞技场。
+
 scenes/main.tscn只有挂game.gd的根Node2D。运行时创建世界、Y排序角色、英雄、弹道、相机、声音、营地和HUD；无后端、.NET或运行下载依赖。
 
 | 模块 | 职责 |

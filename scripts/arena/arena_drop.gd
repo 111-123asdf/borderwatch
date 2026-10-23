@@ -6,6 +6,8 @@ var xp := 0
 var gold_value := 0
 var big := false
 var cache := false
+var weapon_key := ""
+var camp_name := ""
 var age := 0.0
 var bob := 0.0
 
@@ -32,5 +34,7 @@ func _draw() -> void:
 	if cache:
 		draw_rect(Rect2(-8, -6 + sin(bob) * 2.0, 16, 12), Color("244b48"))
 		draw_rect(Rect2(-8, -6 + sin(bob) * 2.0, 16, 12), Color("d7fff2"), false, 2)
+	if weapon_key != "":
+		draw_arc(Vector2(0, sin(bob) * 2.0), radius + 12, 0, TAU, 24, Color("ffe9a6"), 2, true)
 	if big:
 		draw_arc(Vector2(0, sin(bob) * 2.0), radius + 8, 0, TAU, 24, Color(color, 0.6), 2, true)

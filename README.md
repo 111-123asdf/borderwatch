@@ -4,7 +4,19 @@
 
 玩家控制英雄在**回防与继续探索**之间取舍：塔自动守两条道路，英雄处理威胁和弹幕；出门清营地带回武器、路线选择、金币与防线强化，再迎战六波敌人和最终Boss。
 
-## 当前基线
+> **2026-10-24 迁移分支**：主场景已切到 `scenes/arena.tscn`（环形围守 + 三英雄 + 宝匣武器 + 营地路线）。旧 `scenes/main.tscn` 保留，旧模式测试仍显式加载它。迁移映射和未迁内容见[竞技场迁移记录](docs/ARENA_MIGRATION.md)。
+
+## 当前主场景：竞技场
+
+- 三英雄开局选择；骑士双持、游侠翻滚、秘术师清弹结界。
+- 8 区域远处刷怪、热点预警、30 秒压力/16 秒休息、Boss。
+- 自由网格建塔、塔挡路、不能 8 邻接、流场寻路和路径验证。
+- 经验和金币掉落、磁铁拾取、休息结束普通掉落消失。
+- 三座营地宝匣给旧模式武器，并打开三组互斥路线（孤塔/群塔、亲征/指挥、急袭/深耕）。
+- 操作：WASD 移动，左键自动攻击，Space 职业技能，按住 B 慢速建造，左键放塔/升级，E 修理，R 重开。
+- 入口：`试玩竞技场.bat` 或 `tools/run_arena.ps1`；测试：`tools/verify_arena.ps1`。
+
+## 旧 core-slice 基线（保留）
 
 采用队友2026-10-21交回的core-slice-preview，不是此前完整0.3玩法。内部版本字段仍为0.3.0，以Git提交和[接入记录](docs/INTEGRATION.md)区分版本。
 
@@ -15,6 +27,8 @@
 - 首波90秒自动开始，可F提前确认；波间基础55秒，节奏路线会改变它。
 
 [当前切片](docs/CURRENT_SLICE.md)区分开放内容与保留定义，不能把代码库全部武器宣传为当前可获得。
+
+[竞技场迁移记录](docs/ARENA_MIGRATION.md) · [竞技场测试结论](docs/ARENA_PLAYTEST_FINDINGS.md) · [竞技场计划](docs/PLAN_ARENA_SURVIVAL.md)
 
 ## 打开与验证
 
@@ -32,6 +46,7 @@ cd borderwatch
 ```powershell
 $env:GODOT_BIN = '你的Godot4.7.2可执行文件完整路径'
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\doctor.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\verify_arena.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\verify.ps1
 ```
 
@@ -39,12 +54,12 @@ Windows导出用tools/export.ps1，实际PCK复验用tools/verify_export.ps1；�
 
 ## 操作
 
-WASD/方向键移动；右键、选中或拖动英雄指定行军；按住左键自动攻击最近有效可见敌人，不向鼠标瞄准、不追怪。Space/C共用一个职业主动。点路边空地建塔，点塔升级/出售。E开宝匣/捷径；R引导回营；F开波；Tab成长；M地图；Esc暂停。详见[试玩说明](docs/playtest.txt)。
+竞技场主场景：WASD/方向键移动；按住左键自动攻击最近有效敌人；Space 职业技能；按住 B 慢速建造，左键放塔/点塔升级；E 修理；R 重开。旧模式（`scenes/main.tscn`）仍使用原来的右键行军/E 宝匣/F 开波/Tab 成长操作。
 
-开局180金币，弩塔100：不能直接支付两座。可先放一座，利用准备期清首营地取得金币再补防线。
+竞技场开局 260 金，弩塔 70；正常击杀 + 远端营地宝匣能建到 6 塔左右。旧模式（`scenes/main.tscn`）仍是 180 金 / 弩塔 100，两者不要混用。
 
 ## 开发导航
 
-[环境](docs/DEVELOPMENT.md) · [架构](docs/ARCHITECTURE.md) · [当前玩法](docs/CURRENT_SLICE.md) · [测试](docs/TESTING.md) · [四人协作](CONTRIBUTING.md) · [素材来源](docs/ASSET_SOURCES.md)
+[环境](docs/DEVELOPMENT.md) · [架构](docs/ARCHITECTURE.md) · [当前玩法](docs/CURRENT_SLICE.md) · [竞技场迁移](docs/ARENA_MIGRATION.md) · [测试](docs/TESTING.md) · [四人协作](CONTRIBUTING.md) · [素材来源](docs/ASSET_SOURCES.md)
 
 AI先读AGENTS.md。课程报告由组长审阅后另行入库；不公开个人对话、未审草稿、商业研究截图和用户配置。源码尚未指定开放源码许可证；公开可读不等于授权任意再分发，第三方素材按各自许可。

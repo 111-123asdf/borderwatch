@@ -13,6 +13,7 @@ func _run() -> void:
 	game = load("res://scenes/arena.tscn").instantiate()
 	root.add_child(game)
 	await process_frame
+	game.start_with_hero("knight")
 	game.gold = 800
 	var cells := [
 		Vector2i(23, 20), Vector2i(17, 20), Vector2i(20, 23), Vector2i(20, 17),

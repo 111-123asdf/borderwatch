@@ -7,6 +7,7 @@ extends SceneTree
 
 var game: Node2D
 var policy := "hero"
+var hero_key := "knight"
 var elapsed := 0.0
 var frames := 0
 var rejected := 0
@@ -20,11 +21,19 @@ func _parse_policy() -> String:
 			return argument.split("=", true, 1)[1]
 	return "hero"
 
+func _parse_hero() -> String:
+	for argument in OS.get_cmdline_user_args():
+		if argument.begins_with("--hero="):
+			return argument.split("=", true, 1)[1]
+	return "knight"
+
 func _run() -> void:
 	policy = _parse_policy()
+	hero_key = _parse_hero()
 	game = load("res://scenes/arena.tscn").instantiate()
 	root.add_child(game)
 	await process_frame
+	game.start_with_hero(hero_key)
 	game.sim_speed = 4.0
 	_setup_towers()
 	var dt := 1.0 / 60.0
@@ -94,6 +103,9 @@ func _press_direction(direction: Vector2) -> void:
 	if direction.y < -0.15: Input.action_press("move_up", minf(1.0, -direction.y))
 
 func _drive() -> void:
+	if game.relic_choice_pending:
+		var choices := {"defense": "lone", "lead": "vanguard", "tempo": "hold"}
+		game.choose_relic(choices.get(game.pending_relic_group, "lone"))
 	if policy == "natural":
 		_try_natural_build()
 	if policy == "idle" or policy == "tower_only":
@@ -150,6 +162,10 @@ func _nearest_drop() -> ArenaDrop:
 func _print_result() -> void:
 	var result := {
 		"policy": policy,
+		"hero": hero_key,
+		"weapon": game.hero.weapon_key,
+		"camps": game.camps_cleared,
+		"relics": game.relics,
 		"result": "victory" if game.victory else ("defeat" if game.game_over else "timeout"),
 		"cycle": game.cycle,
 		"phase": game.phase,

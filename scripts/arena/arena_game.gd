@@ -18,6 +18,7 @@ const START_GOLD := 260
 
 var running := true
 var started := false
+var hero_selected := false
 var game_over := false
 var victory := false
 var gold := START_GOLD
@@ -57,6 +58,11 @@ var focus := 4.0
 var focus_max := 4.0
 var sim_speed := 1.0
 var elapsed := 0.0
+var camps_cleared := 0
+var camp_weapons := ["sword", "sniper", "boomerang"]
+var relics: Array[String] = []
+var relic_choice_pending := false
+var pending_relic_group := ""
 var stats := {"kills": 0, "hero_kills": 0, "tower_kills": 0, "built": 0, "cycles": 0}
 var debug := {
 	"leaks": 0,
@@ -83,6 +89,7 @@ func _ready() -> void:
 	hero.game = self
 	hero.position = CORE + Vector2(0, 150)
 	add_child(hero)
+	hero.configure("knight")
 	camera = Camera2D.new()
 	camera.position = CORE
 	camera.zoom = Vector2(0.58, 0.58)
@@ -91,8 +98,18 @@ func _ready() -> void:
 	hud = ArenaHUD.new()
 	hud.game = self
 	add_child(hud)
+	running = false
+	hud.show_hero_select()
+
+func start_with_hero(key: String) -> void:
+	if hero_selected: return
+	hero.configure(key)
+	hero_selected = true
+	running = true
+	started = true
+	hud.hide_hero_select()
 	start_rest(20.0)
-	_set_phase_text("第一轮准备：先建 2 座塔，英雄去林线捡掉落。")
+	_set_phase_text("第一轮准备：先建 2 座塔，英雄去林线捡宝匣。")
 
 func _configure_input() -> void:
 	var actions := {
@@ -234,7 +251,7 @@ func can_place(cell: Vector2i) -> String:
 			var other := cell + Vector2i(ox, oy)
 			if other.x < 0 or other.y < 0 or other.x >= GRID_W or other.y >= GRID_H: continue
 			if _tower_at(other) != null: return "不能挨着其他塔"
-	if towers.size() >= TOWER_LIMIT: return "塔位已满"
+	if towers.size() >= tower_limit(): return "塔位已满"
 	if gold < int(ArenaTower.STATS[build_kind].cost): return "金币不足"
 	for enemy in enemies:
 		if is_instance_valid(enemy) and enemy.position.distance_to(point) < 46: return "敌人太近"
@@ -329,6 +346,7 @@ func try_build_at_mouse() -> void:
 
 # ── cycle / spawning ────────────────────────────────────────
 func start_rest(seconds: float) -> void:
+	seconds = rest_seconds(seconds)
 	phase = "rest"
 	phase_clock = seconds
 	spawn_timer = 0.0
@@ -336,10 +354,11 @@ func start_rest(seconds: float) -> void:
 	hot_region = rng.randi_range(0, REGION_COUNT - 1)
 	var cache_region := (hot_region + 4) % REGION_COUNT
 	var cache_point: Vector2 = spawn_points[cache_region] + Vector2(rng.randf_range(-50, 50), rng.randf_range(-50, 50))
-	spawn_drop(cache_point, 20, 30, true, true)
-	_set_phase_text("休息：下一轮热点 %s；补给箱在 %s；建塔/修塔/捡掉落" % [_region_name(hot_region), _region_name(cache_region)])
-	hud.toast("休息段：下一轮热点 %s；补给箱在 %s（休息结束消失）" % [_region_name(hot_region), _region_name(cache_region)], 3)
-
+	var weapon_key: String = camp_weapons[camps_cleared] if camps_cleared < camp_weapons.size() else ""
+	var camp_name: String = Rules.CAMP_NAMES[camps_cleared] if camps_cleared < Rules.CAMP_NAMES.size() else "补给"
+	spawn_drop(cache_point, 20, 30, true, true, weapon_key, camp_name)
+	_set_phase_text("休息：下一轮热点 %s；%s宝匣在 %s；建塔/修塔/捡宝匣" % [_region_name(hot_region), camp_name, _region_name(cache_region)])
+	hud.toast("休息段：热点 %s；%s宝匣在 %s（休息结束消失）" % [_region_name(hot_region), camp_name, _region_name(cache_region)], 3)
 func start_spawn() -> void:
 	expire_normal_drops()
 	phase = "spawn"
@@ -355,6 +374,56 @@ func start_spawn() -> void:
 func _region_name(index: int) -> String:
 	var names := ["北", "东北", "东", "东南", "南", "西南", "西", "西北"]
 	return names[index % names.size()]
+
+func hero_damage_scale() -> float:
+	var scale := 1.0
+	if "vanguard" in relics: scale += 0.35
+	if "command" in relics: scale -= 0.10
+	return scale
+
+func tower_damage_scale() -> float:
+	var scale := 1.0
+	if "lone" in relics: scale += 0.40
+	if "swarm" in relics: scale -= 0.15
+	if "command" in relics: scale += 0.25
+	if "vanguard" in relics: scale -= 0.10
+	return scale
+
+func tower_limit() -> int:
+	var limit := TOWER_LIMIT
+	if "lone" in relics: limit -= 2
+	if "swarm" in relics: limit += 2
+	return limit
+
+func kill_gold_scale() -> float:
+	return 1.40 if "raid" in relics else 1.0
+
+func upgrade_scale() -> float:
+	return 0.70 if "hold" in relics else 1.0
+
+func rest_seconds(base: float) -> float:
+	var seconds := base
+	if "raid" in relics: seconds -= 5.0
+	if "hold" in relics: seconds += 5.0
+	return maxf(8.0, seconds)
+
+func open_relic_choice(group: String) -> void:
+	if group == "" or relic_choice_pending: return
+	pending_relic_group = group
+	relic_choice_pending = true
+	running = false
+	hud.show_relic_choice(group)
+
+func choose_relic(key: String) -> void:
+	if not relic_choice_pending or not Rules.RELICS.has(key): return
+	var data: Dictionary = Rules.RELICS[key]
+	if String(data.group) != pending_relic_group: return
+	relics.append(key)
+	relic_choice_pending = false
+	pending_relic_group = ""
+	running = true
+	hud.hide_relic_choice()
+	hud.toast("路线：%s" % data.name, 3)
 
 func _weighted_region() -> int:
 	var weights: Array[float] = []
@@ -451,13 +520,15 @@ func finish(win: bool) -> void:
 	_set_phase_text("")
 
 # ── drops / projectiles ────────────────────────────────────
-func spawn_drop(point: Vector2, xp: int, gold_value: int, big: bool, cache := false) -> ArenaDrop:
+func spawn_drop(point: Vector2, xp: int, gold_value: int, big: bool, cache := false, weapon_key := "", camp_name := "") -> ArenaDrop:
 	var drop := ArenaDrop.new()
 	drop.game = self
 	drop.xp = xp
 	drop.gold_value = gold_value
 	drop.big = big
 	drop.cache = cache
+	drop.weapon_key = weapon_key
+	drop.camp_name = camp_name
 	drop.position = point
 	add_child(drop)
 	drops.append(drop)
@@ -477,8 +548,16 @@ func collect_drop(drop: ArenaDrop) -> void:
 	debug.drops_collected += 1
 	if hero != null:
 		hero.add_xp(drop.xp)
-		gold += drop.gold_value
-		hero.gold_gained += drop.gold_value
+		var gold_value := int(drop.gold_value * kill_gold_scale())
+		gold += gold_value
+		hero.gold_gained += gold_value
+		if drop.weapon_key != "":
+			var camp_index := camps_cleared
+			hero.equip_weapon(drop.weapon_key, mini(camps_cleared + 1, 3))
+			hud.toast("%s宝匣：%s" % [drop.camp_name, Rules.weapon(drop.weapon_key).name], 3)
+			camps_cleared += 1
+			if camp_index < Rules.RELIC_GROUPS.size():
+				open_relic_choice(Rules.RELIC_GROUPS[camp_index])
 	drop.queue_free()
 
 func expire_normal_drops() -> void:
@@ -499,7 +578,7 @@ func nearest_enemy(point: Vector2, radius: float) -> ArenaEnemy:
 			result = enemy
 	return result
 
-func spawn_projectile(origin: Vector2, target: Vector2, damage: float, color: Color, splash := 0.0, slow := 0.0, speed := 760.0) -> ArenaProjectile:
+func spawn_projectile(origin: Vector2, target: Vector2, damage: float, color: Color, splash := 0.0, slow := 0.0, speed := 760.0, pierce := 0) -> ArenaProjectile:
 	var projectile := ArenaProjectile.new()
 	projectile.game = self
 	projectile.position = origin
@@ -509,6 +588,7 @@ func spawn_projectile(origin: Vector2, target: Vector2, damage: float, color: Co
 	projectile.color = color
 	projectile.splash = splash
 	projectile.slow = slow
+	projectile.pierce = pierce
 	add_child(projectile)
 	return projectile
 
@@ -522,7 +602,13 @@ func enemy_shot(origin: Vector2, target: Vector2, damage: float, speed := 190.0)
 	projectile.speed = speed
 	projectile.color = Color("ff6b5e")
 	add_child(projectile)
+	projectile.add_to_group("hostile_projectile")
 	return projectile
+
+func clear_hostile_projectiles() -> void:
+	for projectile in get_tree().get_nodes_in_group("hostile_projectile"):
+		if is_instance_valid(projectile):
+			projectile.queue_free()
 
 func damage_radius(point: Vector2, radius: float, damage: float) -> void:
 	for enemy in enemies.duplicate():

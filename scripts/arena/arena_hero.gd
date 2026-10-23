@@ -3,18 +3,24 @@ extends CharacterBody2D
 
 var game: Node2D
 var visual: ActorVisual
+var class_id := "knight"
 var health := 120.0
 var max_health := 120.0
 var shield := 60.0
 var max_shield := 60.0
 var speed := 270.0
-var damage := 18.0
 var aim := Vector2.RIGHT
 var facing := Vector2.RIGHT
 var fire_cooldown := 0.0
 var skill_cooldown := 0.0
+var skill_cooldown_max := 12.0
+var skill_time := 0.0
+var skill_name := "火力双生"
+var weapon_key := "pistol"
+var weapon_level := 1
 var dash_time := 0.0
 var dash_direction := Vector2.RIGHT
+var barrier_time := 0.0
 var invulnerability := 0.0
 var xp := 0
 var level := 1
@@ -32,17 +38,51 @@ func _ready() -> void:
 	add_child(collision)
 	visual = ActorVisual.new()
 	add_child(visual)
-	visual.setup("player", "Blue", 0.9, true)
-	visual.held_weapon = "pistol"
-	visual.hero_identity = "knight"
+	configure("knight")
+
+func configure(key: String) -> void:
+	if not Rules.HEROES.has(key): key = "knight"
+	class_id = key
+	var data: Dictionary = Rules.HEROES[key]
+	max_health = float(data.health)
+	health = max_health
+	max_shield = float(data.shield)
+	shield = max_shield
+	speed = float(data.speed)
+	skill_cooldown_max = float(data.cooldown)
+	skill_cooldown = 0.0
+	skill_name = String(data.skill)
+	skill_time = 0.0
+	barrier_time = 0.0
+	dash_time = 0.0
+	weapon_key = String(data.start)
+	weapon_level = 1
+	visual.setup("player", String(data.color), 0.9, true)
+	visual.hero_identity = key
+	visual.held_weapon = weapon_key
 
 func center() -> Vector2:
 	return position + Vector2(0, -28)
+
+func weapon_definition() -> Dictionary:
+	return Rules.weapon(weapon_key)
+
+func class_damage_scale() -> float:
+	return 1.15 if class_id == "ranger" else 1.0
+
+func equip_weapon(key: String, upgrade_level := 1) -> void:
+	if not Rules.weapon_keys().has(key): return
+	weapon_key = key
+	weapon_level = clampi(upgrade_level, 1, 3)
+	visual.held_weapon = key
+	game.hud.toast("宝匣：%s Lv.%d" % [Rules.weapon(key).name, weapon_level], 2)
 
 func _physics_process(delta: float) -> void:
 	if not game.running or game.game_over: return
 	fire_cooldown = maxf(0.0, fire_cooldown - delta)
 	skill_cooldown = maxf(0.0, skill_cooldown - delta)
+	skill_time = maxf(0.0, skill_time - delta)
+	barrier_time = maxf(0.0, barrier_time - delta)
 	invulnerability = maxf(0.0, invulnerability - delta)
 	hurt_flash = maxf(0.0, hurt_flash - delta)
 	var movement := Input.get_vector("move_left", "move_right", "move_up", "move_down")
@@ -57,30 +97,61 @@ func _physics_process(delta: float) -> void:
 	position = position.clamp(Vector2(50, 50), game.ARENA_SIZE - Vector2(50, 50))
 	if movement.length() > 0.1:
 		facing = movement.normalized()
-	var target: ArenaEnemy = game.nearest_enemy(center(), 650.0)
+	var reach := float(weapon_definition().get("reach", 650.0))
+	var target: ArenaEnemy = game.nearest_enemy(center(), maxf(150.0, reach))
 	if target != null:
 		aim = (target.position - center()).normalized()
 		facing = aim
 		if Input.is_action_pressed("shoot") and not game.build_mode and fire_cooldown <= 0.0:
 			fire(target)
+	visual.dual_active = class_id == "knight" and skill_time > 0.0
 	visual.advance(delta, velocity, facing)
 	queue_redraw()
 
 func fire(target: ArenaEnemy) -> void:
-	fire_cooldown = 0.28
+	var definition := weapon_definition()
+	fire_cooldown = float(definition.interval)
 	var direction := aim
 	if is_instance_valid(target):
 		direction = (target.position - center()).normalized()
 		aim = direction
-	game.spawn_projectile(center(), center() + direction * 800.0, damage * (1.0 + (level - 1) * 0.05), Color("9fe8e0"), 0.0, 0.0, 900.0)
+	var base_damage: float = float(definition.damage) * (1.0 + (level - 1) * 0.05) * game.hero_damage_scale() * class_damage_scale()
+	var weapon_color: Color = definition.color
+	var dual := class_id == "knight" and skill_time > 0.0
 	visual.attack(direction, 0.18)
+	if weapon_key == "sword":
+		game.damage_radius(center() + direction * 55, float(definition.reach), base_damage * (2.0 if dual else 1.0))
+		return
+	if weapon_key == "scatter":
+		for angle in [-0.24, -0.12, 0.0, 0.12, 0.24]:
+			game.spawn_projectile(center(), center() + direction.rotated(angle) * 800.0, base_damage, weapon_color, 0.0, 0.0, 900.0)
+		return
+	if weapon_key == "sniper":
+		game.spawn_projectile(center(), center() + direction * 800.0, base_damage, weapon_color, 0.0, 0.0, 1100.0, 3)
+		return
+	if weapon_key == "boomerang":
+		for angle in [-0.12, 0.12]:
+			game.spawn_projectile(center(), center() + direction.rotated(angle) * 800.0, base_damage, weapon_color, 0.0, 0.0, 700.0)
+		return
+	var shots := 2 if dual else 1
+	for index in range(shots):
+		var offset := (index - (shots - 1) * 0.5) * 22.0
+		game.spawn_projectile(center() + direction.orthogonal() * offset, center() + direction * 800.0 + direction.orthogonal() * offset, base_damage, weapon_color, 0.0, 0.0, 900.0)
 
 func use_skill(movement: Vector2) -> void:
-	skill_cooldown = 2.5
-	dash_time = 0.18
-	invulnerability = maxf(invulnerability, 0.24)
-	dash_direction = movement.normalized() if movement.length() > 0.1 else facing
-	game.hud.toast("冲刺：短暂无敌", 1)
+	skill_cooldown = skill_cooldown_max
+	if class_id == "ranger":
+		dash_time = 0.18
+		invulnerability = maxf(invulnerability, 0.24)
+		dash_direction = movement.normalized() if movement.length() > 0.1 else facing
+		game.hud.toast("掠影翻滚：短暂无敌", 1)
+	elif class_id == "mage":
+		barrier_time = 3.5
+		game.clear_hostile_projectiles()
+		game.hud.toast("星纹结界：清弹 3.5 秒", 1)
+	else:
+		skill_time = 5.0
+		game.hud.toast("火力双生：5 秒双持", 1)
 
 func take_damage(amount: float) -> void:
 	if invulnerability > 0.0 or game.game_over: return
@@ -102,12 +173,13 @@ func add_xp(amount: int) -> void:
 		xp_target += 12
 		max_health += 8.0
 		health = minf(max_health, health + 10.0)
-		damage += 1.5
-		game.hud.toast("升级 Lv.%d · 生命/伤害提升" % level, 2)
+		game.hud.toast("升级 Lv.%d · 生命提升" % level, 2)
 
 func _draw() -> void:
 	draw_arc(Vector2(0, 2), 21, 0, TAU, 32, Color(0.65, 0.92, 0.82, 0.65), 1.5, true)
 	if shield > 0.0:
 		draw_arc(Vector2(0, -24), 31, -PI * 0.8, PI * 0.8, 28, Color(0.55, 0.85, 1.0, 0.35), 2, true)
+	if barrier_time > 0.0:
+		draw_arc(Vector2(0, -10), 62, 0, TAU, 40, Color(0.65, 0.85, 1.0, 0.55), 3, true)
 	if hurt_flash > 0.0:
 		draw_circle(Vector2(0, -28), 28, Color(1.0, 0.35, 0.3, 0.25))
