@@ -44,8 +44,9 @@ WASD 移动；左键自动攻击；Space 冲刺；B 按住建造模式；左键�
 
 - 新场景：`scenes/arena.tscn`，不替换 `main.tscn`；入口 `试玩竞技场.bat` 或 `tools/run_arena.ps1`。
 - 已实现：8 区域远处刷怪、热点休息期预告、30/15 秒压力/休息、预算成簇；单英雄自动索敌/射击/冲刺/死亡结束；网格自由建塔、8 邻接禁止、路径验证、流场寻路、塔挡敌人；塔建造时间/耐久/接触磨损/修理/升级；经验金币掉落、磁铁、远快近慢、休息结束普通掉落消失、大掉落保留；休息段边缘补给箱；B 慢速建造、镜头拉高、射程/流场/网格预览、专注条；HUD/结算。
-- 尚未实现：休息段三选一、Boss 架势、塔专精、正式平衡、音效、美术替换。
-- 验证：`powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\verify_arena.ps1`（当前 18 项通过）；`tests/arena_capture.gd` 用于真实画面摆位截图，`tests/arena_probe.gd` 用于多策略 headless 探针。
-- 试玩结论：[ARENA_PLAYTEST_FINDINGS.md](ARENA_PLAYTEST_FINDINGS.md)；当前主要问题是经济不可达、出怪爆发、英雄无威胁、Boss 无行为层。
+- 第一轮修复：竞技场独立塔价 70/110/90、开局 260 金、核心 300、预算 20+6×(轮-1) 且按 30 秒铺开；射击兵远程攻击、工兵拆塔；Boss 停在核心 300 距离持续攻击而不是一撞秒杀；核心/Boss/预算/建造 HUD；热点路径预览；20 项测试。
+- 尚未实现：休息段三选一、Boss 架势/阶段、小地图/边缘箭头、所有刷怪区路径预览、升级费用展示、英雄真正会死的压力来源、正式平衡、音效、美术替换。
+- 验证：`powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\verify_arena.ps1`（当前 20 项通过）；`tests/arena_capture.gd` 用于真实画面摆位截图，`tests/arena_probe.gd` 用于多策略 headless 探针。
+- 试玩结论：[ARENA_PLAYTEST_FINDINGS.md](ARENA_PLAYTEST_FINDINGS.md)；第一轮复测：自然经济+修理可胜，4 塔失败，8 塔/10 塔可胜。
 - 已知风险：当前仍可能被“围一圈留一口”的迷宫策略影响；塔耐久与飞行/工兵反制、休息段活动、刷怪公平性需要下一轮真人试玩确认。
 

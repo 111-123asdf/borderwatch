@@ -1,18 +1,24 @@
 class_name ArenaTower
 extends Node2D
 
+const STATS := {
+	"bolt": {"name": "巡林弩塔", "cost": 70, "damage": 22.0, "interval": 0.55, "range": 340.0, "color": Color("edc76c")},
+	"cannon": {"name": "星火重炮", "cost": 110, "damage": 40.0, "interval": 1.25, "range": 380.0, "color": Color("ff9d65")},
+	"frost": {"name": "寒霜哨塔", "cost": 90, "damage": 10.0, "interval": 0.8, "range": 320.0, "color": Color("87dfeb")},
+}
+const MAX_LEVEL := 3
+
 var game: Node2D
 var kind := "bolt"
 var cell := Vector2i.ZERO
 var level := 1
-var health := 300.0
-var max_health := 300.0
+var health := 280.0
+var max_health := 280.0
 var active := false
 var build_clock := 2.0
 var cooldown := 0.0
 var aim := Vector2.LEFT
 var body: Sprite2D
-const MAX_LEVEL := 3
 
 func _ready() -> void:
 	var color := "Blue" if kind == "bolt" else ("Purple" if kind == "cannon" else "Yellow")
@@ -24,16 +30,16 @@ func _ready() -> void:
 	queue_redraw()
 
 func attack_range() -> float:
-	return (float(Rules.TOWERS[kind].range) + (level - 1) * 28.0) * (1.12 if game.hero != null and game.hero.position.distance_to(position) < 340.0 else 1.0)
+	return (float(STATS[kind].range) + (level - 1) * 24.0) * (1.12 if game.hero != null and game.hero.position.distance_to(position) < 340.0 else 1.0)
 
 func upgrade_price() -> int:
-	return int(float(Rules.TOWERS[kind].cost) * (0.7 + level * 0.35))
+	return int(float(STATS[kind].cost) * (0.55 + level * 0.25))
 
 func upgrade() -> bool:
 	if level >= MAX_LEVEL or game.gold < upgrade_price(): return false
 	game.gold -= upgrade_price()
 	level += 1
-	max_health += 60.0
+	max_health += 50.0
 	health = max_health
 	game.hud.toast("塔升级到 Lv.%d" % level, 1)
 	return true
@@ -49,8 +55,8 @@ func _physics_process(delta: float) -> void:
 		return
 	cooldown = maxf(0.0, cooldown - delta)
 	for enemy in game.enemies.duplicate():
-		if is_instance_valid(enemy) and enemy.position.distance_to(position) < 58.0:
-			health -= 16.0 * delta
+		if is_instance_valid(enemy) and enemy.position.distance_to(position) < 72.0:
+			health -= 13.0 * delta
 			if health <= 0.0:
 				game.tower_destroyed(self)
 				return
@@ -60,18 +66,18 @@ func _physics_process(delta: float) -> void:
 	queue_redraw()
 
 func fire(target: ArenaEnemy) -> void:
-	var definition: Dictionary = Rules.TOWERS[kind]
+	var definition: Dictionary = STATS[kind]
 	cooldown = float(definition.interval)
 	aim = (target.position - position).normalized()
-	var damage: float = float(definition.damage) * (1.0 + (level - 1) * 0.5)
+	var damage: float = float(definition.damage) * (1.0 + (level - 1) * 0.6)
 	var splash := 0.0
 	var slow := 0.0
-	if kind == "cannon": splash = 64.0
+	if kind == "cannon": splash = 68.0
 	if kind == "frost": slow = 2.6
 	game.spawn_projectile(position + Vector2(0, -84), target.position, damage, definition.color, splash, slow, 700.0)
 
 func _draw() -> void:
-	var color: Color = Rules.TOWERS[kind].color
+	var color: Color = STATS[kind].color
 	draw_arc(Vector2(0, 2), 24, 0, TAU, 28, Color(color, 0.55), 2, true)
 	draw_line(Vector2(0, -84), Vector2(0, -84) + aim * 20, Color(color, 0.9), 5, true)
 	if not active:

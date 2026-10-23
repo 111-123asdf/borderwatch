@@ -46,12 +46,28 @@ func _run() -> void:
 	check(game.enemies.is_empty(), "Leaked enemies are removed from the live array")
 	check(game.core_health < core_before, "Leaked enemies damage the core")
 
+	game.towers[0].active = true
+	var tower_health_before: float = game.towers[0].health
+	var sapper = game.spawn_enemy("sapper", game.towers[0].position + Vector2(30, 0), 1000.0)
+	await create_timer(0.25).timeout
+	check(game.towers[0].health < tower_health_before, "Sappers damage towers")
+	game.enemy_escaped(sapper)
+	sapper.queue_free()
+
+	var shield_before: float = game.hero.shield
+	var shooter = game.spawn_enemy("shooter", game.hero.position + Vector2(70, 0), 1000.0)
+	await create_timer(0.6).timeout
+	check(game.hero.shield < shield_before or game.hero.health < game.hero.max_health, "Shooters threaten the hero")
+	game.enemy_escaped(shooter)
+	shooter.queue_free()
+
 	game.spawn_budget = 4
 	game.start_spawn()
 	game.spawn_cluster()
 	check(game.enemies.size() > 0, "Spawn director creates enemies")
 	check(game.flow_at(game.spawn_points[0]).length() > 0.0, "Spawned enemies have a flow direction")
 
+	game.hero.invulnerability = 0.0
 	game.hero.take_damage(9999.0)
 	check(game.game_over and not game.running, "Hero death ends the run")
 	check(game.hud.result_panel.visible, "Death shows the result panel")

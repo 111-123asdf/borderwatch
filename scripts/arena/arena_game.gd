@@ -14,24 +14,26 @@ const SPAWN_RADIUS := 1150.0
 const CORE_EXCLUSION := 140.0
 const TOWER_LIMIT := 10
 const REGION_COUNT := 8
-const START_GOLD := 180
+const START_GOLD := 260
 
 var running := true
 var started := false
 var game_over := false
 var victory := false
 var gold := START_GOLD
-var core_health := 240.0
-var core_max := 240.0
+var core_health := 300.0
+var core_max := 300.0
 var cycle := 1
 var phase := "rest"
 var phase_clock := 5.0
 var spawn_budget := 0
 var spawn_timer := 0.0
+var spawn_interval := 2.0
 var spawned_this_phase := 0
 var hot_region := 0
 var boss_spawned := false
 var boss_dead := false
+var boss: ArenaEnemy
 var rng := RandomNumberGenerator.new()
 
 var blocked: Array[bool] = []
@@ -89,8 +91,8 @@ func _ready() -> void:
 	hud = ArenaHUD.new()
 	hud.game = self
 	add_child(hud)
-	start_rest(15.0)
-	_set_phase_text("第一轮准备：把塔放在核心周围，英雄去林线捡掉落。")
+	start_rest(20.0)
+	_set_phase_text("第一轮准备：先建 2 座塔，英雄去林线捡掉落。")
 
 func _configure_input() -> void:
 	var actions := {
@@ -208,15 +210,20 @@ func flow_at(point: Vector2) -> Vector2:
 	return direction
 
 func _all_spawns_reachable() -> bool:
+	return _blocked_spawn_names().is_empty()
+
+func _blocked_spawn_names() -> Array[String]:
 	var temp := _compute_reach()
-	for cell in spawn_cells:
-		if temp[cell_index(cell)] < 0: return false
-	return true
+	var names: Array[String] = []
+	for index in range(REGION_COUNT):
+		if temp[cell_index(spawn_cells[index])] < 0:
+			names.append(_region_name(index))
+	return names
 
 # ── build ────────────────────────────────────────────────────
 func can_place(cell: Vector2i) -> String:
 	if cell.x < 0 or cell.y < 0 or cell.x >= GRID_W or cell.y >= GRID_H: return "超出地图"
-	if not Rules.TOWERS.has(build_kind): return "请选择塔"
+	if not ArenaTower.STATS.has(build_kind): return "请选择塔"
 	var point := cell_center(cell)
 	if point.distance_to(CORE) < CORE_EXCLUSION: return "离核心太近"
 	if point.distance_to(CORE) > BUILD_RADIUS: return "超出建造范围"
@@ -228,14 +235,15 @@ func can_place(cell: Vector2i) -> String:
 			if other.x < 0 or other.y < 0 or other.x >= GRID_W or other.y >= GRID_H: continue
 			if _tower_at(other) != null: return "不能挨着其他塔"
 	if towers.size() >= TOWER_LIMIT: return "塔位已满"
-	if gold < int(Rules.TOWERS[build_kind].cost): return "金币不足"
+	if gold < int(ArenaTower.STATS[build_kind].cost): return "金币不足"
 	for enemy in enemies:
 		if is_instance_valid(enemy) and enemy.position.distance_to(point) < 46: return "敌人太近"
 	var index := cell_index(cell)
 	blocked[index] = true
-	var reachable := _all_spawns_reachable()
+	var blocked_names := _blocked_spawn_names()
 	blocked[index] = false
-	if not reachable: return "会堵死所有刷怪路线"
+	if not blocked_names.is_empty():
+		return "会堵死%s路线" % "、".join(blocked_names)
 	return ""
 
 func _tower_at(cell: Vector2i) -> ArenaTower:
@@ -250,7 +258,7 @@ func place_tower(cell: Vector2i) -> bool:
 		build_reason = reason
 		hud.toast(reason, 2)
 		return false
-	var cost := int(Rules.TOWERS[build_kind].cost)
+	var cost := int(ArenaTower.STATS[build_kind].cost)
 	gold -= cost
 	blocked[cell_index(cell)] = true
 	var tower := ArenaTower.new()
@@ -262,7 +270,7 @@ func place_tower(cell: Vector2i) -> bool:
 	towers.append(tower)
 	stats.built += 1
 	_rebuild_flow()
-	hud.toast("已建造 %s · 英雄靠近时光环增伤" % Rules.TOWERS[build_kind].name, 2)
+	hud.toast("已建造 %s（%d 金）" % [ArenaTower.STATS[build_kind].name, cost], 2)
 	return true
 
 func tower_destroyed(tower: ArenaTower) -> void:
@@ -279,6 +287,17 @@ func nearest_damaged_tower(point: Vector2, radius: float) -> ArenaTower:
 	var best := radius
 	for tower in towers:
 		if not is_instance_valid(tower) or tower.health >= tower.max_health: continue
+		var distance := point.distance_to(tower.position)
+		if distance < best:
+			best = distance
+			result = tower
+	return result
+
+func nearest_tower(point: Vector2, radius: float) -> ArenaTower:
+	var result: ArenaTower
+	var best := radius
+	for tower in towers:
+		if not is_instance_valid(tower) or not tower.active: continue
 		var distance := point.distance_to(tower.position)
 		if distance < best:
 			best = distance
@@ -317,7 +336,7 @@ func start_rest(seconds: float) -> void:
 	hot_region = rng.randi_range(0, REGION_COUNT - 1)
 	var cache_region := (hot_region + 4) % REGION_COUNT
 	var cache_point: Vector2 = spawn_points[cache_region] + Vector2(rng.randf_range(-50, 50), rng.randf_range(-50, 50))
-	spawn_drop(cache_point, 18, 24, true, true)
+	spawn_drop(cache_point, 20, 30, true, true)
 	_set_phase_text("休息：下一轮热点 %s；补给箱在 %s；建塔/修塔/捡掉落" % [_region_name(hot_region), _region_name(cache_region)])
 	hud.toast("休息段：下一轮热点 %s；补给箱在 %s（休息结束消失）" % [_region_name(hot_region), _region_name(cache_region)], 3)
 
@@ -325,12 +344,13 @@ func start_spawn() -> void:
 	expire_normal_drops()
 	phase = "spawn"
 	phase_clock = 30.0
-	spawn_budget = 18 + 8 * cycle
+	spawn_budget = 20 + 6 * (cycle - 1)
+	spawn_interval = 30.0 / maxf(1.0, ceilf(float(spawn_budget) / 4.0))
 	spawn_timer = 0.0
 	if cycle >= 6 and not boss_spawned:
 		_spawn_boss()
-	_set_phase_text("出怪：林线有动静（热点 %s）" % _region_name(hot_region))
-	hud.toast("出怪：林线有动静（热点 %s）" % _region_name(hot_region), 3)
+	_set_phase_text("出怪：林线有动静（热点 %s，预算 %d）" % [_region_name(hot_region), spawn_budget])
+	hud.toast("出怪：热点 %s；本轮预算 %d" % [_region_name(hot_region), spawn_budget], 3)
 
 func _region_name(index: int) -> String:
 	var names := ["北", "东北", "东", "东南", "南", "西南", "西", "西北"]
@@ -359,22 +379,24 @@ func spawn_cluster() -> void:
 		var kind := "torch"
 		if cycle >= 2 and rng.randf() < 0.25: kind = "shooter"
 		if cycle >= 3 and rng.randf() < 0.18: kind = "barrel"
+		if cycle >= 4 and rng.randf() < 0.12: kind = "sapper"
 		if cycle >= 4 and rng.randf() < 0.15: kind = "shielded"
 		if cycle >= 5 and rng.randf() < 0.15: kind = "armored"
-		var health := 42.0 + cycle * 14.0
+		var health := 38.0 + cycle * 10.0
 		if kind == "barrel": health *= 1.6
+		if kind == "sapper": health *= 3.0
 		if kind == "shielded": health *= 2.2
 		if kind == "armored": health *= 2.6
 		spawn_enemy(kind, point, health)
 		spawn_budget -= 1
-	spawn_timer = 0.9
+	spawn_timer = spawn_interval
 	spawned_this_phase += count
 	debug.regions[region] += 1
 
 func _spawn_boss() -> void:
 	boss_spawned = true
 	var point: Vector2 = spawn_points[hot_region]
-	spawn_enemy("boss", point, 2600.0)
+	boss = spawn_enemy("boss", point, 2600.0)
 	hud.toast("焚林统领从%s林线走来", 4)
 
 func spawn_enemy(kind: String, point: Vector2, health: float) -> ArenaEnemy:
@@ -395,12 +417,13 @@ func enemy_died(enemy: ArenaEnemy) -> void:
 	stats.kills += 1
 	if enemy.kind == "boss":
 		boss_dead = true
-		spawn_drop(enemy.position, 60, 80, true)
+		boss = null
+		spawn_drop(enemy.position, 80, 120, true)
 		hud.toast("焚林统领倒下", 3)
 	elif enemy.kind in ["shielded", "armored"]:
-		spawn_drop(enemy.position, 12, 8, true)
+		spawn_drop(enemy.position, 14, 10, true)
 	else:
-		spawn_drop(enemy.position, 5, 3, false)
+		spawn_drop(enemy.position, 6, 5, false)
 	if boss_dead and cycle >= 6 and enemies.is_empty():
 		finish(true)
 
@@ -486,6 +509,18 @@ func spawn_projectile(origin: Vector2, target: Vector2, damage: float, color: Co
 	projectile.color = color
 	projectile.splash = splash
 	projectile.slow = slow
+	add_child(projectile)
+	return projectile
+
+func enemy_shot(origin: Vector2, target: Vector2, damage: float, speed := 190.0) -> ArenaProjectile:
+	var projectile := ArenaProjectile.new()
+	projectile.game = self
+	projectile.hostile = true
+	projectile.position = origin
+	projectile.direction = (target - origin).normalized()
+	projectile.damage = damage
+	projectile.speed = speed
+	projectile.color = Color("ff6b5e")
 	add_child(projectile)
 	return projectile
 
@@ -576,7 +611,7 @@ func _update_phase(delta: float) -> void:
 func _advance_cycle() -> void:
 	if cycle >= 6: return
 	cycle += 1
-	start_rest(15.0)
+	start_rest(16.0)
 
 # ── draw ───────────────────────────────────────────────────
 func _draw() -> void:
@@ -598,8 +633,15 @@ func _draw() -> void:
 			var rect := Rect2(cell_center(build_cell) - Vector2.ONE * CELL * 0.5, Vector2.ONE * CELL)
 			draw_rect(rect, Color(0.4, 0.95, 0.65, 0.28) if build_valid else Color(0.95, 0.35, 0.3, 0.28))
 			draw_rect(rect, Color(0.4, 0.95, 0.65, 0.8) if build_valid else Color(0.95, 0.35, 0.3, 0.8), false, 2)
-			var range_value := float(Rules.TOWERS[build_kind].range)
+			var range_value := float(ArenaTower.STATS[build_kind].range)
 			draw_arc(cell_center(build_cell), range_value, 0, TAU, 64, Color(0.55, 0.9, 0.75, 0.45), 2, true)
+		var route_point: Vector2 = spawn_points[hot_region]
+		for step in range(60):
+			var direction: Vector2 = flow_at(route_point)
+			if direction == Vector2.ZERO: break
+			draw_line(route_point, route_point + direction * 18.0, Color(0.95, 0.55, 0.35, 0.55), 4, true)
+			route_point += direction * 18.0
+			if route_point.distance_to(CORE) < 50.0: break
 	for rock in obstacles:
 		draw_rect(rock, Color("4a4d44"))
 		draw_rect(rock, Color("252b25"), false, 3)

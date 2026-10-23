@@ -126,6 +126,8 @@ func _drive() -> void:
 
 func _try_natural_build() -> void:
 	if game.phase != "rest": return
+	if game.gold >= 30 and game.nearest_damaged_tower(game.hero.position, 150.0) != null:
+		game.repair_nearest()
 	var sequence: Array[Vector2i] = [
 		Vector2i(23, 20), Vector2i(17, 20), Vector2i(20, 23), Vector2i(20, 17),
 		Vector2i(24, 23), Vector2i(16, 17), Vector2i(23, 24), Vector2i(17, 16),

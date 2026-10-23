@@ -10,6 +10,8 @@ var radius := 22.0
 var dead := false
 var slow_time := 0.0
 var attack_cooldown := 0.0
+var ranged_cooldown := 0.0
+var boss_core_cooldown := 0.0
 var visual: ActorVisual
 var hit_flash := 0.0
 
@@ -21,6 +23,11 @@ func _ready() -> void:
 	var factor := 0.76
 	if kind == "shooter":
 		family = "archer"
+	if kind == "sapper":
+		family = "tnt"
+		factor = 0.85
+		speed = 96.0
+		radius = 20.0
 	elif kind == "barrel":
 		family = "barrel"
 		factor = 0.95
@@ -48,14 +55,43 @@ func _physics_process(delta: float) -> void:
 	slow_time = maxf(0.0, slow_time - delta)
 	hit_flash = maxf(0.0, hit_flash - delta)
 	attack_cooldown = maxf(0.0, attack_cooldown - delta)
+	ranged_cooldown = maxf(0.0, ranged_cooldown - delta)
+	boss_core_cooldown = maxf(0.0, boss_core_cooldown - delta)
+	if kind == "sapper":
+		var tower: ArenaTower = game.nearest_tower(position, 620.0)
+		if tower != null:
+			var tower_direction := (tower.position - position).normalized()
+			position += tower_direction * speed * delta
+			visual.advance(delta, tower_direction * speed, tower_direction)
+			if position.distance_to(tower.position) < 48.0:
+				tower.health -= 40.0 * delta
+				if tower.health <= 0.0:
+					game.tower_destroyed(tower)
+			queue_redraw()
+			return
 	var direction: Vector2 = game.flow_at(position)
 	if direction == Vector2.ZERO:
 		direction = (game.CORE - position).normalized()
 	var slow_factor := 0.55 if slow_time > 0.0 else 1.0
-	position += direction * speed * slow_factor * delta
-	visual.advance(delta, direction * speed, direction)
-	if position.distance_to(game.CORE) < 58.0:
-		game.core_hit(9999.0 if kind == "boss" else (34.0 if kind == "armored" else 16.0))
+	var core_distance := position.distance_to(game.CORE)
+	var boss_holding := kind == "boss" and core_distance < 300.0
+	if not boss_holding:
+		position += direction * speed * slow_factor * delta
+	var visual_motion := Vector2.ZERO if boss_holding else direction * speed
+	visual.advance(delta, visual_motion, direction)
+	if kind in ["shooter", "boss"] and game.hero != null:
+		var shot_range := 430.0 if kind == "shooter" else 520.0
+		if position.distance_to(game.hero.position) < shot_range and ranged_cooldown <= 0.0:
+			ranged_cooldown = 1.8 if kind == "shooter" else 1.3
+			game.enemy_shot(position + Vector2(0, -24), game.hero.center(), 7.0 if kind == "shooter" else 12.0, 190.0 if kind == "shooter" else 230.0)
+	if kind == "boss":
+		if core_distance < 300.0 and boss_core_cooldown <= 0.0:
+			boss_core_cooldown = 1.0
+			game.core_hit(18.0)
+		queue_redraw()
+		return
+	if core_distance < 58.0:
+		game.core_hit(28.0 if kind == "armored" else 14.0)
 		game.enemy_escaped(self)
 		dead = true
 		queue_free()
