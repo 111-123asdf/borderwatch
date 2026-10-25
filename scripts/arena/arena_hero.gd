@@ -47,6 +47,9 @@ var storm_cooldown := 0.0
 var burn_dps := 0.0
 var slow_damage_bonus := 0.0
 var execute_threshold := 0.35
+var crit_multiplier := 2.0
+var close_damage_bonus := 0.0
+var damage_reduction := 0.0
 
 func _ready() -> void:
 	collision_layer = 2
@@ -101,7 +104,7 @@ func weapon_definition() -> Dictionary:
 
 func class_damage_scale() -> float:
 	if class_id == "ranger": return 1.40
-	if class_id == "mage": return 1.35
+	if class_id == "mage": return 1.45
 	return 1.0
 
 func equip_weapon(key: String, upgrade_level := 1) -> void:
@@ -135,14 +138,24 @@ func apply_passive(key: String) -> void:
 		"burn": burn_dps += 6.0
 		"pistol_caliber": damage_mult += 0.18
 		"pistol_akimbo": multishot += 1
+		"pistol_quickdraw": attack_speed_mult += 0.10
+		"pistol_ricochet": pierce_bonus += 1
 		"bow_broadhead":
 			damage_mult += 0.20
 			pierce_bonus += 1
 		"bow_hunter": slow_damage_bonus += 0.30
+		"bow_rapid": attack_speed_mult += 0.12
+		"bow_pierce": pierce_bonus += 1
+		"bow_marksman":
+			crit_chance = minf(0.85, crit_chance + 0.10)
+			crit_multiplier += 0.50
 		"scatter_wide": multishot += 1
 		"scatter_frost": slow_bonus += 0.8
+		"scatter_close": close_damage_bonus += 0.20
+		"scatter_reload": attack_speed_mult += 0.12
+		"juggernaut": damage_reduction = minf(0.6, damage_reduction + 0.20)
 		"tower_doctrine": skill_cd_mult = maxf(0.35, skill_cd_mult * 0.90)
-		"chain", "nova", "execute", "deathblast", "storm", "lifesteal", "dash_reset", "overload", "tower_link", "stormfire", "shatter", "executioner", "tempest", "reaper":
+		"chain", "nova", "execute", "deathblast", "storm", "lifesteal", "dash_reset", "overload", "tower_link", "stormfire", "shatter", "executioner", "tempest", "reaper", "pyroclasm", "chainfrost", "permafrost":
 			pass
 
 func _physics_process(delta: float) -> void:
@@ -197,9 +210,11 @@ func fire(target: ArenaEnemy) -> void:
 	var base_damage: float = float(definition.damage) * (1.0 + (level - 1) * 0.05) * game.hero_damage_scale() * class_damage_scale() * damage_mult
 	if is_instance_valid(target) and target.slow_time > 0.0:
 		base_damage *= 1.0 + slow_damage_bonus
+	if is_instance_valid(target) and target.position.distance_to(center()) < 300.0:
+		base_damage *= 1.0 + close_damage_bonus
 	var critical := randf() < crit_chance
 	if critical:
-		base_damage *= 2.0
+		base_damage *= crit_multiplier
 	if passives.has("overload"):
 		var every := maxi(4, 8 - (int(passives["overload"]) - 1) * 2)
 		if (shots_fired + 1) % every == 0:
@@ -260,6 +275,7 @@ func use_skill(movement: Vector2) -> void:
 
 func take_damage(amount: float) -> void:
 	if invulnerability > 0.0 or game.game_over: return
+	amount *= 1.0 - damage_reduction
 	var shield_before := shield
 	var shield_loss := minf(shield, amount)
 	shield -= shield_loss

@@ -73,6 +73,7 @@ var passive_selecting := false
 var passive_choices: Array[String] = []
 var passive_source := ""
 var pending_level_choices := 0
+var passive_rerolls := 2
 var stats := {"kills": 0, "hero_kills": 0, "tower_kills": 0, "built": 0, "cycles": 0}
 var debug := {
 	"leaks": 0,
@@ -562,7 +563,13 @@ func open_passive_choice(source: String) -> void:
 	passive_choices = ArenaUpgrades.roll(hero, source, 3, rng)
 	passive_selecting = true
 	running = false
-	hud.show_passive_choice(passive_choices, source)
+	hud.show_passive_choice(passive_choices, source, passive_rerolls)
+
+func reroll_passive_choice() -> void:
+	if not passive_selecting or passive_rerolls <= 0: return
+	passive_rerolls -= 1
+	passive_choices = ArenaUpgrades.roll(hero, passive_source, 3, rng)
+	hud.show_passive_choice(passive_choices, passive_source, passive_rerolls)
 
 func choose_passive(key: String) -> void:
 	if not passive_selecting or not passive_choices.has(key): return
@@ -690,6 +697,8 @@ func enemy_died(enemy: ArenaEnemy) -> void:
 			damage_radius(enemy.position, 80.0, 38.0)
 			if hero.passives.has("reaper"):
 				hero.health = minf(hero.max_health, hero.health + 5.0)
+		if hero.passives.has("pyroclasm") and enemy.burn_time > 0.0:
+			damage_radius(enemy.position, 90.0, 32.0)
 
 func enemy_escaped(enemy: ArenaEnemy) -> void:
 	enemies.erase(enemy)
@@ -825,10 +834,16 @@ func chain_strike(origin: Vector2, damage: float, jumps: int) -> void:
 			target.apply_burn(hero.burn_dps, 3.0)
 		if hero != null and hero.passives.has("stormfire"):
 			damage_radius(target.position, 72.0, damage * 0.55)
+		if hero != null and hero.passives.has("chainfrost"):
+			target.slow_time = maxf(target.slow_time, 1.5)
 		from = target.center()
 	shake(2.0)
 
 func frost_nova(point: Vector2, radius: float, damage: float, slow: float) -> void:
+	if hero != null and hero.passives.has("permafrost"):
+		radius += 30.0
+		slow += 1.0
+		damage *= 1.20
 	rings.append({"point": point, "radius": radius, "life": 0.35})
 	for enemy in enemies.duplicate():
 		if is_instance_valid(enemy) and not enemy.dead and enemy.position.distance_to(point) < radius:

@@ -32,6 +32,7 @@ var minimap: Control
 var passive_buttons: Array[Button] = []
 var passive_selected := ""
 var passive_confirm: Button
+var passive_reroll: Button
 var build_palette: Panel
 var palette_buttons := {}
 var tower_panel: Panel
@@ -270,7 +271,7 @@ func hide_relic_choice() -> void:
 		relic_panel.visible = false
 	_release_focus()
 
-func show_passive_choice(choices: Array[String], source: String) -> void:
+func show_passive_choice(choices: Array[String], source: String, rerolls: int) -> void:
 	if passive_panel != null:
 		passive_panel.queue_free()
 	passive_buttons.clear()
@@ -294,7 +295,7 @@ func show_passive_choice(choices: Array[String], source: String) -> void:
 	var subtitle := _label(Rect2(20, 60, 680, 24), 14, MUTED)
 	root.remove_child(subtitle)
 	passive_panel.add_child(subtitle)
-	subtitle.text = "先点一张卡，再点下方确认；不会一点就选"
+	subtitle.text = "先点一张卡，再点确认；可刷新一次卡池"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	for index in range(choices.size()):
 		var key: String = choices[index]
@@ -313,6 +314,15 @@ func show_passive_choice(choices: Array[String], source: String) -> void:
 		button.pressed.connect(_select_passive.bind(key))
 		passive_panel.add_child(button)
 		passive_buttons.append(button)
+	passive_reroll = Button.new()
+	passive_reroll.position = Vector2(40, 432)
+	passive_reroll.size = Vector2(190, 44)
+	passive_reroll.text = "刷新 ×%d" % rerolls
+	passive_reroll.disabled = rerolls <= 0
+	passive_reroll.add_theme_font_size_override("font_size", 16)
+	_style_button(passive_reroll)
+	passive_reroll.pressed.connect(game.reroll_passive_choice)
+	passive_panel.add_child(passive_reroll)
 	passive_confirm = Button.new()
 	passive_confirm.position = Vector2(250, 432)
 	passive_confirm.size = Vector2(220, 44)

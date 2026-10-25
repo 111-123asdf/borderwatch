@@ -49,8 +49,18 @@ func _run() -> void:
 	check("stormfire" in synergy_pool, "Synergy appears only after prerequisites")
 	game.hero.passives.erase("burn")
 	game.hero.passives.erase("chain")
+	var rolled_choices := ArenaUpgrades.roll(game.hero, "level", 3, game.rng)
+	var rolled_weapon := false
+	var rolled_element := false
+	for key in rolled_choices:
+		if ArenaUpgrades.DEFS[key].has("weapon"): rolled_weapon = true
+		if "元素" in ArenaUpgrades.DEFS[key].tags: rolled_element = true
+	check(rolled_choices.size() == 3 and rolled_weapon and rolled_element, "Roll guarantees a weapon and element card")
 	game.hero.add_xp(500)
 	check(game.passive_selecting, "Level up opens a passive choice")
+	var rerolls_before: int = game.passive_rerolls
+	game.reroll_passive_choice()
+	check(game.passive_rerolls == rerolls_before - 1 and game.passive_selecting, "Passive reroll refreshes the choice")
 	while game.passive_selecting:
 		game.choose_passive(game.passive_choices[0])
 	check(game.hero.level > level_before, "Level up advances the hero")

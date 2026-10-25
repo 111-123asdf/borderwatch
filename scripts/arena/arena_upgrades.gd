@@ -47,16 +47,27 @@ const DEFS := {
 	"tower_link": {"name": "塔链", "desc": "所有塔伤害 +15%", "rarity": "rare", "tags": ["塔防"], "max": 3, "pool": "both"},
 	"pistol_caliber": {"name": "手枪口径", "desc": "手枪伤害 +18%", "rarity": "common", "tags": ["武器", "弹道"], "max": 3, "weapon": "pistol", "pool": "both"},
 	"pistol_akimbo": {"name": "双持弹匣", "desc": "手枪额外弹道 +1", "rarity": "rare", "tags": ["武器", "弹道"], "max": 2, "weapon": "pistol", "pool": "both"},
+	"pistol_quickdraw": {"name": "快拔", "desc": "手枪攻速 +10%", "rarity": "common", "tags": ["武器", "弹道"], "max": 3, "weapon": "pistol", "pool": "both"},
+	"pistol_ricochet": {"name": "跳弹", "desc": "手枪穿透 +1", "rarity": "rare", "tags": ["武器", "弹道"], "max": 2, "weapon": "pistol", "pool": "both"},
 	"bow_broadhead": {"name": "猎弓", "desc": "弓伤害 +20%，穿透 +1", "rarity": "common", "tags": ["武器", "弹道"], "max": 3, "weapon": "bow", "pool": "both"},
 	"bow_hunter": {"name": "猎手印记", "desc": "对减速目标伤害 +30%", "rarity": "rare", "tags": ["武器", "弹道"], "max": 2, "weapon": "bow", "pool": "both"},
+	"bow_rapid": {"name": "连珠箭", "desc": "弓攻速 +12%", "rarity": "common", "tags": ["武器", "弹道"], "max": 3, "weapon": "bow", "pool": "both"},
+	"bow_pierce": {"name": "破甲箭", "desc": "弓穿透 +1", "rarity": "common", "tags": ["武器", "弹道"], "max": 3, "weapon": "bow", "pool": "both"},
+	"bow_marksman": {"name": "神射手", "desc": "暴击率 +10%，暴击伤害 +50%", "rarity": "epic", "tags": ["武器", "弹道"], "max": 1, "weapon": "bow", "pool": "both"},
 	"scatter_wide": {"name": "散弹加弹", "desc": "散弹弹丸 +1", "rarity": "common", "tags": ["武器", "弹道"], "max": 3, "weapon": "scatter", "pool": "both"},
 	"scatter_frost": {"name": "霜弹", "desc": "散弹附带霜冻", "rarity": "rare", "tags": ["武器", "元素"], "max": 2, "weapon": "scatter", "pool": "both"},
+	"scatter_close": {"name": "抵近射击", "desc": "近距离伤害 +20%", "rarity": "common", "tags": ["武器", "弹道"], "max": 3, "weapon": "scatter", "pool": "both"},
+	"scatter_reload": {"name": "快速装填", "desc": "散弹攻速 +12%", "rarity": "rare", "tags": ["武器", "弹道"], "max": 2, "weapon": "scatter", "pool": "both"},
 	"stormfire": {"name": "雷火", "desc": "连锁命中引发燃烧爆炸", "rarity": "synergy", "tags": ["协同", "元素"], "max": 1, "requires": ["burn", "chain"], "pool": "both"},
 	"shatter": {"name": "碎冰", "desc": "暴击冻结目标并额外 +50% 伤害", "rarity": "synergy", "tags": ["协同", "元素"], "max": 1, "requires": ["frost", "crit"], "pool": "both"},
 	"executioner": {"name": "行刑者", "desc": "处决阈值提高到 50%", "rarity": "synergy", "tags": ["协同", "弹道"], "max": 1, "requires": ["execute", "crit"], "pool": "both"},
 	"tempest": {"name": "风暴眼", "desc": "雷暴落点同时触发霜环", "rarity": "synergy", "tags": ["协同", "元素"], "max": 1, "requires": ["storm", "nova"], "pool": "both"},
 	"reaper": {"name": "收割", "desc": "尸爆会回复生命", "rarity": "synergy", "tags": ["协同", "生存"], "max": 1, "requires": ["lifesteal", "deathblast"], "pool": "both"},
 	"tower_doctrine": {"name": "塔防协议", "desc": "塔伤害 +30%，技能冷却 -10%", "rarity": "synergy", "tags": ["协同", "塔防"], "max": 1, "requires": ["tower_link", "focus"], "pool": "both"},
+	"pyroclasm": {"name": "燃爆", "desc": "燃烧的敌人死亡时爆炸", "rarity": "synergy", "tags": ["协同", "元素"], "max": 1, "requires": ["burn", "blast"], "pool": "both"},
+	"chainfrost": {"name": "霜链", "desc": "连锁命中附加霜冻", "rarity": "synergy", "tags": ["协同", "元素"], "max": 1, "requires": ["chain", "frost"], "pool": "both"},
+	"permafrost": {"name": "永冻", "desc": "霜环范围与减速大幅提高", "rarity": "synergy", "tags": ["协同", "元素"], "max": 1, "requires": ["nova", "frost"], "pool": "both"},
+	"juggernaut": {"name": "不动如山", "desc": "受到的伤害 -20%", "rarity": "synergy", "tags": ["协同", "生存"], "max": 1, "requires": ["vitality", "aegis"], "pool": "both"},
 }
 
 static func info(key: String, stacks := 0) -> Dictionary:
@@ -102,6 +113,14 @@ static func roll(hero, source: String, count: int, rng: RandomNumberGenerator) -
 		var weapon_pick: String = weapon_candidates[rng.randi_range(0, weapon_candidates.size() - 1)]
 		picked.append(weapon_pick)
 		pool.erase(weapon_pick)
+	var element_candidates: Array[String] = []
+	for key in pool:
+		if "元素" in DEFS[key].tags:
+			element_candidates.append(key)
+	if element_candidates.size() > 0 and picked.size() < count:
+		var element_pick: String = element_candidates[rng.randi_range(0, element_candidates.size() - 1)]
+		picked.append(element_pick)
+		pool.erase(element_pick)
 	while picked.size() < count and pool.size() > 0:
 		var total := 0.0
 		for key in pool:
