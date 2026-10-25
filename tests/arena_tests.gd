@@ -45,6 +45,13 @@ func _run() -> void:
 	var pre_bulwark: float = game.hero.damage_reduction
 	game.hero.apply_passive("knight_bulwark")
 	check(game.hero.damage_reduction > pre_bulwark, "Knight class passive applies its effect")
+	var pre_tier: int = game.hero.weapon_level
+	game.hero.apply_passive("pistol_quickdraw")
+	game.hero.apply_passive("pistol_ricochet")
+	check(game.hero.weapon_level >= maxi(2, pre_tier), "Two weapon cards evolve the weapon")
+	game.hero.apply_passive("pistol_storm")
+	game.hero.apply_passive("pistol_caliber")
+	check(game.hero.weapon_level == 3, "Four weapon cards unlock weapon tier 3")
 	var camp_pool := ArenaUpgrades.build_pool(game.hero, "camp")
 	check(not ("power" in camp_pool), "Camp pool excludes common upgrades")
 	game.hero.passives["burn"] = 1

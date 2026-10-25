@@ -15,6 +15,8 @@ func _run() -> void:
 	await process_frame
 	game.start_with_hero("knight")
 	game.hero.apply_passive("knight_bulwark")
+	game.hero.apply_passive("pistol_quickdraw")
+	game.hero.apply_passive("pistol_ricochet")
 	game.hero.apply_passive("power")
 	game.hero.apply_passive("burn")
 	game.hero.apply_passive("chain")

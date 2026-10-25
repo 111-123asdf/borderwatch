@@ -62,6 +62,8 @@ var barrier_duration_bonus := 0.0
 var barrier_damage_bonus := 0.0
 var barrier_reflect := false
 var mage_echo := false
+var weapon_tier_damage := 0.0
+var weapon_tier_speed := 0.0
 
 func _ready() -> void:
 	collision_layer = 2
@@ -189,6 +191,33 @@ func apply_passive(key: String) -> void:
 		"mage_echo": mage_echo = true
 		"chain", "nova", "execute", "deathblast", "storm", "lifesteal", "dash_reset", "overload", "tower_link", "stormfire", "shatter", "executioner", "tempest", "reaper", "pyroclasm", "chainfrost", "permafrost":
 			pass
+	_update_weapon_tier()
+
+func _update_weapon_tier() -> void:
+	var owned := 0
+	for key in passives:
+		if not ArenaUpgrades.DEFS.has(key): continue
+		var data: Dictionary = ArenaUpgrades.DEFS[key]
+		if data.has("weapon") and String(data.weapon) == weapon_key:
+			owned += 1
+	var next_tier := 1
+	if owned >= 4: next_tier = 3
+	elif owned >= 2: next_tier = 2
+	weapon_tier_damage = [0.0, 0.12, 0.20][next_tier - 1]
+	weapon_tier_speed = [0.0, 0.08, 0.12][next_tier - 1]
+	if next_tier != weapon_level:
+		weapon_level = next_tier
+		if game != null and game.hud != null:
+			game.hud.toast("武器进化：%s" % weapon_title(), 2)
+
+func weapon_title() -> String:
+	var names := {
+		"pistol": ["铜雀手枪", "铜雀·连发", "铜雀·风暴"],
+		"bow": ["疾风连弓", "疾风·贯羽", "疾风·箭雨"],
+		"scatter": ["群星法杖", "群星·散射", "群星·星环"],
+	}
+	var titles: Array = names.get(weapon_key, ["武器", "武器·觉醒", "武器·终式"])
+	return String(titles[clampi(weapon_level - 1, 0, titles.size() - 1)])
 
 func _physics_process(delta: float) -> void:
 	if not game.running or game.game_over: return
@@ -237,12 +266,12 @@ func _physics_process(delta: float) -> void:
 func fire(target: ArenaEnemy) -> void:
 	var definition := weapon_definition()
 	var tempo := 1.0 + (tempo_bonus if tempo_time > 0.0 else 0.0)
-	fire_cooldown = float(definition.interval) / (attack_speed_mult * tempo)
+	fire_cooldown = float(definition.interval) / (attack_speed_mult * tempo * (1.0 + weapon_tier_speed))
 	var direction := aim
 	if is_instance_valid(target):
 		direction = (target.position - center()).normalized()
 		aim = direction
-	var base_damage: float = float(definition.damage) * (1.0 + (level - 1) * 0.05) * game.hero_damage_scale() * class_damage_scale() * damage_mult
+	var base_damage: float = float(definition.damage) * (1.0 + (level - 1) * 0.05) * game.hero_damage_scale() * class_damage_scale() * damage_mult * (1.0 + weapon_tier_damage)
 	if class_id == "knight" and shield > 0.0:
 		base_damage *= 1.0 + shield_damage_bonus
 	if class_id == "ranger" and is_instance_valid(target) and target.health >= target.max_health * 0.95:

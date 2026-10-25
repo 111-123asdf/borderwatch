@@ -86,36 +86,36 @@ func _ready() -> void:
 	skill_label = _label(Rect2(18, 102, 460, 24), 15, Color("cfe3d4"))
 	build_panel = Panel.new()
 	build_panel.position = Vector2(14, 126)
-	build_panel.size = Vector2(600, 108)
+	build_panel.size = Vector2(560, 66)
 	build_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var build_style := StyleBoxFlat.new()
-	build_style.bg_color = Color(0.06, 0.12, 0.11, 0.82)
-	build_style.border_color = Color(0.35, 0.48, 0.40, 0.8)
+	build_style.bg_color = Color(0.06, 0.12, 0.11, 0.62)
+	build_style.border_color = Color(0.35, 0.48, 0.40, 0.75)
 	build_style.set_border_width_all(1)
 	build_style.set_corner_radius_all(7)
 	build_panel.add_theme_stylebox_override("panel", build_style)
 	root.add_child(build_panel)
-	build_title = _label(Rect2(12, 5, 570, 20), 13, Color("d6bd7a"))
+	build_title = _label(Rect2(10, 2, 540, 18), 11, Color("d6bd7a"))
 	root.remove_child(build_title)
 	build_title.text = "本局 BUILD"
 	build_panel.add_child(build_title)
 	build_tags = RichTextLabel.new()
-	build_tags.position = Vector2(12, 25)
-	build_tags.size = Vector2(570, 28)
+	build_tags.position = Vector2(10, 17)
+	build_tags.size = Vector2(540, 21)
 	build_tags.bbcode_enabled = true
 	build_tags.fit_content = true
 	build_tags.scroll_active = false
 	build_tags.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	build_tags.add_theme_font_size_override("normal_font_size", 16)
+	build_tags.add_theme_font_size_override("normal_font_size", 14)
 	build_panel.add_child(build_tags)
 	build_synergy = RichTextLabel.new()
-	build_synergy.position = Vector2(12, 54)
-	build_synergy.size = Vector2(570, 50)
+	build_synergy.position = Vector2(10, 38)
+	build_synergy.size = Vector2(540, 24)
 	build_synergy.bbcode_enabled = true
 	build_synergy.fit_content = true
 	build_synergy.scroll_active = false
 	build_synergy.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	build_synergy.add_theme_font_size_override("normal_font_size", 14)
+	build_synergy.add_theme_font_size_override("normal_font_size", 12)
 	build_panel.add_child(build_synergy)
 	phase_label = _label(Rect2(-320, 16, 640, 26), 20, GOLD)
 	phase_label.set_anchors_preset(Control.PRESET_CENTER_TOP, true)
@@ -525,10 +525,10 @@ func _build_synergy_bbcode(include_near: bool) -> String:
 	if synergies.size() > 0:
 		lines.append("[color=#ffd36e]协同 %s[/color]" % "、".join(PackedStringArray(synergies)))
 	if near.size() > 0:
-		lines.append("[color=#9fd8ff]接近 %s[/color]" % " · ".join(PackedStringArray(near.slice(0, 3))))
+		lines.append("[color=#9fd8ff]接近 %s[/color]" % " · ".join(PackedStringArray(near.slice(0, 2))))
 	if lines.is_empty():
-		return "[color=#72887c]暂无协同 · 先拿元素/弹道卡[/color]"
-	return "\n".join(PackedStringArray(lines))
+		return "[color=#72887c]暂无协同[/color]"
+	return "  ".join(PackedStringArray(lines))
 
 func _build_summary_bbcode(include_near: bool) -> String:
 	return _build_tag_bbcode() + "    " + _build_synergy_bbcode(include_near)
@@ -632,7 +632,7 @@ func _process(delta: float) -> void:
 	shield_bar.value = game.hero.shield
 	resources.text = "金币 %d    Lv.%d    击杀 %d" % [game.gold, game.hero.level, game.stats.kills]
 	xp_label.text = "经验 %d/%d    场上 %d    预算 %d" % [game.hero.xp, game.hero.xp_target, game.enemies.size(), game.spawn_budget]
-	skill_label.text = "武器 %s Lv.%d    技能 %s · 空格    %s" % [Rules.weapon(game.hero.weapon_key).name, game.hero.weapon_level, game.hero.skill_name, "冷却 %ds" % ceili(game.hero.skill_cooldown) if game.hero.skill_cooldown > 0.0 else "可用"]
+	skill_label.text = "武器 %s Lv.%d    技能 %s · 空格    %s" % [game.hero.weapon_title(), game.hero.weapon_level, game.hero.skill_name, "冷却 %ds" % ceili(game.hero.skill_cooldown) if game.hero.skill_cooldown > 0.0 else "可用"]
 	_update_build_strip()
 	core_label.text = "核心 %d / %d" % [game.core_health, game.core_max]
 	core_label.add_theme_color_override("font_color", Color("ff8b7d") if game.core_health < game.core_max * 0.35 else CREAM)
