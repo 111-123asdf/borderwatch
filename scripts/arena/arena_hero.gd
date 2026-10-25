@@ -69,6 +69,9 @@ var barrier_reflect := false
 var mage_echo := false
 var weapon_tier_damage := 0.0
 var weapon_tier_speed := 0.0
+var last_stand_bonus := 0.0
+var tower_arsenal_bonus := 0.0
+var predator_bonus := 0.0
 
 func _ready() -> void:
 	collision_layer = 2
@@ -158,6 +161,17 @@ func apply_passive(key: String) -> void:
 		"power": damage_mult += 0.15
 		"rapid": attack_speed_mult += 0.12
 		"crit": crit_chance = minf(0.75, crit_chance + 0.15)
+		"berserk":
+			damage_mult += 0.15
+			damage_reduction -= 0.08
+		"glass_cannon":
+			damage_mult += 0.30
+			max_health = maxf(60.0, max_health - 20.0)
+			health = minf(health, max_health)
+		"last_stand": last_stand_bonus += 0.15
+		"greed": gold_mult += 0.25
+		"tower_arsenal": tower_arsenal_bonus += 0.06
+		"predator": predator_bonus += 0.25
 		"pierce": pierce_bonus += 1
 		"blast": splash_bonus += 30.0
 		"frost": slow_bonus += 1.0
@@ -169,7 +183,6 @@ func apply_passive(key: String) -> void:
 			max_health += 30.0
 			health = minf(max_health, health + 30.0)
 		"focus": skill_cd_mult = maxf(0.35, skill_cd_mult * 0.90)
-		"greed": gold_mult += 0.15
 		"scholar": xp_mult += 0.15
 		"multishot": multishot += 1
 		"burn": burn_dps += 6.0
@@ -294,6 +307,12 @@ func fire(target: ArenaEnemy) -> void:
 		direction = (target.position - center()).normalized()
 		aim = direction
 	var base_damage: float = float(definition.damage) * (1.0 + (level - 1) * 0.05) * game.hero_damage_scale() * class_damage_scale() * damage_mult * (1.0 + weapon_tier_damage)
+	if last_stand_bonus > 0.0 and health < max_health * 0.4:
+		base_damage *= 1.0 + last_stand_bonus
+	if tower_arsenal_bonus > 0.0:
+		base_damage *= 1.0 + tower_arsenal_bonus * game.distinct_tower_kinds()
+	if predator_bonus > 0.0 and is_instance_valid(target) and (target.elite or target.kind == "boss"):
+		base_damage *= 1.0 + predator_bonus
 	if class_id == "knight" and shield > 0.0:
 		base_damage *= 1.0 + shield_damage_bonus
 	if class_id == "ranger" and is_instance_valid(target) and target.health >= target.max_health * 0.95:

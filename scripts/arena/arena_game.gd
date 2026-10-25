@@ -1134,6 +1134,8 @@ func finish(win: bool) -> void:
 
 # ── drops / projectiles ────────────────────────────────────
 func spawn_drop(point: Vector2, xp: int, gold_value: int, big: bool, cache := false, weapon_key := "", camp_name := "") -> ArenaDrop:
+	if hero != null:
+		gold_value = int(round(gold_value * hero.gold_mult))
 	var drop := ArenaDrop.new()
 	drop.game = self
 	drop.xp = xp

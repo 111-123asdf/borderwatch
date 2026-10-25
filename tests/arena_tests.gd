@@ -325,6 +325,10 @@ func _run() -> void:
 	fire_target.queue_free()
 	var build_check: Dictionary = game.build_report()
 	check(build_check.has("grade") and build_check.has("boss_affinity") and build_check.has("warnings"), "Boss build report has grade, affinity and warnings")
+	check(ArenaUpgrades.DEFS.size() >= 86, "Expanded card pool is available")
+	var greed_before: float = game.hero.gold_mult
+	game.hero.apply_passive("greed")
+	check(game.hero.gold_mult > greed_before, "Greed card increases gold gain")
 
 	game.dry_weapon_choices = 2
 	game.dry_element_choices = 2
