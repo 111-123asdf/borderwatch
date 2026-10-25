@@ -12,7 +12,7 @@
 - 8 区域远处刷怪、热点预警、30 秒压力/16 秒休息、Boss。
 - 自由网格建塔、塔挡路、不能 8 邻接、流场寻路和路径验证。
 - 经验和金币掉落、磁铁拾取、休息结束普通掉落消失。
-- 三座营地宝匣给三选一的强力被动（旧路线也并入宝匣池）；起手武器按英雄固定。81 张带武器/职业/元素/塔防/协同的被动、武器三级进化、七塔体系、跨塔群增益、元素交互、稀有度、3 次刷新与 1 次放逐见 [PASSIVE_SYSTEM.md](docs/PASSIVE_SYSTEM.md)；塔设计见 [TOWER_REDESIGN.md](docs/TOWER_REDESIGN.md)。
+- 三座营地宝匣给三选一的强力被动（旧路线也并入宝匣池）；起手武器按英雄固定。81 张带武器/职业/元素/塔防/协同的被动、武器三级进化、七塔体系、跨塔群增益、元素交互、稀有度、3 次刷新与 1 次放逐见 [PASSIVE_SYSTEM.md](docs/PASSIVE_SYSTEM.md)；塔设计见 [TOWER_REDESIGN.md](docs/TOWER_REDESIGN.md)；怪物与出怪见 [ENEMY_REDESIGN.md](docs/ENEMY_REDESIGN.md)。
 - 操作：WASD 移动，左键自动攻击，**B 建造 / 1-7 或滚轮选塔 / 左键放置**，**T 全塔目标**，**Space 职业技能**，左键点塔打开塔旁面板；E 修理，R 重开。
 - 入口：`试玩竞技场.bat` 或 `tools/run_arena.ps1`；测试：`tools/verify_arena.ps1`。
 

@@ -41,6 +41,7 @@ var flow: Array[Vector2] = []
 var reach: PackedInt32Array = PackedInt32Array()
 var spawn_points: Array[Vector2] = []
 var spawn_cells: Array[Vector2i] = []
+var spawn_warnings: Array[Dictionary] = []
 var obstacles: Array[Rect2] = []
 var towers: Array[ArenaTower] = []
 var enemies: Array[ArenaEnemy] = []
@@ -91,6 +92,7 @@ var debug := {
 	"towers_lost": 0,
 	"build_rejected": 0,
 	"regions": [0, 0, 0, 0, 0, 0, 0, 0],
+	"spawn_patterns": {},
 }
 
 func _ready() -> void:
@@ -785,35 +787,99 @@ func _weighted_region() -> int:
 
 func spawn_cluster() -> void:
 	var region := _weighted_region()
-	var base: Vector2 = spawn_points[region]
 	var count := mini(4, spawn_budget)
+	var pattern := "swarm"
+	var angle_sigma := 0.30
+	var radius_sigma := 90.0
+	var roll := rng.randf()
+	if roll < 0.24:
+		pattern = "column"
+		count = mini(4, spawn_budget)
+		angle_sigma = 0.10
+		radius_sigma = 45.0
+	elif roll < 0.52:
+		pattern = "swarm"
+		angle_sigma = 0.48
+		radius_sigma = 120.0
+	elif roll < 0.76:
+		pattern = "pincer"
+		angle_sigma = 0.20
+	count = mini(count, spawn_budget)
+	if count <= 0: return
+	var anchors: Array[Vector2] = []
+	if pattern == "pincer":
+		anchors.append(_spawn_point(region, angle_sigma, radius_sigma))
+		var other := (region + 4) % REGION_COUNT
+		anchors.append(_spawn_point(other, angle_sigma, radius_sigma))
+	else:
+		anchors.append(_spawn_point(region, angle_sigma, radius_sigma))
+	spawn_warnings.append({"point": anchors[0], "life": 1.1, "radius": 74.0})
+	if anchors.size() > 1:
+		spawn_warnings.append({"point": anchors[1], "life": 1.1, "radius": 74.0})
 	for index in range(count):
-		var point := base + Vector2(rng.randf_range(-70, 70), rng.randf_range(-70, 70))
-		var kind := "torch"
-		if cycle >= 2 and rng.randf() < 0.25: kind = "shooter"
-		if cycle >= 3 and rng.randf() < 0.16: kind = "charger"
-		if cycle >= 3 and rng.randf() < 0.10: kind = "bomber"
-		if cycle >= 3 and rng.randf() < 0.18: kind = "barrel"
-		if cycle >= 4 and rng.randf() < 0.08: kind = "sapper"
-		if cycle >= 4 and rng.randf() < 0.12: kind = "brute"
-		if cycle >= 4 and rng.randf() < 0.15: kind = "shielded"
-		if cycle >= 5 and rng.randf() < 0.15: kind = "armored"
+		var base: Vector2 = anchors[index % anchors.size()]
+		var jitter := Vector2(rng.randfn(0.0, 42.0), rng.randfn(0.0, 42.0))
+		var point := _nearest_spawn_point(base + jitter)
+		var kind := _roll_enemy_kind()
 		var health := 38.0 + cycle * 10.0
 		if kind == "barrel": health *= 1.6
 		if kind == "sapper": health *= 2.2
 		if kind == "charger": health *= 0.75
+		if kind == "hound": health *= 0.65
 		if kind == "bomber": health *= 1.5
 		if kind == "brute": health *= 3.0
 		if kind == "shielded": health *= 2.2
 		if kind == "armored": health *= 2.6
+		if kind == "shaman": health *= 1.8
+		if kind == "mortar": health *= 2.0
+		if kind == "splitter": health *= 1.8
 		if kind != "boss": health *= 1.08
-		var elite := cycle >= 2 and rng.randf() < 0.12
+		var elite := cycle >= 2 and rng.randf() < 0.15
 		if elite: health *= 3.0
 		spawn_enemy(kind, point, health, elite)
 		spawn_budget -= 1
 	spawn_timer = spawn_interval
 	spawned_this_phase += count
 	debug.regions[region] += 1
+	debug.spawn_patterns[pattern] = int(debug.spawn_patterns.get(pattern, 0)) + 1
+
+func _spawn_point(region: int, angle_sigma: float, radius_sigma: float) -> Vector2:
+	var base_angle := TAU * float(region) / float(REGION_COUNT)
+	var angle := base_angle + rng.randfn(0.0, angle_sigma)
+	var radius := SPAWN_RADIUS + rng.randfn(0.0, radius_sigma)
+	radius = clampf(radius, SPAWN_RADIUS - 180.0, SPAWN_RADIUS + 180.0)
+	var point: Vector2 = CORE + Vector2.RIGHT.rotated(angle) * radius
+	point = point.clamp(Vector2(80, 80), ARENA_SIZE - Vector2(80, 80))
+	return _nearest_spawn_point(point)
+
+func _nearest_spawn_point(point: Vector2) -> Vector2:
+	var cell := world_to_cell(point)
+	for radius in range(0, 12):
+		for dy in range(-radius, radius + 1):
+			for dx in range(-radius, radius + 1):
+				if maxi(absi(dx), absi(dy)) != radius: continue
+				var candidate := cell + Vector2i(dx, dy)
+				if candidate.x < 0 or candidate.y < 0 or candidate.x >= GRID_W or candidate.y >= GRID_H: continue
+				var index := cell_index(candidate)
+				if blocked[index] or reach[index] < 0: continue
+				return cell_center(candidate)
+	return cell_center(cell)
+
+func _roll_enemy_kind() -> String:
+	var kind := "torch"
+	if cycle >= 2 and rng.randf() < 0.24: kind = "shooter"
+	if cycle >= 2 and rng.randf() < 0.10: kind = "hound"
+	if cycle >= 3 and rng.randf() < 0.15: kind = "charger"
+	if cycle >= 3 and rng.randf() < 0.10: kind = "bomber"
+	if cycle >= 3 and rng.randf() < 0.16: kind = "barrel"
+	if cycle >= 3 and rng.randf() < 0.07: kind = "shaman"
+	if cycle >= 4 and rng.randf() < 0.08: kind = "sapper"
+	if cycle >= 4 and rng.randf() < 0.12: kind = "brute"
+	if cycle >= 4 and rng.randf() < 0.15: kind = "shielded"
+	if cycle >= 4 and rng.randf() < 0.07: kind = "mortar"
+	if cycle >= 4 and rng.randf() < 0.08: kind = "splitter"
+	if cycle >= 5 and rng.randf() < 0.15: kind = "armored"
+	return kind
 
 func build_report() -> Dictionary:
 	var fire := 0
@@ -876,7 +942,7 @@ func build_report() -> Dictionary:
 func _spawn_boss() -> void:
 	boss_spawned = true
 	var report := build_report()
-	var point: Vector2 = spawn_points[hot_region]
+	var point: Vector2 = _spawn_point(hot_region, 0.22, 60.0)
 	boss = spawn_enemy("boss", point, 5000.0)
 	boss.affinity = String(report.boss_affinity)
 	boss.weakness = String(report.boss_weakness)
@@ -903,9 +969,9 @@ func boss_summon(point: Vector2) -> void:
 
 func _weakness_for(kind: String) -> String:
 	match kind:
-		"armored", "shielded": return "lightning"
-		"brute": return "fire"
-		"bomber", "sapper", "charger": return "frost"
+		"armored", "shielded", "mortar": return "lightning"
+		"brute", "shaman", "splitter": return "fire"
+		"bomber", "sapper", "charger", "hound": return "frost"
 		"shooter": return "lightning"
 		"boss": return "frost"
 	return ""
@@ -927,6 +993,8 @@ func spawn_enemy(kind: String, point: Vector2, health: float, elite := false) ->
 	enemy.game = self
 	enemy.kind = kind
 	enemy.elite = elite
+	if elite:
+		enemy.elite_mod = ["swift", "tough", "volatile", "warding"][rng.randi_range(0, 3)]
 	enemy.weakness = _weakness_for(kind)
 	enemy.affinity = _affinity_for(kind, elite, enemy.weakness)
 	enemy.max_health = health
@@ -970,6 +1038,13 @@ func enemy_died(enemy: ArenaEnemy) -> void:
 			for other in enemies.duplicate():
 				if is_instance_valid(other) and not other.dead and other != enemy and other.position.distance_to(enemy.position) < 120.0:
 					other.apply_burn(hero.burn_dps * 0.6, 3.0)
+		if enemy.elite and enemy.elite_mod == "volatile":
+			enemy_explosion(enemy.position, 110.0, 12.0, 18.0)
+		if enemy.kind == "splitter":
+			for index in range(2):
+				var angle := TAU * index / 2.0
+				var child := spawn_enemy("hound", enemy.position + Vector2.RIGHT.rotated(angle) * 34.0, maxf(20.0, enemy.max_health * 0.22))
+				child.elite = false
 
 func enemy_escaped(enemy: ArenaEnemy) -> void:
 	enemies.erase(enemy)
@@ -1215,6 +1290,21 @@ func clear_hostile_projectiles() -> void:
 		if is_instance_valid(projectile):
 			projectile.queue_free()
 
+func enemy_explosion(point: Vector2, radius: float, hero_damage: float, tower_damage: float) -> void:
+	rings.append({"point": point, "radius": radius, "life": 0.35})
+	if hero != null and hero.position.distance_to(point) < radius:
+		hero.take_damage(hero_damage)
+	for tower in towers.duplicate():
+		if is_instance_valid(tower) and tower.position.distance_to(point) < radius:
+			tower.health -= tower_damage
+			if tower.health <= 0.0: tower_destroyed(tower)
+
+func shaman_support(point: Vector2) -> void:
+	for enemy in enemies.duplicate():
+		if is_instance_valid(enemy) and not enemy.dead and enemy.position.distance_to(point) < 200.0:
+			enemy.health = minf(enemy.max_health, enemy.health + enemy.max_health * 0.05)
+			rings.append({"point": enemy.position, "radius": 26.0, "life": 0.25})
+
 func damage_radius(point: Vector2, radius: float, damage: float) -> void:
 	for enemy in enemies.duplicate():
 		if is_instance_valid(enemy) and not enemy.dead and enemy.position.distance_to(point) < radius:
@@ -1283,6 +1373,8 @@ func _process(delta: float) -> void:
 	bolts = bolts.filter(func(item): return item.life > 0.0)
 	for ring in rings: ring.life -= delta
 	rings = rings.filter(func(item): return item.life > 0.0)
+	for warning in spawn_warnings: warning.life -= delta
+	spawn_warnings = spawn_warnings.filter(func(item): return item.life > 0.0)
 	for floater in floaters: floater.life -= delta
 	floaters = floaters.filter(func(item): return item.life > 0.0)
 	if build_mode:
@@ -1365,10 +1457,12 @@ func _draw() -> void:
 		var angle := TAU * index / float(REGION_COUNT)
 		var color := Color(0.95, 0.4, 0.25, 0.35 if index == hot_region else 0.12)
 		draw_arc(CORE, SPAWN_RADIUS, angle - 0.32, angle + 0.32, 24, color, 8, true)
-		draw_circle(spawn_points[index], 10 if index != hot_region else 18, color)
+	for warning in spawn_warnings:
+		var alpha: float = clampf(warning.life / 1.1, 0.0, 1.0)
+		draw_arc(warning.point, warning.radius * (1.25 - alpha * 0.25), 0, TAU, 40, Color(1.0, 0.55, 0.32, alpha * 0.8), 3, true)
+		draw_circle(warning.point, 8, Color(1.0, 0.62, 0.35, alpha * 0.7))
 	if build_mode:
-		for x in range(0, GRID_W + 1):
-			draw_line(Vector2(x * CELL, 0), Vector2(x * CELL, ARENA_SIZE.y), Color(0.7, 0.85, 0.8, 0.06), 1)
+		for x in range(0, GRID_W + 1):			draw_line(Vector2(x * CELL, 0), Vector2(x * CELL, ARENA_SIZE.y), Color(0.7, 0.85, 0.8, 0.06), 1)
 		for y in range(0, GRID_H + 1):
 			draw_line(Vector2(0, y * CELL), Vector2(ARENA_SIZE.x, y * CELL), Color(0.7, 0.85, 0.8, 0.06), 1)
 		if build_cell.x >= 0:

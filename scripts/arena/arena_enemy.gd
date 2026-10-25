@@ -4,6 +4,8 @@ extends Node2D
 var game: Node2D
 var kind := "torch"
 var elite := false
+var elite_mod := ""
+var support_cooldown := 0.0
 var weakness := ""
 var affinity := ""
 var boss_phase := 0
@@ -79,11 +81,34 @@ func _ready() -> void:
 	var factor := 0.76
 	if kind == "shooter":
 		family = "archer"
+	elif kind == "hound":
+		family = "torch"
+		factor = 0.7
+		speed = 155.0
+		radius = 18.0
 	elif kind == "charger":
 		family = "torch"
 		factor = 0.82
 		speed = 128.0
 		radius = 20.0
+	elif kind == "shaman":
+		family = "archer"
+		color = "Purple"
+		factor = 0.84
+		speed = 62.0
+		radius = 22.0
+	elif kind == "mortar":
+		family = "barrel"
+		color = "Blue"
+		factor = 1.0
+		speed = 42.0
+		radius = 28.0
+	elif kind == "splitter":
+		family = "barrel"
+		color = "Purple"
+		factor = 0.92
+		speed = 74.0
+		radius = 26.0
 	elif kind == "bomber":
 		family = "barrel"
 		color = "Purple"
@@ -125,6 +150,11 @@ func _ready() -> void:
 		radius *= 1.3
 		speed *= 0.90
 		visual.scale = Vector2.ONE * 0.96
+		if elite_mod == "swift":
+			speed *= 1.28
+		elif elite_mod == "tough":
+			max_health *= 1.35
+			health = max_health
 	else:
 		visual.scale = Vector2.ONE * 0.78
 
@@ -151,18 +181,37 @@ func _physics_process(delta: float) -> void:
 	attack_cooldown = maxf(0.0, attack_cooldown - delta)
 	ranged_cooldown = maxf(0.0, ranged_cooldown - delta)
 	boss_core_cooldown = maxf(0.0, boss_core_cooldown - delta)
-	if kind == "sapper":
-		var tower: ArenaTower = game.nearest_tower(position, 620.0)
+	support_cooldown = maxf(0.0, support_cooldown - delta)
+	if kind in ["sapper", "bomber", "mortar"]:
+		var tower: ArenaTower = game.nearest_tower(position, 620.0 if kind == "mortar" else 380.0)
 		if tower != null:
 			var tower_direction := (tower.position - position).normalized()
-			position += tower_direction * speed * delta
+			var tower_distance := position.distance_to(tower.position)
+			if kind == "mortar":
+				if tower_distance > 240.0:
+					position += tower_direction * speed * delta
+				elif ranged_cooldown <= 0.0:
+					ranged_cooldown = 2.2
+					tower.health -= 14.0
+					game.hit_feedback(tower.position, 14.0)
+					if tower.health <= 0.0: game.tower_destroyed(tower)
+			elif kind == "bomber" and tower_distance < 58.0:
+				game.enemy_explosion(position, 96.0, 18.0, 24.0)
+				dead = true
+				game.enemy_died(self)
+				queue_free()
+				return
+			else:
+				position += tower_direction * speed * delta
+				if tower_distance < 48.0:
+					tower.health -= (34.0 if kind == "brute" else 30.0) * delta
+					if tower.health <= 0.0: game.tower_destroyed(tower)
 			visual.advance(delta, tower_direction * speed, tower_direction)
-			if position.distance_to(tower.position) < 48.0:
-				tower.health -= 32.0 * delta
-				if tower.health <= 0.0:
-					game.tower_destroyed(tower)
 			queue_redraw()
 			return
+	if kind == "shaman" and support_cooldown <= 0.0:
+		support_cooldown = 2.4
+		game.shaman_support(position)
 	if kind == "boss":
 		if health < max_health * 0.66 and boss_phase == 0:
 			boss_phase = 1
@@ -173,7 +222,7 @@ func _physics_process(delta: float) -> void:
 			game.boss_summon(position)
 			game.boss_phase_shift(position, boss_phase)
 	var direction: Vector2 = game.flow_at(position)
-	if kind == "charger" and game.hero != null and position.distance_to(game.hero.position) < 500.0:
+	if kind in ["charger", "hound"] and game.hero != null and position.distance_to(game.hero.position) < 500.0:
 		direction = (game.hero.position - position).normalized()
 	if direction == Vector2.ZERO:
 		direction = (game.CORE - position).normalized()
@@ -214,6 +263,8 @@ func _physics_process(delta: float) -> void:
 
 func take_damage(amount: float) -> void:
 	if dead: return
+	if elite and elite_mod == "warding":
+		amount *= 0.8
 	health -= amount
 	hit_flash = 0.1
 	visual.hit_flash = 0.1
@@ -252,6 +303,8 @@ func _draw() -> void:
 		draw_arc(Vector2.ZERO, 46, 0, TAU, 32, Color(0.9, 0.45, 0.35, 0.6), 4, true)
 	if elite:
 		draw_arc(Vector2.ZERO, radius + 8, 0, TAU, 24, Color(1.0, 0.85, 0.4, 0.7), 3, true)
+		var mod_name: String = {"swift": "迅捷", "tough": "坚韧", "volatile": "爆裂", "warding": "护咒"}.get(elite_mod, "精英")
+		draw_string(ThemeDB.fallback_font, Vector2(-width * 0.5, top - 18), "精英·" + mod_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color("ffd36e"))
 	if kind == "bomber":
 		draw_arc(Vector2.ZERO, 28, 0, TAU, 20, Color(0.8, 0.55, 1.0, 0.45), 3, true)
 	if burn_time > 0.0:

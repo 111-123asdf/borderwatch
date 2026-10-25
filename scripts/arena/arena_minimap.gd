@@ -24,10 +24,9 @@ func _draw() -> void:
 	var map_rect := Rect2(origin, arena * scale_factor)
 	draw_rect(map_rect, Color(0.16, 0.27, 0.21, 0.9))
 	draw_rect(map_rect, Color(0.45, 0.62, 0.50, 0.35), false, 1)
-	for index in range(game.REGION_COUNT):
-		var point: Vector2 = origin + game.spawn_points[index] * scale_factor
-		var color := Color(1.0, 0.45, 0.28, 0.95 if index == game.hot_region else 0.45)
-		draw_circle(point, 4.0 if index != game.hot_region else 6.0, color)
+	for warning in game.spawn_warnings:
+		var point: Vector2 = origin + warning.point * scale_factor
+		draw_arc(point, 8.0, 0, TAU, 20, Color(1.0, 0.45, 0.28, 0.85), 2.0, true)
 	for tower in game.towers:
 		if is_instance_valid(tower):
 			draw_rect(Rect2(origin + tower.position * scale_factor - Vector2(2, 2), Vector2(4, 4)), Color("9fe8d8"))

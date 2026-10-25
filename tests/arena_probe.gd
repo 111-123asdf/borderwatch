@@ -185,6 +185,7 @@ func _print_result() -> void:
 		"towers_lost": game.debug.towers_lost,
 		"build_rejected": game.debug.build_rejected + rejected,
 		"regions": game.debug.regions,
+		"spawn_patterns": game.debug.spawn_patterns,
 		"hero_health": snappedf(game.hero.health, 0.1),
 	}
 	print("PROBE " + JSON.stringify(result))
