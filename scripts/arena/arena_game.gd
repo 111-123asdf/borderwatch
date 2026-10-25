@@ -608,9 +608,65 @@ func passive_info(key: String) -> Dictionary:
 	if Rules.RELICS.has(key):
 		var relic: Dictionary = Rules.RELICS[key]
 		return {"name": relic.name, "desc": relic.text, "tag": relic.tag, "tags_text": relic.tag, "rarity_name": "路线", "stack_text": ""}
+	var info: Dictionary
 	if hero != null:
-		return ArenaUpgrades.info(key, int(hero.passives.get(key, 0)))
-	return ArenaUpgrades.info(key, 0)
+		info = ArenaUpgrades.info(key, int(hero.passives.get(key, 0)))
+	else:
+		info = ArenaUpgrades.info(key, 0)
+	var preview := tower_card_preview(key)
+	if preview != "":
+		info = info.duplicate()
+		info["preview"] = preview
+	return info
+
+func tower_card_preview(key: String) -> String:
+	if hero == null or not key.begins_with("tower_"): return ""
+	var stacks := int(hero.passives.get(key, 0))
+	var distinct := distinct_tower_kinds()
+	var speed_before := int(round(tower_global_speed_bonus() * 100.0))
+	var damage_before := int(round(tower_global_damage_bonus() * 100.0))
+	var range_before := int(round(tower_global_range_bonus()))
+	var speed_after := speed_before
+	var damage_after := damage_before
+	var range_after := range_before
+	match key:
+		"tower_bolt":
+			speed_after += 4
+			return "全塔攻速 +%d%% → +%d%%；弩塔再 +%d%% → +%d%%" % [speed_before, speed_after, 10 * stacks, 10 * (stacks + 1)]
+		"tower_cannon":
+			damage_after += 5
+			return "全塔伤害 +%d%% → +%d%%；炮塔再 +15%%" % [damage_before, damage_after]
+		"tower_frost":
+			range_after += 8
+			return "全塔射程 +%d → +%d；霜塔减速再 +0.5 秒" % [range_before, range_after]
+		"tower_arc":
+			damage_after += 4
+			return "全塔伤害 +%d%% → +%d%%；电弧塔再 +15%%/跳数" % [damage_before, damage_after]
+		"tower_venom":
+			damage_after += 5
+			return "全塔伤害 +%d%% → +%d%%；毒塔再 +15%% 中毒" % [damage_before, damage_after]
+		"tower_laser":
+			range_after += 8
+			return "全塔射程 +%d → +%d；曜光塔再 +10%%" % [range_before, range_after]
+		"tower_banner":
+			return "战旗光环额外 +5% → +%d%% 塔伤害" % (5 * (stacks + 1))
+		"tower_mixed":
+			return "当前 %d 种塔：全塔伤害 +%d%% → +%d%%" % [distinct, damage_before, damage_after + 4 * distinct]
+		"tower_network":
+			return "2 格内每座塔伤害 +10%"
+		"tower_commander":
+			return "英雄 240 范围内塔伤害 +25%"
+		"tower_engineer":
+			return "建造/升级费用再 -8%"
+		"tower_fortress":
+			return "塔网伤害再 +10%/邻塔，塔受伤 -25%"
+		"tower_overclock":
+			return "每座塔第 5 发双倍伤害"
+		"tower_winter":
+			return "霜塔减速 +1.5 秒，伤害 +15%"
+		"tower_command":
+			return "英雄附近塔攻速 +20%"
+	return ""
 
 func queue_level_choice() -> void:
 	pending_level_choices += 1
@@ -826,6 +882,15 @@ func _spawn_boss() -> void:
 	boss.weakness = String(report.boss_weakness)
 	hud.show_boss_check(report)
 	hud.toast("焚林统领从%s林线走来" % _region_name(hot_region), 4)
+
+func boss_phase_shift(point: Vector2, phase: int) -> void:
+	rings.append({"point": point, "radius": 320.0, "life": 0.55})
+	shake(8.0 + phase * 2.0)
+	for tower in towers:
+		if is_instance_valid(tower) and tower.position.distance_to(point) <= 360.0:
+			tower.disabled_time = maxf(tower.disabled_time, 1.2 + phase * 0.4)
+			tower.health -= 8.0 * phase
+	hud.toast("Boss 阶段 %d：冲击波静默附近塔" % (phase + 1), 3)
 
 func boss_summon(point: Vector2) -> void:
 	hud.toast("焚林统领召来援军", 2)

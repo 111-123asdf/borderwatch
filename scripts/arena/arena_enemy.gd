@@ -167,9 +167,11 @@ func _physics_process(delta: float) -> void:
 		if health < max_health * 0.66 and boss_phase == 0:
 			boss_phase = 1
 			game.boss_summon(position)
+			game.boss_phase_shift(position, boss_phase)
 		elif health < max_health * 0.33 and boss_phase == 1:
 			boss_phase = 2
 			game.boss_summon(position)
+			game.boss_phase_shift(position, boss_phase)
 	var direction: Vector2 = game.flow_at(position)
 	if kind == "charger" and game.hero != null and position.distance_to(game.hero.position) < 500.0:
 		direction = (game.hero.position - position).normalized()

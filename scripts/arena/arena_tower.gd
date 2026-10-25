@@ -29,6 +29,8 @@ var aim := Vector2.LEFT
 var target_mode := "nearest"
 var body: Sprite2D
 var shots_fired := 0
+var last_attack_mode := ""
+var disabled_time := 0.0
 
 func _ready() -> void:
 	var color := "Blue"
@@ -44,6 +46,7 @@ func _ready() -> void:
 	if kind == "banner":
 		active = true
 		build_clock = 0.0
+	last_attack_mode = {"bolt": "bolt_volley", "cannon": "cannon_shell", "frost": "frost_nova", "arc": "arc_chain", "venom": "venom_cloud", "laser": "laser_beam", "banner": "banner_aura"}.get(kind, kind)
 	queue_redraw()
 
 func attack_range() -> float:
@@ -92,6 +95,10 @@ func _physics_process(delta: float) -> void:
 			game.hud.toast("塔已就绪", 1)
 		queue_redraw()
 		return
+	if disabled_time > 0.0:
+		disabled_time = maxf(0.0, disabled_time - delta)
+		queue_redraw()
+		return
 	if kind == "banner":
 		queue_redraw()
 		return
@@ -112,6 +119,7 @@ func _physics_process(delta: float) -> void:
 
 func fire(target: ArenaEnemy) -> void:
 	var definition: Dictionary = STATS[kind]
+	last_attack_mode = {"bolt": "bolt_volley", "cannon": "cannon_shell", "frost": "frost_nova", "arc": "arc_chain", "venom": "venom_cloud", "laser": "laser_beam", "banner": "banner_aura"}.get(kind, kind)
 	cooldown = attack_interval()
 	aim = (target.position - position).normalized()
 	if kind == "banner":
@@ -175,5 +183,8 @@ func _draw() -> void:
 	if health < max_health:
 		draw_rect(Rect2(-22, -112, 44, 5), Color("2a2324"))
 		draw_rect(Rect2(-22, -112, 44 * maxf(0.0, health / max_health), 5), Color("e0937d"))
+	if disabled_time > 0.0:
+		draw_arc(Vector2.ZERO, 30, 0, TAU, 24, Color(0.95, 0.45, 0.35, 0.9), 3, true)
+		draw_string(ThemeDB.fallback_font, Vector2(-12, -130), "静默", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color("ff9b82"))
 	if game.build_mode:
 		draw_arc(Vector2.ZERO, attack_range(), 0, TAU, 48, Color(0.6, 0.9, 0.8, 0.28), 2, true)

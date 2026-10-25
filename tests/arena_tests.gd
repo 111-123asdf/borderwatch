@@ -169,6 +169,47 @@ func _run() -> void:
 	game.number_build("cannon")
 	game.confirm_build()
 	check(game.distinct_tower_kinds() >= 2, "Mixed tower composition is tracked")
+	var mode_tower: ArenaTower = game.towers[0]
+	var frost_target: ArenaEnemy = game.spawn_enemy("torch", mode_tower.position + Vector2(120, 0), 500.0)
+	mode_tower.kind = "frost"
+	mode_tower.fire(frost_target)
+	check(mode_tower.last_attack_mode == "frost_nova" and frost_target.slow_time > 0.0, "Frost tower attacks with a slowing nova")
+	game.enemy_escaped(frost_target)
+	frost_target.queue_free()
+	var venom_target: ArenaEnemy = game.spawn_enemy("torch", mode_tower.position + Vector2(120, 0), 500.0)
+	mode_tower.kind = "venom"
+	mode_tower.fire(venom_target)
+	check(mode_tower.last_attack_mode == "venom_cloud" and venom_target.poison_time > 0.0, "Venom tower attacks with a poison cloud")
+	game.enemy_escaped(venom_target)
+	venom_target.queue_free()
+	var laser_target: ArenaEnemy = game.spawn_enemy("torch", mode_tower.position + Vector2(120, 0), 500.0)
+	mode_tower.kind = "laser"
+	var laser_health: float = laser_target.health
+	mode_tower.fire(laser_target)
+	check(mode_tower.last_attack_mode == "laser_beam" and laser_target.health < laser_health, "Laser tower attacks with a beam")
+	game.enemy_escaped(laser_target)
+	laser_target.queue_free()
+	var arc_a: ArenaEnemy = game.spawn_enemy("torch", mode_tower.position + Vector2(90, 0), 500.0)
+	var arc_b: ArenaEnemy = game.spawn_enemy("torch", mode_tower.position + Vector2(130, 0), 500.0)
+	mode_tower.kind = "arc"
+	var arc_b_health: float = arc_b.health
+	mode_tower.fire(arc_a)
+	check(mode_tower.last_attack_mode == "arc_chain" and arc_b.health < arc_b_health, "Arc tower attacks with chain lightning")
+	game.enemy_escaped(arc_a)
+	game.enemy_escaped(arc_b)
+	arc_a.queue_free()
+	arc_b.queue_free()
+	mode_tower.kind = "bolt"
+	var bolt_target: ArenaEnemy = game.spawn_enemy("torch", mode_tower.position + Vector2(120, 0), 500.0)
+	mode_tower.fire(bolt_target)
+	check(mode_tower.last_attack_mode == "bolt_volley", "Bolt tower uses a volley")
+	game.enemy_escaped(bolt_target)
+	bolt_target.queue_free()
+	var preview_info: Dictionary = game.passive_info("tower_bolt")
+	check(preview_info.has("preview") and String(preview_info.preview) != "", "Tower card shows a numeric preview")
+	var tower_disabled_before: float = mode_tower.disabled_time
+	game.boss_phase_shift(mode_tower.position, 1)
+	check(mode_tower.disabled_time > tower_disabled_before, "Boss phase shift silences nearby towers")
 
 	game.hero.position = game.CORE + Vector2(160, 0)
 	var gold_before: int = game.gold

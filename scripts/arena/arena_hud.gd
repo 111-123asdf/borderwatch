@@ -396,6 +396,9 @@ func show_passive_choice(choices: Array[String], source: String, rerolls: int, b
 		var requires_text: String = String(data.get("requires_text", ""))
 		if requires_text != "":
 			button.text += "\n前置：" + requires_text
+		var preview_text: String = String(data.get("preview", ""))
+		if preview_text != "":
+			button.text += "\n预览：" + preview_text
 		button.add_theme_font_size_override("font_size", 15)
 		button.add_theme_color_override("font_color", data.get("rarity_color", CREAM))
 		_style_button(button)
@@ -740,7 +743,8 @@ func _process(delta: float) -> void:
 	_update_build_menu()
 	_update_tower_panel()
 	if game.boss != null and is_instance_valid(game.boss) and not game.boss.dead:
-		boss_label.text = "焚林统领  %d / %d" % [game.boss.health, game.boss.max_health]
+		var phase_text := "" if game.boss.boss_phase == 0 else " · 阶段 %d" % (game.boss.boss_phase + 1)
+		boss_label.text = "焚林统领%s  %d / %d" % [phase_text, game.boss.health, game.boss.max_health]
 		boss_bar.max_value = game.boss.max_health
 		boss_bar.value = game.boss.health
 	focus_bar.visible = game.build_mode
