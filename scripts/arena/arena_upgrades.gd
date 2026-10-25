@@ -130,6 +130,15 @@ static func ready_synergies(hero) -> Array[String]:
 			ready.append(String(key))
 	return ready
 
+static func weight_for(key: String, hero) -> float:
+	var rarity := String(DEFS[key].rarity)
+	var weight := float(RARITY_WEIGHTS.get(rarity, 1.0))
+	if rarity == "synergy":
+		weight = 80.0
+		if key in ready_synergies(hero):
+			weight = 170.0
+	return weight
+
 static func roll(hero, source: String, count: int, rng: RandomNumberGenerator, guarantee_weapon := false, guarantee_element := false, banished: Array[String] = []) -> Array[String]:
 	var pool := build_pool(hero, source, banished)
 	var picked: Array[String] = []
@@ -154,11 +163,11 @@ static func roll(hero, source: String, count: int, rng: RandomNumberGenerator, g
 	while picked.size() < count and pool.size() > 0:
 		var total := 0.0
 		for key in pool:
-			total += float(RARITY_WEIGHTS.get(String(DEFS[key].rarity), 1.0))
+			total += weight_for(String(key), hero)
 		var roll_value := rng.randf() * total
 		var chosen := ""
 		for key in pool:
-			roll_value -= float(RARITY_WEIGHTS.get(String(DEFS[key].rarity), 1.0))
+			roll_value -= weight_for(String(key), hero)
 			if roll_value <= 0.0:
 				chosen = key
 				break

@@ -13,7 +13,10 @@ var shield_bar: ProgressBar
 var resources: Label
 var xp_label: Label
 var skill_label: Label
-var build_strip: Label
+var build_panel: Panel
+var build_title: Label
+var build_tags: RichTextLabel
+var build_synergy: RichTextLabel
 var phase_label: Label
 var hint_label: Label
 var build_label: Label
@@ -81,8 +84,39 @@ func _ready() -> void:
 	resources = _label(Rect2(18, 54, 420, 24), 16, GOLD)
 	xp_label = _label(Rect2(18, 78, 420, 24), 15, MUTED)
 	skill_label = _label(Rect2(18, 102, 460, 24), 15, Color("cfe3d4"))
-	build_strip = _label(Rect2(18, 128, 560, 44), 13, Color("9fb9aa"))
-	build_strip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	build_panel = Panel.new()
+	build_panel.position = Vector2(14, 126)
+	build_panel.size = Vector2(600, 108)
+	build_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var build_style := StyleBoxFlat.new()
+	build_style.bg_color = Color(0.06, 0.12, 0.11, 0.82)
+	build_style.border_color = Color(0.35, 0.48, 0.40, 0.8)
+	build_style.set_border_width_all(1)
+	build_style.set_corner_radius_all(7)
+	build_panel.add_theme_stylebox_override("panel", build_style)
+	root.add_child(build_panel)
+	build_title = _label(Rect2(12, 5, 570, 20), 13, Color("d6bd7a"))
+	root.remove_child(build_title)
+	build_title.text = "本局 BUILD"
+	build_panel.add_child(build_title)
+	build_tags = RichTextLabel.new()
+	build_tags.position = Vector2(12, 25)
+	build_tags.size = Vector2(570, 28)
+	build_tags.bbcode_enabled = true
+	build_tags.fit_content = true
+	build_tags.scroll_active = false
+	build_tags.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	build_tags.add_theme_font_size_override("normal_font_size", 16)
+	build_panel.add_child(build_tags)
+	build_synergy = RichTextLabel.new()
+	build_synergy.position = Vector2(12, 54)
+	build_synergy.size = Vector2(570, 50)
+	build_synergy.bbcode_enabled = true
+	build_synergy.fit_content = true
+	build_synergy.scroll_active = false
+	build_synergy.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	build_synergy.add_theme_font_size_override("normal_font_size", 14)
+	build_panel.add_child(build_synergy)
 	phase_label = _label(Rect2(-320, 16, 640, 26), 20, GOLD)
 	phase_label.set_anchors_preset(Control.PRESET_CENTER_TOP, true)
 	phase_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -302,21 +336,35 @@ func show_passive_choice(choices: Array[String], source: String, rerolls: int, b
 	passive_panel.add_child(subtitle)
 	subtitle.text = "先点一张卡，再点确认；可刷新卡池"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var build_context := _label(Rect2(20, 84, 680, 24), 13, Color("9fb9aa"))
-	root.remove_child(build_context)
+	var build_context := RichTextLabel.new()
+	build_context.position = Vector2(20, 84)
+	build_context.size = Vector2(680, 26)
+	build_context.bbcode_enabled = true
+	build_context.fit_content = true
+	build_context.scroll_active = false
+	build_context.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	build_context.add_theme_font_size_override("normal_font_size", 15)
 	passive_panel.add_child(build_context)
-	build_context.text = _build_summary_text(false)
-	build_context.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	build_context.text = "[color=#d6bd7a]当前 Build[/color]    " + _build_summary_bbcode(false)
 	for index in range(choices.size()):
 		var key: String = choices[index]
 		var data: Dictionary = game.passive_info(key)
 		var button := Button.new()
 		button.position = Vector2(40, 116 + index * 108)
 		button.size = Vector2(640, 96)
+		var stripe := ColorRect.new()
+		stripe.position = Vector2(0, 0)
+		stripe.size = Vector2(6, 96)
+		stripe.color = data.get("rarity_color", CREAM)
+		stripe.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		button.add_child(stripe)
 		var rarity_text: String = String(data.get("rarity_name", "普通"))
 		var tags_text: String = String(data.get("tags_text", "被动"))
 		var stack_text: String = String(data.get("stack_text", ""))
-		button.text = "%s · %s   [%s]   %s\n%s" % [data.name, tags_text, rarity_text, stack_text, data.desc]
+		var title_text: String = String(data.name)
+		if String(data.get("rarity", "")) == "synergy":
+			title_text = "★ " + title_text
+		button.text = "%s · %s   [%s]   %s\n%s" % [title_text, tags_text, rarity_text, stack_text, data.desc]
 		var requires_text: String = String(data.get("requires_text", ""))
 		if requires_text != "":
 			button.text += "\n前置：" + requires_text
@@ -422,9 +470,20 @@ func _build_palette() -> void:
 		index += 1
 
 func _update_build_strip() -> void:
-	build_strip.text = _build_summary_text(true)
+	build_tags.text = _build_tag_bbcode()
+	build_synergy.text = _build_synergy_bbcode(true)
 
-func _build_summary_text(include_near: bool) -> String:
+func _tag_color(tag: String) -> String:
+	match tag:
+		"武器": return "#ffd36e"
+		"弹道": return "#ffad7a"
+		"元素": return "#8be8ff"
+		"生存": return "#9fe8b0"
+		"经济": return "#e8d36e"
+		"塔防": return "#9fb8ff"
+	return "#c8c3b3"
+
+func _build_tag_bbcode() -> String:
 	if game == null or game.hero == null:
 		return ""
 	var counts := {}
@@ -435,8 +494,14 @@ func _build_summary_text(include_near: bool) -> String:
 			counts[tag] = int(counts.get(tag, 0)) + 1
 	var parts: Array[String] = []
 	for tag in ["武器", "弹道", "元素", "生存", "经济", "塔防"]:
-		if int(counts.get(tag, 0)) > 0:
-			parts.append("%s%d" % [tag, int(counts[tag])])
+		var count := int(counts.get(tag, 0))
+		if count > 0:
+			parts.append("[color=%s]%s %d[/color]" % [_tag_color(tag), tag, count])
+	if parts.is_empty():
+		return "[color=#8fa89a]尚未选择被动[/color]"
+	return "  ".join(PackedStringArray(parts))
+
+func _build_synergy_bbcode(include_near: bool) -> String:
 	var synergies: Array[String] = []
 	var near: Array[String] = []
 	for key in ArenaUpgrades.DEFS:
@@ -455,12 +520,17 @@ func _build_summary_text(include_near: bool) -> String:
 				owned += 1
 		if owned == requirements.size() - 1 and requirements.size() > 1:
 			near.append("%s %d/%d" % [data.name, owned, requirements.size()])
-	var line := "已有  " + (" · ".join(PackedStringArray(parts)) if parts.size() > 0 else "尚无")
+	var lines: Array[String] = []
 	if synergies.size() > 0:
-		line += "    协同：" + "、".join(PackedStringArray(synergies))
-	if include_near and near.size() > 0:
-		line += "\n接近协同：" + " · ".join(PackedStringArray(near.slice(0, 2)))
-	return line
+		lines.append("[color=#ffd36e]协同 %s[/color]" % "、".join(PackedStringArray(synergies)))
+	if near.size() > 0:
+		lines.append("[color=#9fd8ff]接近 %s[/color]" % " · ".join(PackedStringArray(near.slice(0, 3))))
+	if lines.is_empty():
+		return "[color=#72887c]暂无协同 · 先拿元素/弹道卡[/color]"
+	return "\n".join(PackedStringArray(lines))
+
+func _build_summary_bbcode(include_near: bool) -> String:
+	return _build_tag_bbcode() + "    " + _build_synergy_bbcode(include_near)
 
 func _update_build_menu() -> void:
 	if not game.build_mode or game.build_cell.x < 0:
@@ -543,8 +613,9 @@ func _update_tower_panel_old() -> void:
 func _process(delta: float) -> void:
 	if game == null: return
 	var show_hud: bool = not hero_selecting and not relic_selecting and not game.passive_selecting
-	for node in [status, resources, xp_label, skill_label, phase_label, hint_label, core_label, build_label, build_strip]:
+	for node in [status, resources, xp_label, skill_label, phase_label, hint_label, core_label, build_label]:
 		node.visible = show_hud
+	build_panel.visible = show_hud
 	core_bar.visible = show_hud
 	shield_bar.visible = show_hud
 	minimap.visible = show_hud

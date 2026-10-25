@@ -158,9 +158,8 @@ func _run() -> void:
 	game.choose_passive(game.passive_choices[0])
 	game.hero.passives["burn"] = 1
 	game.hero.passives["chain"] = 1
-	game.open_passive_choice("level")
-	check("stormfire" in game.passive_choices, "Ready synergy is forced into the next choice")
-	game.choose_passive(game.passive_choices[0])
+	var ready_synergies := ArenaUpgrades.ready_synergies(game.hero)
+	check("stormfire" in ready_synergies, "Ready synergy enters the weighted pool")
 	game.hero.passives.erase("burn")
 	game.hero.passives.erase("chain")
 	var gold_before_empty: int = game.gold

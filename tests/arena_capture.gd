@@ -14,6 +14,11 @@ func _run() -> void:
 	root.add_child(game)
 	await process_frame
 	game.start_with_hero("knight")
+	game.hero.apply_passive("power")
+	game.hero.apply_passive("burn")
+	game.hero.apply_passive("chain")
+	game.hero.apply_passive("crit")
+	game.hero.apply_passive("swift")
 	game.gold = 800
 	var cells := [
 		Vector2i(23, 20), Vector2i(17, 20), Vector2i(20, 23), Vector2i(20, 17),

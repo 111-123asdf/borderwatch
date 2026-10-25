@@ -569,7 +569,6 @@ func open_passive_choice(source: String) -> void:
 	passive_guarantee_weapon = dry_weapon_choices >= 2
 	passive_guarantee_element = dry_element_choices >= 2
 	passive_choices = ArenaUpgrades.roll(hero, source, 3, rng, passive_guarantee_weapon, passive_guarantee_element, banished_passives)
-	_apply_synergy_pity()
 	if passive_choices.is_empty():
 		passive_selecting = false
 		var rewards := maxi(1, pending_level_choices)
@@ -580,21 +579,10 @@ func open_passive_choice(source: String) -> void:
 		running = true
 		hud.toast("被动已全满：转化为 %d 金与生命" % (50 * rewards), 3)
 		return
+	_update_dry_choices(passive_choices)
 	passive_selecting = true
 	running = false
 	hud.show_passive_choice(passive_choices, source, passive_rerolls, passive_banishes)
-
-func _apply_synergy_pity() -> void:
-	var ready := ArenaUpgrades.ready_synergies(hero)
-	if ready.is_empty(): return
-	for key in passive_choices:
-		if key in ready: return
-	var candidates: Array[String] = []
-	for key in ready:
-		if not (key in banished_passives):
-			candidates.append(key)
-	if candidates.size() > 0 and passive_choices.size() > 0:
-		passive_choices[passive_choices.size() - 1] = candidates[0]
 
 func _update_dry_choices(choices: Array) -> void:
 	var has_weapon := false
@@ -619,7 +607,7 @@ func reroll_passive_choice() -> void:
 		hud.toast("没有可刷新的卡了", 2)
 		return
 	passive_choices = next
-	_apply_synergy_pity()
+	_update_dry_choices(passive_choices)
 	hud.show_passive_choice(passive_choices, passive_source, passive_rerolls, passive_banishes)
 
 func banish_passive_choice(key: String) -> void:
@@ -632,7 +620,7 @@ func banish_passive_choice(key: String) -> void:
 		if not replacement.is_empty() and not passive_choices.has(replacement[0]):
 			passive_choices.append(replacement[0])
 			break
-	_apply_synergy_pity()
+	_update_dry_choices(passive_choices)
 	hud.show_passive_choice(passive_choices, passive_source, passive_rerolls, passive_banishes)
 
 func choose_passive(key: String) -> void:
@@ -641,7 +629,6 @@ func choose_passive(key: String) -> void:
 		relics.append(key)
 	else:
 		hero.apply_passive(key)
-	_update_dry_choices([key])
 	var was_level := passive_source == "level"
 	passive_selecting = false
 	if was_level and pending_level_choices > 0:
