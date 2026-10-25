@@ -5,6 +5,9 @@ var game: Node2D
 var kind := "torch"
 var elite := false
 var boss_phase := 0
+var burn_time := 0.0
+var burn_dps := 0.0
+var burn_tick := 0.0
 var health := 60.0
 var max_health := 60.0
 var speed := 72.0
@@ -80,6 +83,12 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if dead or not game.running or game.game_over: return
 	slow_time = maxf(0.0, slow_time - delta)
+	burn_time = maxf(0.0, burn_time - delta)
+	burn_tick -= delta
+	if burn_time > 0.0 and burn_tick <= 0.0:
+		burn_tick = 0.5
+		take_damage(burn_dps * 0.5)
+		if dead: return
 	hit_flash = maxf(0.0, hit_flash - delta)
 	attack_cooldown = maxf(0.0, attack_cooldown - delta)
 	ranged_cooldown = maxf(0.0, ranged_cooldown - delta)
@@ -171,3 +180,5 @@ func _draw() -> void:
 		draw_arc(Vector2.ZERO, radius + 8, 0, TAU, 24, Color(1.0, 0.85, 0.4, 0.7), 3, true)
 	if kind == "bomber":
 		draw_arc(Vector2.ZERO, 28, 0, TAU, 20, Color(0.8, 0.55, 1.0, 0.45), 3, true)
+	if burn_time > 0.0:
+		draw_arc(Vector2.ZERO, radius + 13, 0, TAU, 20, Color(1.0, 0.45, 0.18, 0.55), 3, true)

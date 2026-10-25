@@ -74,30 +74,6 @@ var passive_choices: Array[String] = []
 var passive_source := ""
 var pending_level_choices := 0
 var stats := {"kills": 0, "hero_kills": 0, "tower_kills": 0, "built": 0, "cycles": 0}
-const PASSIVES := {
-	"swift": {"name": "疾行", "desc": "移动速度 +15%"},
-	"power": {"name": "过载", "desc": "武器伤害 +25%"},
-	"rapid": {"name": "速射", "desc": "攻击速度 +20%"},
-	"crit": {"name": "致命", "desc": "25% 概率双倍伤害"},
-	"pierce": {"name": "穿透", "desc": "弹道额外穿透 +1"},
-	"blast": {"name": "爆裂", "desc": "命中附加 50 范围伤害"},
-	"frost": {"name": "霜附", "desc": "命中减速 +1.5 秒"},
-	"magnet": {"name": "磁力", "desc": "拾取范围 +90"},
-	"aegis": {"name": "重盾", "desc": "最大护盾 +40 并回满"},
-	"vitality": {"name": "体魄", "desc": "最大生命 +35 并回复"},
-	"focus": {"name": "专注", "desc": "技能冷却 -20%"},
-	"greed": {"name": "贪婪", "desc": "金币获取 +25%"},
-	"scholar": {"name": "博学", "desc": "经验获取 +25%"},
-	"multishot": {"name": "分裂", "desc": "额外弹道 +1"},
-	"chain": {"name": "连锁", "desc": "每第 3 发弹射两名敌人"},
-	"nova": {"name": "霜环", "desc": "每第 5 发冻结周围敌人"},
-	"execute": {"name": "处决", "desc": "对 35% 以下敌人伤害 +60%"},
-	"deathblast": {"name": "尸爆", "desc": "敌人死亡时爆炸"},
-	"storm": {"name": "雷暴", "desc": "每 6 秒劈向最近敌人"},
-	"lifesteal": {"name": "吸血", "desc": "击杀回复 6 生命"},
-	"dash_reset": {"name": "猎杀", "desc": "击杀减少技能冷却 1 秒"},
-}
-const CAMP_PASSIVES := ["power", "rapid", "crit", "multishot", "pierce", "blast", "aegis", "vitality", "focus", "greed", "scholar", "frost", "magnet", "swift", "chain", "nova", "execute", "deathblast", "storm", "lifesteal", "dash_reset"]
 var debug := {
 	"leaks": 0,
 	"leak_damage": 0.0,
@@ -528,6 +504,10 @@ func tower_damage_scale() -> float:
 	if "swarm" in relics: scale -= 0.15
 	if "command" in relics: scale += 0.25
 	if "vanguard" in relics: scale -= 0.10
+	if hero != null:
+		scale += 0.15 * int(hero.passives.get("tower_link", 0))
+		if hero.passives.has("tower_doctrine"):
+			scale += 0.30
 	return scale
 
 func tower_limit() -> int:
@@ -558,10 +538,10 @@ func open_relic_choice(group: String) -> void:
 func passive_info(key: String) -> Dictionary:
 	if Rules.RELICS.has(key):
 		var relic: Dictionary = Rules.RELICS[key]
-		return {"name": relic.name, "desc": relic.text, "tag": relic.tag}
-	if PASSIVES.has(key):
-		return PASSIVES[key]
-	return {"name": key, "desc": "", "tag": "被动"}
+		return {"name": relic.name, "desc": relic.text, "tag": relic.tag, "tags_text": relic.tag, "rarity_name": "路线", "stack_text": ""}
+	if hero != null:
+		return ArenaUpgrades.info(key, int(hero.passives.get(key, 0)))
+	return ArenaUpgrades.info(key, 0)
 
 func queue_level_choice() -> void:
 	pending_level_choices += 1
@@ -579,16 +559,7 @@ func _relic_available(key: String) -> bool:
 func open_passive_choice(source: String) -> void:
 	if passive_selecting: return
 	passive_source = source
-	var source_pool: Array = CAMP_PASSIVES.duplicate() if source == "camp" else PASSIVES.keys()
-	var pool: Array[String] = []
-	for entry in source_pool:
-		var key := String(entry)
-		if _relic_available(key):
-			pool.append(key)
-	pool.shuffle()
-	passive_choices.clear()
-	for index in range(mini(3, pool.size())):
-		passive_choices.append(String(pool[index]))
+	passive_choices = ArenaUpgrades.roll(hero, source, 3, rng)
 	passive_selecting = true
 	running = false
 	hud.show_passive_choice(passive_choices, source)
@@ -717,6 +688,8 @@ func enemy_died(enemy: ArenaEnemy) -> void:
 			hero.skill_cooldown = maxf(0.0, hero.skill_cooldown - 1.0)
 		if hero.passives.has("deathblast"):
 			damage_radius(enemy.position, 80.0, 38.0)
+			if hero.passives.has("reaper"):
+				hero.health = minf(hero.max_health, hero.health + 5.0)
 
 func enemy_escaped(enemy: ArenaEnemy) -> void:
 	enemies.erase(enemy)
@@ -799,7 +772,7 @@ func nearest_enemy(point: Vector2, radius: float) -> ArenaEnemy:
 			result = enemy
 	return result
 
-func spawn_projectile(origin: Vector2, target: Vector2, damage: float, color: Color, splash := 0.0, slow := 0.0, speed := 760.0, pierce := 0, execute_bonus := 0.0) -> ArenaProjectile:
+func spawn_projectile(origin: Vector2, target: Vector2, damage: float, color: Color, splash := 0.0, slow := 0.0, speed := 760.0, pierce := 0, execute_bonus := 0.0, burn_dps := 0.0, critical := false, execute_threshold := 0.35, shatter := false) -> ArenaProjectile:
 	var projectile := ArenaProjectile.new()
 	projectile.game = self
 	projectile.position = origin
@@ -811,6 +784,10 @@ func spawn_projectile(origin: Vector2, target: Vector2, damage: float, color: Co
 	projectile.slow = slow
 	projectile.pierce = pierce
 	projectile.execute_bonus = execute_bonus
+	projectile.burn_dps = burn_dps
+	projectile.critical = critical
+	projectile.execute_threshold = execute_threshold
+	projectile.shatter = shatter
 	add_child(projectile)
 	return projectile
 
@@ -844,6 +821,10 @@ func chain_strike(origin: Vector2, damage: float, jumps: int) -> void:
 		hit.append(target.get_instance_id())
 		bolts.append({"start": from, "end": target.center(), "life": 0.14})
 		target.take_damage(damage)
+		if hero != null and hero.passives.has("burn"):
+			target.apply_burn(hero.burn_dps, 3.0)
+		if hero != null and hero.passives.has("stormfire"):
+			damage_radius(target.position, 72.0, damage * 0.55)
 		from = target.center()
 	shake(2.0)
 

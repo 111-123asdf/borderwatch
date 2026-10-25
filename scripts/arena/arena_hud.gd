@@ -302,9 +302,12 @@ func show_passive_choice(choices: Array[String], source: String) -> void:
 		var button := Button.new()
 		button.position = Vector2(40, 100 + index * 108)
 		button.size = Vector2(640, 96)
-		button.text = "%s  ·  %s\n%s" % [data.name, data.get("tag", "被动"), data.desc]
-		button.add_theme_font_size_override("font_size", 16)
-		button.add_theme_color_override("font_color", CREAM)
+		var rarity_text: String = String(data.get("rarity_name", "普通"))
+		var tags_text: String = String(data.get("tags_text", "被动"))
+		var stack_text: String = String(data.get("stack_text", ""))
+		button.text = "%s · %s   [%s]   %s\n%s" % [data.name, tags_text, rarity_text, stack_text, data.desc]
+		button.add_theme_font_size_override("font_size", 15)
+		button.add_theme_color_override("font_color", data.get("rarity_color", CREAM))
 		_style_button(button)
 		button.toggle_mode = false
 		button.pressed.connect(_select_passive.bind(key))

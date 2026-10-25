@@ -44,6 +44,9 @@ var xp_mult := 1.0
 var multishot := 0
 var shots_fired := 0
 var storm_cooldown := 0.0
+var burn_dps := 0.0
+var slow_damage_bonus := 0.0
+var execute_threshold := 0.35
 
 func _ready() -> void:
 	collision_layer = 2
@@ -97,8 +100,8 @@ func weapon_definition() -> Dictionary:
 	return Rules.weapon(weapon_key)
 
 func class_damage_scale() -> float:
-	if class_id == "ranger": return 1.25
-	if class_id == "mage": return 1.25
+	if class_id == "ranger": return 1.40
+	if class_id == "mage": return 1.35
 	return 1.0
 
 func equip_weapon(key: String, upgrade_level := 1) -> void:
@@ -111,25 +114,35 @@ func equip_weapon(key: String, upgrade_level := 1) -> void:
 func apply_passive(key: String) -> void:
 	passives[key] = int(passives.get(key, 0)) + 1
 	match key:
-		"swift": speed_mult += 0.15
-		"power": damage_mult += 0.25
-		"rapid": attack_speed_mult += 0.20
-		"crit": crit_chance = minf(0.75, crit_chance + 0.25)
+		"swift": speed_mult += 0.10
+		"power": damage_mult += 0.15
+		"rapid": attack_speed_mult += 0.12
+		"crit": crit_chance = minf(0.75, crit_chance + 0.15)
 		"pierce": pierce_bonus += 1
-		"blast": splash_bonus += 50.0
-		"frost": slow_bonus += 1.5
-		"magnet": pickup_radius += 90.0
+		"blast": splash_bonus += 30.0
+		"frost": slow_bonus += 1.0
+		"magnet": pickup_radius += 80.0
 		"aegis":
-			max_shield += 40.0
+			max_shield += 30.0
 			shield = max_shield
 		"vitality":
-			max_health += 35.0
-			health = minf(max_health, health + 35.0)
-		"focus": skill_cd_mult = maxf(0.35, skill_cd_mult - 0.20)
-		"greed": gold_mult += 0.25
-		"scholar": xp_mult += 0.25
+			max_health += 30.0
+			health = minf(max_health, health + 30.0)
+		"focus": skill_cd_mult = maxf(0.35, skill_cd_mult * 0.90)
+		"greed": gold_mult += 0.15
+		"scholar": xp_mult += 0.15
 		"multishot": multishot += 1
-		"chain", "nova", "execute", "deathblast", "storm", "lifesteal", "dash_reset":
+		"burn": burn_dps += 6.0
+		"pistol_caliber": damage_mult += 0.18
+		"pistol_akimbo": multishot += 1
+		"bow_broadhead":
+			damage_mult += 0.20
+			pierce_bonus += 1
+		"bow_hunter": slow_damage_bonus += 0.30
+		"scatter_wide": multishot += 1
+		"scatter_frost": slow_bonus += 0.8
+		"tower_doctrine": skill_cd_mult = maxf(0.35, skill_cd_mult * 0.90)
+		"chain", "nova", "execute", "deathblast", "storm", "lifesteal", "dash_reset", "overload", "tower_link", "stormfire", "shatter", "executioner", "tempest", "reaper":
 			pass
 
 func _physics_process(delta: float) -> void:
@@ -168,6 +181,8 @@ func _physics_process(delta: float) -> void:
 	if passives.has("storm") and storm_cooldown <= 0.0 and target != null:
 		storm_cooldown = 6.0
 		game.storm_strike(target, 48.0 + level * 3.0)
+		if passives.has("tempest"):
+			game.frost_nova(target.position, 110.0, 28.0 + level * 2.0, 2.0)
 	visual.dual_active = class_id == "knight" and skill_time > 0.0
 	visual.advance(delta, velocity, facing)
 	queue_redraw()
@@ -180,33 +195,46 @@ func fire(target: ArenaEnemy) -> void:
 		direction = (target.position - center()).normalized()
 		aim = direction
 	var base_damage: float = float(definition.damage) * (1.0 + (level - 1) * 0.05) * game.hero_damage_scale() * class_damage_scale() * damage_mult
-	if randf() < crit_chance: base_damage *= 2.0
+	if is_instance_valid(target) and target.slow_time > 0.0:
+		base_damage *= 1.0 + slow_damage_bonus
+	var critical := randf() < crit_chance
+	if critical:
+		base_damage *= 2.0
+	if passives.has("overload"):
+		var every := maxi(4, 8 - (int(passives["overload"]) - 1) * 2)
+		if (shots_fired + 1) % every == 0:
+			base_damage *= 2.0
+	var execute_bonus := 0.6 if passives.has("execute") else 0.0
+	var threshold := 0.50 if passives.has("executioner") else 0.35
+	var shatter := passives.has("shatter")
 	var weapon_color: Color = definition.color
 	var dual := class_id == "knight" and skill_time > 0.0
-	var execute_bonus := 0.6 if passives.has("execute") else 0.0
 	shots_fired += 1
 	visual.attack(direction, 0.18)
 	if weapon_key == "sword":
 		game.damage_radius(center() + direction * 55, float(definition.reach), base_damage * (2.0 if dual else 1.0))
 		return
 	if weapon_key == "scatter":
-		for angle in [-0.24, -0.12, 0.0, 0.12, 0.24]:
-			game.spawn_projectile(center(), center() + direction.rotated(angle) * 800.0, base_damage, weapon_color, splash_bonus, slow_bonus, 900.0, 0, execute_bonus)
+		var pellets := 5 + multishot
+		for index in range(pellets):
+			var t := 0.0 if pellets <= 1 else float(index) / float(pellets - 1)
+			var angle := lerpf(-0.32, 0.32, t)
+			game.spawn_projectile(center(), center() + direction.rotated(angle) * 800.0, base_damage, weapon_color, splash_bonus, slow_bonus, 900.0, 0, execute_bonus, burn_dps, critical, threshold, shatter)
 		_trigger_on_hit(target, base_damage)
 		return
 	if weapon_key == "sniper":
-		game.spawn_projectile(center(), center() + direction * 800.0, base_damage, weapon_color, splash_bonus, slow_bonus, 1100.0, 3 + pierce_bonus, execute_bonus)
+		game.spawn_projectile(center(), center() + direction * 800.0, base_damage, weapon_color, splash_bonus, slow_bonus, 1100.0, 3 + pierce_bonus, execute_bonus, burn_dps, critical, threshold, shatter)
 		_trigger_on_hit(target, base_damage)
 		return
 	if weapon_key == "boomerang":
 		for angle in [-0.12, 0.12]:
-			game.spawn_projectile(center(), center() + direction.rotated(angle) * 800.0, base_damage, weapon_color, splash_bonus, slow_bonus, 700.0, pierce_bonus, execute_bonus)
+			game.spawn_projectile(center(), center() + direction.rotated(angle) * 800.0, base_damage, weapon_color, splash_bonus, slow_bonus, 700.0, pierce_bonus, execute_bonus, burn_dps, critical, threshold, shatter)
 		_trigger_on_hit(target, base_damage)
 		return
 	var shots := (2 if dual else 1) + multishot
 	for index in range(shots):
 		var offset := (index - (shots - 1) * 0.5) * 22.0
-		game.spawn_projectile(center() + direction.orthogonal() * offset, center() + direction * 800.0 + direction.orthogonal() * offset, base_damage, weapon_color, splash_bonus, slow_bonus, 900.0, pierce_bonus, execute_bonus)
+		game.spawn_projectile(center() + direction.orthogonal() * offset, center() + direction * 800.0 + direction.orthogonal() * offset, base_damage, weapon_color, splash_bonus, slow_bonus, 900.0, pierce_bonus, execute_bonus, burn_dps, critical, threshold, shatter)
 	_trigger_on_hit(target, base_damage)
 
 func _trigger_on_hit(target: ArenaEnemy, base_damage: float) -> void:

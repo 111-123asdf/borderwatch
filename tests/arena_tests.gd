@@ -39,6 +39,16 @@ func _run() -> void:
 		check(game.hero.passives.size() > 0 or "lone" in game.relics or "swarm" in game.relics or "vanguard" in game.relics or "command" in game.relics or "raid" in game.relics or "hold" in game.relics, "Camp passive applies")
 
 	var level_before: int = game.hero.level
+	var level_pool := ArenaUpgrades.build_pool(game.hero, "level")
+	check("pistol_akimbo" in level_pool and not ("bow_hunter" in level_pool), "Weapon-specific upgrades filter by weapon")
+	var camp_pool := ArenaUpgrades.build_pool(game.hero, "camp")
+	check(not ("power" in camp_pool), "Camp pool excludes common upgrades")
+	game.hero.passives["burn"] = 1
+	game.hero.passives["chain"] = 1
+	var synergy_pool := ArenaUpgrades.build_pool(game.hero, "level")
+	check("stormfire" in synergy_pool, "Synergy appears only after prerequisites")
+	game.hero.passives.erase("burn")
+	game.hero.passives.erase("chain")
 	game.hero.add_xp(500)
 	check(game.passive_selecting, "Level up opens a passive choice")
 	while game.passive_selecting:

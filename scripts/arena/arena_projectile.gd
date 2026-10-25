@@ -11,6 +11,10 @@ var slow := 0.0
 var hostile := false
 var pierce := 0
 var execute_bonus := 0.0
+var burn_dps := 0.0
+var critical := false
+var execute_threshold := 0.35
+var shatter := false
 var hit_ids := {}
 var life := 1.6
 
@@ -38,9 +42,14 @@ func _physics_process(delta: float) -> void:
 				game.hit_feedback(position, damage)
 			else:
 				var applied := damage
-				if execute_bonus > 0.0 and enemy.health < enemy.max_health * 0.35:
+				if execute_bonus > 0.0 and enemy.health < enemy.max_health * execute_threshold:
 					applied *= 1.0 + execute_bonus
+				if shatter and critical and enemy.slow_time > 0.0:
+					applied *= 1.5
+					enemy.slow_time = maxf(enemy.slow_time, 1.0)
 				enemy.take_damage(applied)
+				if burn_dps > 0.0:
+					enemy.apply_burn(burn_dps, 3.0)
 				game.hit_feedback(enemy.center(), applied)
 			enemy.slow_time = maxf(enemy.slow_time, slow)
 			if pierce > 0:
@@ -53,5 +62,7 @@ func _physics_process(delta: float) -> void:
 func _draw() -> void:
 	draw_line(-direction * 10, direction * 4, Color(color, 0.5), 4, true)
 	draw_circle(Vector2.ZERO, 4.0 if splash <= 0.0 else 6.0, color)
+	if critical and not hostile:
+		draw_arc(Vector2.ZERO, 9, 0, TAU, 16, Color(1.0, 0.9, 0.45, 0.8), 2, true)
 	if hostile:
 		draw_arc(Vector2.ZERO, 9, 0, TAU, 16, Color(color, 0.35), 2, true)
