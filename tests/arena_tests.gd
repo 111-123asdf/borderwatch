@@ -245,8 +245,9 @@ func _run() -> void:
 	game.spawn_budget = 4
 	game.start_spawn()
 	game.spawn_cluster()
-	check(game.enemies.size() > 0, "Spawn director creates enemies")
 	check(game.spawn_warnings.size() > 0, "Spawns are telegraphed by a moving ring")
+	await create_timer(1.2).timeout
+	check(game.enemies.size() > 0, "Spawn director creates enemies after the warning")
 	check(game.flow_at(game.spawn_points[0]).length() > 0.0, "Spawned enemies have a flow direction")
 	var hound_test: ArenaEnemy = game.spawn_enemy("hound", game.CORE + Vector2(700, 140), 60.0)
 	check(hound_test.weakness == "frost" and hound_test.speed > 120.0, "Hound is a fast frost-weak hunter")

@@ -42,6 +42,7 @@ var reach: PackedInt32Array = PackedInt32Array()
 var spawn_points: Array[Vector2] = []
 var spawn_cells: Array[Vector2i] = []
 var spawn_warnings: Array[Dictionary] = []
+var pending_spawns: Array[Dictionary] = []
 var obstacles: Array[Rect2] = []
 var towers: Array[ArenaTower] = []
 var enemies: Array[ArenaEnemy] = []
@@ -813,9 +814,10 @@ func spawn_cluster() -> void:
 		anchors.append(_spawn_point(other, angle_sigma, radius_sigma))
 	else:
 		anchors.append(_spawn_point(region, angle_sigma, radius_sigma))
-	spawn_warnings.append({"point": anchors[0], "life": 1.1, "radius": 74.0})
+	spawn_warnings.append({"point": anchors[0], "life": 1.2, "radius": 74.0})
 	if anchors.size() > 1:
-		spawn_warnings.append({"point": anchors[1], "life": 1.1, "radius": 74.0})
+		spawn_warnings.append({"point": anchors[1], "life": 1.2, "radius": 74.0})
+	var delay := 0.62 if pattern == "column" else (1.0 if pattern == "pincer" else 0.82)
 	for index in range(count):
 		var base: Vector2 = anchors[index % anchors.size()]
 		var jitter := Vector2(rng.randfn(0.0, 42.0), rng.randfn(0.0, 42.0))
@@ -836,7 +838,13 @@ func spawn_cluster() -> void:
 		if kind != "boss": health *= 1.08
 		var elite := cycle >= 2 and rng.randf() < 0.15
 		if elite: health *= 3.0
-		spawn_enemy(kind, point, health, elite)
+		pending_spawns.append({
+			"point": point,
+			"kind": kind,
+			"health": health,
+			"elite": elite,
+			"delay": delay + rng.randf_range(-0.12, 0.18),
+		})
 		spawn_budget -= 1
 	spawn_timer = spawn_interval
 	spawned_this_phase += count
@@ -1018,7 +1026,7 @@ func enemy_died(enemy: ArenaEnemy) -> void:
 		spawn_drop(enemy.position, 20, 15, true)
 	else:
 		spawn_drop(enemy.position, 6, 5, false)
-	if boss_dead and cycle >= 6 and enemies.is_empty():
+	if boss_dead and cycle >= 6 and enemies.is_empty() and pending_spawns.is_empty():
 		finish(true)
 	if hero != null:
 		if hero.passives.has("lifesteal"):
@@ -1375,6 +1383,14 @@ func _process(delta: float) -> void:
 	rings = rings.filter(func(item): return item.life > 0.0)
 	for warning in spawn_warnings: warning.life -= delta
 	spawn_warnings = spawn_warnings.filter(func(item): return item.life > 0.0)
+	var ready_spawns: Array[Dictionary] = []
+	for pending in pending_spawns:
+		pending["delay"] = float(pending.delay) - delta
+		if float(pending.delay) <= 0.0:
+			ready_spawns.append(pending)
+	pending_spawns = pending_spawns.filter(func(item): return float(item.delay) > 0.0)
+	for pending in ready_spawns:
+		spawn_enemy(String(pending.kind), pending.point, float(pending.health), bool(pending.elite))
 	for floater in floaters: floater.life -= delta
 	floaters = floaters.filter(func(item): return item.life > 0.0)
 	if build_mode:
@@ -1430,7 +1446,7 @@ func _update_phase(delta: float) -> void:
 			spawn_timer -= delta
 			if spawn_budget > 0 and spawn_timer <= 0.0:
 				spawn_cluster()
-			if spawn_budget <= 0 and enemies.is_empty():
+			if spawn_budget <= 0 and enemies.is_empty() and pending_spawns.is_empty():
 				if cycle >= 6 and boss_dead:
 					finish(true)
 				else:
@@ -1438,7 +1454,7 @@ func _update_phase(delta: float) -> void:
 			elif phase_clock <= 0.0:
 				phase = "clear"
 		"clear":
-			if enemies.is_empty():
+			if enemies.is_empty() and pending_spawns.is_empty():
 				if cycle >= 6 and boss_dead: finish(true)
 				else: _advance_cycle()
 
@@ -1458,11 +1474,12 @@ func _draw() -> void:
 		var color := Color(0.95, 0.4, 0.25, 0.35 if index == hot_region else 0.12)
 		draw_arc(CORE, SPAWN_RADIUS, angle - 0.32, angle + 0.32, 24, color, 8, true)
 	for warning in spawn_warnings:
-		var alpha: float = clampf(warning.life / 1.1, 0.0, 1.0)
+		var alpha: float = clampf(warning.life / 1.2, 0.0, 1.0)
 		draw_arc(warning.point, warning.radius * (1.25 - alpha * 0.25), 0, TAU, 40, Color(1.0, 0.55, 0.32, alpha * 0.8), 3, true)
 		draw_circle(warning.point, 8, Color(1.0, 0.62, 0.35, alpha * 0.7))
 	if build_mode:
-		for x in range(0, GRID_W + 1):			draw_line(Vector2(x * CELL, 0), Vector2(x * CELL, ARENA_SIZE.y), Color(0.7, 0.85, 0.8, 0.06), 1)
+		for x in range(0, GRID_W + 1):
+			draw_line(Vector2(x * CELL, 0), Vector2(x * CELL, ARENA_SIZE.y), Color(0.7, 0.85, 0.8, 0.06), 1)
 		for y in range(0, GRID_H + 1):
 			draw_line(Vector2(0, y * CELL), Vector2(ARENA_SIZE.x, y * CELL), Color(0.7, 0.85, 0.8, 0.06), 1)
 		if build_cell.x >= 0:

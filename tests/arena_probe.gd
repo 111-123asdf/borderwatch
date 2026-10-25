@@ -65,6 +65,13 @@ func _setup_towers() -> void:
 		cells = [Vector2i(23, 20), Vector2i(17, 20)]
 	elif policy == "tower4" or policy == "tower_only":
 		cells = [Vector2i(23, 20), Vector2i(17, 20), Vector2i(20, 23), Vector2i(20, 17)]
+	elif policy == "tower5":
+		cells = [Vector2i(23, 20), Vector2i(17, 20), Vector2i(20, 23), Vector2i(20, 17), Vector2i(24, 23)]
+	elif policy == "tower6":
+		cells = [
+			Vector2i(23, 20), Vector2i(17, 20), Vector2i(20, 23),
+			Vector2i(20, 17), Vector2i(24, 23), Vector2i(16, 17),
+		]
 	elif policy == "tower8":
 		cells = [
 			Vector2i(24, 20), Vector2i(23, 23), Vector2i(20, 24), Vector2i(17, 23),

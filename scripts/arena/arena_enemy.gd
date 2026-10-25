@@ -6,6 +6,11 @@ var kind := "torch"
 var elite := false
 var elite_mod := ""
 var support_cooldown := 0.0
+var locked_tower: ArenaTower
+var locked_hero := false
+var attack_windup := 0.0
+var windup_tower: ArenaTower
+var windup_explode := false
 var weakness := ""
 var affinity := ""
 var boss_phase := 0
@@ -182,25 +187,41 @@ func _physics_process(delta: float) -> void:
 	ranged_cooldown = maxf(0.0, ranged_cooldown - delta)
 	boss_core_cooldown = maxf(0.0, boss_core_cooldown - delta)
 	support_cooldown = maxf(0.0, support_cooldown - delta)
+	if attack_windup > 0.0:
+		attack_windup = maxf(0.0, attack_windup - delta)
+		if attack_windup <= 0.0 and windup_tower != null and is_instance_valid(windup_tower):
+			if windup_explode:
+				game.enemy_explosion(position, 104.0, 18.0, 28.0)
+				dead = true
+				game.enemy_died(self)
+				queue_free()
+				return
+			windup_tower.health -= 22.0
+			game.hit_feedback(windup_tower.position, 22.0)
+			game.rings.append({"point": windup_tower.position, "radius": 34.0, "life": 0.25})
+			if windup_tower.health <= 0.0: game.tower_destroyed(windup_tower)
+			windup_tower = null
 	if kind in ["sapper", "bomber", "mortar"]:
-		var tower: ArenaTower = game.nearest_tower(position, 620.0 if kind == "mortar" else 380.0)
+		var tower: ArenaTower = locked_tower
+		if tower == null or not is_instance_valid(tower) or position.distance_to(tower.position) > 520.0:
+			tower = game.nearest_tower(position, 620.0 if kind == "mortar" else 380.0)
+			locked_tower = tower
 		if tower != null:
 			var tower_direction := (tower.position - position).normalized()
 			var tower_distance := position.distance_to(tower.position)
 			if kind == "mortar":
 				if tower_distance > 240.0:
 					position += tower_direction * speed * delta
-				elif ranged_cooldown <= 0.0:
+				elif attack_windup <= 0.0 and ranged_cooldown <= 0.0:
 					ranged_cooldown = 2.2
-					tower.health -= 14.0
-					game.hit_feedback(tower.position, 14.0)
-					if tower.health <= 0.0: game.tower_destroyed(tower)
+					attack_windup = 0.45
+					windup_tower = tower
+					windup_explode = false
 			elif kind == "bomber" and tower_distance < 58.0:
-				game.enemy_explosion(position, 96.0, 18.0, 24.0)
-				dead = true
-				game.enemy_died(self)
-				queue_free()
-				return
+				if attack_windup <= 0.0:
+					attack_windup = 0.45
+					windup_tower = tower
+					windup_explode = true
 			else:
 				position += tower_direction * speed * delta
 				if tower_distance < 48.0:
@@ -209,6 +230,7 @@ func _physics_process(delta: float) -> void:
 			visual.advance(delta, tower_direction * speed, tower_direction)
 			queue_redraw()
 			return
+		locked_tower = null
 	if kind == "shaman" and support_cooldown <= 0.0:
 		support_cooldown = 2.4
 		game.shaman_support(position)
@@ -224,6 +246,9 @@ func _physics_process(delta: float) -> void:
 	var direction: Vector2 = game.flow_at(position)
 	if kind in ["charger", "hound"] and game.hero != null and position.distance_to(game.hero.position) < 500.0:
 		direction = (game.hero.position - position).normalized()
+		locked_hero = true
+	else:
+		locked_hero = false
 	if direction == Vector2.ZERO:
 		direction = (game.CORE - position).normalized()
 	var slow_factor := 0.55 if slow_time > 0.0 else 1.0
@@ -295,6 +320,12 @@ func _draw() -> void:
 		draw_string(ThemeDB.fallback_font, Vector2(width * 0.5 - 14, top - 31), "冻", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(0.8, 0.98, 1.0))
 	if hit_flash > 0.0:
 		draw_circle(Vector2.ZERO, radius + 4, Color(1.0, 0.9, 0.8, 0.3))
+	if locked_tower != null and is_instance_valid(locked_tower):
+		draw_line(Vector2.ZERO, locked_tower.position - position, Color(1.0, 0.35, 0.28, 0.55), 2, true)
+	if locked_hero and game.hero != null:
+		draw_line(Vector2.ZERO, game.hero.position - position, Color(1.0, 0.72, 0.35, 0.45), 1.5, true)
+	if attack_windup > 0.0:
+		draw_arc(Vector2.ZERO, radius + 20, 0, TAU * clampf(1.0 - attack_windup / 0.45, 0.0, 1.0), 24, Color(1.0, 0.35, 0.25, 0.9), 3, true)
 	if kind == "shielded":
 		draw_arc(Vector2.ZERO, 30, 0, TAU, 24, Color(0.65, 0.9, 1.0, 0.45), 3, true)
 	elif kind == "armored":
