@@ -12,6 +12,7 @@ var hostile := false
 var pierce := 0
 var execute_bonus := 0.0
 var burn_dps := 0.0
+var poison_dps := 0.0
 var critical := false
 var execute_threshold := 0.35
 var shatter := false
@@ -55,6 +56,8 @@ func _physics_process(delta: float) -> void:
 				enemy.take_damage(applied)
 				if burn_dps > 0.0:
 					enemy.apply_burn(burn_dps, 3.0)
+				if poison_dps > 0.0:
+					enemy.apply_poison(poison_dps, 3.0)
 				if game.hero != null and game.hero.passives.has("thermal_shock") and enemy.burn_time > 0.0 and enemy.slow_time > 0.0:
 					game.damage_radius(enemy.position, 90.0, damage * 0.55)
 				game.hit_feedback(enemy.center(), applied)

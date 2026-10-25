@@ -9,7 +9,7 @@ const CORE := Vector2(1300, 1300)
 const CELL := 64.0
 const GRID_W := 41
 const GRID_H := 41
-const BUILD_RADIUS := 900.0
+const BUILD_RADIUS := 1050.0
 const SPAWN_RADIUS := 1150.0
 const CORE_EXCLUSION := 140.0
 const TOWER_LIMIT := 10
@@ -534,9 +534,21 @@ func tower_cost(kind: String) -> int:
 	if not ArenaTower.STATS.has(kind): return 0
 	return int(round(float(ArenaTower.STATS[kind].cost) * tower_cost_scale()))
 
+func tower_support_bonus(tower: ArenaTower) -> float:
+	if hero == null or tower == null: return 0.0
+	var bonus := 0.0
+	for other in towers:
+		if other == tower or not is_instance_valid(other) or not other.active: continue
+		if other.kind != "banner": continue
+		if other.position.distance_to(tower.position) <= other.attack_range():
+			bonus += 0.10 * other.level
+	if hero.passives.has("tower_banner"):
+		bonus += 0.05 * int(hero.passives.get("tower_banner", 0))
+	return bonus
+
 func tower_conditional_damage(tower: ArenaTower) -> float:
 	if hero == null or tower == null: return 1.0
-	var scale := 1.0
+	var scale := 1.0 + tower_support_bonus(tower)
 	var adjacent := 0
 	for other in towers:
 		if other == tower or not is_instance_valid(other): continue
@@ -959,7 +971,7 @@ func nearest_enemy(point: Vector2, radius: float) -> ArenaEnemy:
 			result = enemy
 	return result
 
-func spawn_projectile(origin: Vector2, target: Vector2, damage: float, color: Color, splash := 0.0, slow := 0.0, speed := 760.0, pierce := 0, execute_bonus := 0.0, burn_dps := 0.0, critical := false, execute_threshold := 0.35, shatter := false) -> ArenaProjectile:
+func spawn_projectile(origin: Vector2, target: Vector2, damage: float, color: Color, splash := 0.0, slow := 0.0, speed := 760.0, pierce := 0, execute_bonus := 0.0, burn_dps := 0.0, critical := false, execute_threshold := 0.35, shatter := false, poison_dps := 0.0) -> ArenaProjectile:
 	var projectile := ArenaProjectile.new()
 	projectile.game = self
 	projectile.position = origin
@@ -972,6 +984,7 @@ func spawn_projectile(origin: Vector2, target: Vector2, damage: float, color: Co
 	projectile.pierce = pierce
 	projectile.execute_bonus = execute_bonus
 	projectile.burn_dps = burn_dps
+	projectile.poison_dps = poison_dps
 	projectile.critical = critical
 	projectile.execute_threshold = execute_threshold
 	projectile.shatter = shatter
@@ -1097,6 +1110,14 @@ func _unhandled_input(event: InputEvent) -> void:
 				number_build("cannon")
 			KEY_3:
 				number_build("frost")
+			KEY_4:
+				number_build("arc")
+			KEY_5:
+				number_build("venom")
+			KEY_6:
+				number_build("laser")
+			KEY_7:
+				number_build("banner")
 			KEY_E: repair_nearest()
 			KEY_R: get_tree().reload_current_scene()
 

@@ -10,6 +10,9 @@ var boss_phase := 0
 var burn_time := 0.0
 var burn_dps := 0.0
 var burn_tick := 0.0
+var poison_time := 0.0
+var poison_dps := 0.0
+var poison_tick := 0.0
 var freeze_time := 0.0
 var chill_stacks := 0
 var health := 60.0
@@ -53,6 +56,11 @@ func apply_burn(dps: float, duration: float) -> void:
 	burn_dps = maxf(burn_dps, dps * element_multiplier("fire"))
 	burn_time = maxf(burn_time, duration)
 	burn_tick = minf(burn_tick, 0.5)
+
+func apply_poison(dps: float, duration: float) -> void:
+	poison_dps = maxf(poison_dps, dps)
+	poison_time = maxf(poison_time, duration)
+	poison_tick = minf(poison_tick, 0.5)
 
 func apply_frost(duration: float) -> void:
 	slow_time = maxf(slow_time, duration * element_multiplier("frost"))
@@ -124,11 +132,17 @@ func _physics_process(delta: float) -> void:
 	if dead or not game.running or game.game_over: return
 	slow_time = maxf(0.0, slow_time - delta)
 	burn_time = maxf(0.0, burn_time - delta)
+	poison_time = maxf(0.0, poison_time - delta)
 	freeze_time = maxf(0.0, freeze_time - delta)
 	burn_tick -= delta
+	poison_tick -= delta
 	if burn_time > 0.0 and burn_tick <= 0.0:
 		burn_tick = 0.5
 		take_damage(burn_dps * 0.5)
+		if dead: return
+	if poison_time > 0.0 and poison_tick <= 0.0:
+		poison_tick = 0.5
+		take_damage(poison_dps * 0.5)
 		if dead: return
 	if freeze_time > 0.0:
 		queue_redraw()
@@ -219,6 +233,8 @@ func _draw() -> void:
 		draw_arc(Vector2.ZERO, radius + 5, 0, TAU, 24, Color(element_color(affinity), 0.55), 2, true)
 	if burn_time > 0.0:
 		draw_string(ThemeDB.fallback_font, Vector2(width * 0.5 - 14, top - 5), "火", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, element_color("fire"))
+	if poison_time > 0.0:
+		draw_string(ThemeDB.fallback_font, Vector2(width * 0.5 - 30, top - 5), "毒", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color("9fe86e"))
 	if slow_time > 0.0:
 		draw_string(ThemeDB.fallback_font, Vector2(width * 0.5 - 14, top - 18), "冰", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, element_color("frost"))
 	if freeze_time > 0.0:

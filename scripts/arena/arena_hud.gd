@@ -464,7 +464,7 @@ func hide_passive_choice() -> void:
 
 func _build_palette() -> void:
 	build_palette = Panel.new()
-	build_palette.size = Vector2(276, 92)
+	build_palette.size = Vector2(360, 184)
 	build_palette.visible = false
 	build_palette.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var style := StyleBoxFlat.new()
@@ -475,13 +475,13 @@ func _build_palette() -> void:
 	build_palette.add_theme_stylebox_override("panel", style)
 	root.add_child(build_palette)
 	var index := 0
-	for kind in ["bolt", "cannon", "frost"]:
+	for kind in ArenaTower.TOWER_ORDER:
 		var data: Dictionary = ArenaTower.STATS[kind]
 		var button := Button.new()
-		button.position = Vector2(8 + index * 88, 8)
+		button.position = Vector2(8 + (index % 4) * 88, 8 + int(index / 4) * 88)
 		button.size = Vector2(82, 76)
 		button.text = "%s\n%d金" % [data.name, game.tower_cost(kind)]
-		button.add_theme_font_size_override("font_size", 13)
+		button.add_theme_font_size_override("font_size", 12)
 		button.add_theme_color_override("font_color", CREAM)
 		button.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_style_button(button)
@@ -605,7 +605,7 @@ func _build_tower_panel() -> void:
 	_style_button(tower_close)
 	tower_close.pressed.connect(game.close_tower_panel)
 	tower_panel.add_child(tower_close)
-	tower_bonus = _label(Rect2(18, 166, 294, 42), 12, Color("9fb9aa"))
+	tower_bonus = _label(Rect2(18, 164, 294, 50), 11, Color("9fb9aa"))
 	root.remove_child(tower_bonus)
 	tower_panel.add_child(tower_bonus)
 	tower_bonus.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -632,7 +632,7 @@ func _update_tower_panel() -> void:
 		tower_upgrade.text = "升级 Lv.%d · %d 金" % [tower.level + 1, tower.upgrade_price()]
 		tower_upgrade.disabled = game.gold < tower.upgrade_price()
 	tower_repair.disabled = tower.health >= tower.max_health or game.gold < 30
-	tower_bonus.text = _tower_bonus_text(tower)
+	tower_bonus.text = _tower_bonus_text(tower) + "\n" + tower.next_upgrade_text()
 
 func _tower_bonus_text(tower: ArenaTower) -> String:
 	if game.hero == null: return ""
@@ -687,9 +687,9 @@ func _process(delta: float) -> void:
 	if game.build_mode and game.build_reason != "":
 		hint_label.text = "不能建造：" + game.build_reason
 	if game.build_mode:
-		build_label.text = "1/2/3 选塔：再按同键建造 · 换数字切塔 · 右键取消"
+		build_label.text = "1/2/3/4/5/6/7 选塔，再按同键建造 · 右键取消"
 	else:
-		build_label.text = "1/2/3 选塔并再按一次建造 · 左键点塔升级 · 空格技能 · R 重开"
+		build_label.text = "1-7 选塔并再按一次建造 · 左键点塔升级 · 空格技能 · R 重开"
 	_update_build_menu()
 	_update_tower_panel()
 	if game.boss != null and is_instance_valid(game.boss) and not game.boss.dead:

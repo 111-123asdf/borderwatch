@@ -97,15 +97,21 @@ func _run() -> void:
 	check(game.can_place(cell) == "", "A legal cell can host a tower")
 	var tower = game.place_tower(cell)
 	check(tower != null and game.towers.size() == 1, "Placing a tower consumes a slot")
+	check(ArenaTower.STATS.size() == 7 and ArenaTower.TOWER_ORDER.size() == 7, "Seven tower types are available")
+	game.build_kind = "banner"
+	var banner_cell: Vector2i = cell + Vector2i(2, 0)
+	game.place_tower(banner_cell)
+	check(game.tower_support_bonus(game.towers[0]) > 0.0, "Banner aura buffs nearby towers")
 	check(game.blocked[game.cell_index(cell)], "Tower blocks its grid cell")
 	check(game.can_place(cell + Vector2i(1, 0)) == "不能挨着其他塔", "Towers cannot be adjacent")
-	check(game.can_place(game.world_to_cell(game.CORE + Vector2(1000, 0))) == "超出建造范围", "Build radius is enforced")
+	check(game.can_place(game.world_to_cell(game.CORE + Vector2(1200, 0))) == "超出建造范围", "Build radius is enforced")
 	check(game.towers[0].upgrade() and game.towers[0].level == 2, "Towers can be upgraded with gold")
 	var before_menu_build: int = game.towers.size()
 	game.toggle_build_mode()
 	game.build_cell = game._nearest_build_cell(Vector2i(25, 20))
 	game.build_site_ok = true
 	game.build_valid = true
+	game.set_build_kind("bolt")
 	game.hud.palette_buttons["bolt"].emit_signal("pressed")
 	check(game.towers.size() == before_menu_build + 1, "Build menu icon places a tower")
 	var before_second_build: int = game.towers.size()
@@ -113,11 +119,13 @@ func _run() -> void:
 	game.build_cell = game._nearest_build_cell(Vector2i(26, 20))
 	game.build_site_ok = true
 	game.build_valid = true
+	game.set_build_kind("bolt")
 	game.hud.palette_buttons["bolt"].emit_signal("pressed")
 	check(game.towers.size() == before_second_build + 1, "Build menu can be used again after a build")
 	var before_manual_click: int = game.towers.size()
 	game.toggle_build_mode()
 	game.build_cell = game._nearest_build_cell(Vector2i(24, 24))
+	game.set_build_kind("bolt")
 	await create_timer(0.1).timeout
 	var click_button: Button = game.hud.palette_buttons["bolt"]
 	var click_event := InputEventMouseButton.new()
