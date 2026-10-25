@@ -13,6 +13,7 @@ var shield_bar: ProgressBar
 var resources: Label
 var xp_label: Label
 var skill_label: Label
+var build_strip: Label
 var phase_label: Label
 var hint_label: Label
 var build_label: Label
@@ -78,6 +79,8 @@ func _ready() -> void:
 	resources = _label(Rect2(18, 54, 420, 24), 16, GOLD)
 	xp_label = _label(Rect2(18, 78, 420, 24), 15, MUTED)
 	skill_label = _label(Rect2(18, 102, 460, 24), 15, Color("cfe3d4"))
+	build_strip = _label(Rect2(18, 128, 560, 44), 13, Color("9fb9aa"))
+	build_strip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	phase_label = _label(Rect2(-320, 16, 640, 26), 20, GOLD)
 	phase_label.set_anchors_preset(Control.PRESET_CENTER_TOP, true)
 	phase_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -295,7 +298,7 @@ func show_passive_choice(choices: Array[String], source: String, rerolls: int) -
 	var subtitle := _label(Rect2(20, 60, 680, 24), 14, MUTED)
 	root.remove_child(subtitle)
 	passive_panel.add_child(subtitle)
-	subtitle.text = "先点一张卡，再点确认；可刷新一次卡池"
+	subtitle.text = "先点一张卡，再点确认；可刷新卡池"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	for index in range(choices.size()):
 		var key: String = choices[index]
@@ -307,6 +310,9 @@ func show_passive_choice(choices: Array[String], source: String, rerolls: int) -
 		var tags_text: String = String(data.get("tags_text", "被动"))
 		var stack_text: String = String(data.get("stack_text", ""))
 		button.text = "%s · %s   [%s]   %s\n%s" % [data.name, tags_text, rarity_text, stack_text, data.desc]
+		var requires_text: String = String(data.get("requires_text", ""))
+		if requires_text != "":
+			button.text += "\n前置：" + requires_text
 		button.add_theme_font_size_override("font_size", 15)
 		button.add_theme_color_override("font_color", data.get("rarity_color", CREAM))
 		_style_button(button)
@@ -384,6 +390,42 @@ func _build_palette() -> void:
 		build_palette.add_child(button)
 		palette_buttons[kind] = button
 		index += 1
+
+func _update_build_strip() -> void:
+	if game == null or game.hero == null:
+		return
+	var counts := {}
+	for key in game.hero.passives:
+		if not ArenaUpgrades.DEFS.has(key):
+			continue
+		for tag in ArenaUpgrades.DEFS[key].tags:
+			counts[tag] = int(counts.get(tag, 0)) + 1
+	var parts: Array[String] = []
+	for tag in ["武器", "弹道", "元素", "生存", "经济", "塔防"]:
+		if int(counts.get(tag, 0)) > 0:
+			parts.append("%s%d" % [tag, int(counts[tag])])
+	var synergies: Array[String] = []
+	var near: Array[String] = []
+	for key in ArenaUpgrades.DEFS:
+		var data: Dictionary = ArenaUpgrades.DEFS[key]
+		if String(data.rarity) != "synergy":
+			continue
+		if game.hero.passives.has(key):
+			synergies.append(String(data.name))
+			continue
+		var requirements: Array = data.get("requires", [])
+		var owned := 0
+		for req in requirements:
+			if game.hero.passives.has(String(req)):
+				owned += 1
+		if owned == requirements.size() - 1 and requirements.size() > 1:
+			near.append("%s %d/%d" % [data.name, owned, requirements.size()])
+	var line := "Build  " + (" · ".join(PackedStringArray(parts)) if parts.size() > 0 else "尚无")
+	if synergies.size() > 0:
+		line += "    协同：" + "、".join(PackedStringArray(synergies))
+	if near.size() > 0:
+		line += "\n接近协同：" + " · ".join(PackedStringArray(near.slice(0, 2)))
+	build_strip.text = line
 
 func _update_build_menu() -> void:
 	if not game.build_mode or game.build_cell.x < 0:
@@ -466,7 +508,7 @@ func _update_tower_panel_old() -> void:
 func _process(delta: float) -> void:
 	if game == null: return
 	var show_hud: bool = not hero_selecting and not relic_selecting and not game.passive_selecting
-	for node in [status, resources, xp_label, skill_label, phase_label, hint_label, core_label, build_label]:
+	for node in [status, resources, xp_label, skill_label, phase_label, hint_label, core_label, build_label, build_strip]:
 		node.visible = show_hud
 	core_bar.visible = show_hud
 	shield_bar.visible = show_hud
@@ -484,6 +526,7 @@ func _process(delta: float) -> void:
 	resources.text = "金币 %d    Lv.%d    击杀 %d" % [game.gold, game.hero.level, game.stats.kills]
 	xp_label.text = "经验 %d/%d    场上 %d    预算 %d" % [game.hero.xp, game.hero.xp_target, game.enemies.size(), game.spawn_budget]
 	skill_label.text = "武器 %s Lv.%d    技能 %s · 空格    %s" % [Rules.weapon(game.hero.weapon_key).name, game.hero.weapon_level, game.hero.skill_name, "冷却 %ds" % ceili(game.hero.skill_cooldown) if game.hero.skill_cooldown > 0.0 else "可用"]
+	_update_build_strip()
 	core_label.text = "核心 %d / %d" % [game.core_health, game.core_max]
 	core_label.add_theme_color_override("font_color", Color("ff8b7d") if game.core_health < game.core_max * 0.35 else CREAM)
 	core_bar.max_value = game.core_max

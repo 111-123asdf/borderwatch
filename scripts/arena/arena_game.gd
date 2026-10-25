@@ -22,8 +22,8 @@ var hero_selected := false
 var game_over := false
 var victory := false
 var gold := START_GOLD
-var core_health := 450.0
-var core_max := 450.0
+var core_health := 500.0
+var core_max := 500.0
 var cycle := 1
 var phase := "rest"
 var phase_clock := 5.0
@@ -73,7 +73,11 @@ var passive_selecting := false
 var passive_choices: Array[String] = []
 var passive_source := ""
 var pending_level_choices := 0
-var passive_rerolls := 2
+var passive_rerolls := 3
+var dry_weapon_choices := 0
+var dry_element_choices := 0
+var passive_guarantee_weapon := false
+var passive_guarantee_element := false
 var stats := {"kills": 0, "hero_kills": 0, "tower_kills": 0, "built": 0, "cycles": 0}
 var debug := {
 	"leaks": 0,
@@ -560,15 +564,48 @@ func _relic_available(key: String) -> bool:
 func open_passive_choice(source: String) -> void:
 	if passive_selecting: return
 	passive_source = source
-	passive_choices = ArenaUpgrades.roll(hero, source, 3, rng)
+	passive_guarantee_weapon = dry_weapon_choices >= 2
+	passive_guarantee_element = dry_element_choices >= 2
+	passive_choices = ArenaUpgrades.roll(hero, source, 3, rng, passive_guarantee_weapon, passive_guarantee_element)
+	if passive_choices.is_empty():
+		passive_selecting = false
+		var rewards := maxi(1, pending_level_choices)
+		pending_level_choices = 0
+		gold += 50 * rewards
+		if hero != null:
+			hero.health = minf(hero.max_health, hero.health + 20.0 * rewards)
+		running = true
+		hud.toast("被动已全满：转化为 %d 金与生命" % (50 * rewards), 3)
+		return
+	_update_dry_choices(passive_choices)
 	passive_selecting = true
 	running = false
 	hud.show_passive_choice(passive_choices, source, passive_rerolls)
 
+func _update_dry_choices(choices: Array[String]) -> void:
+	var has_weapon := false
+	var has_element := false
+	for key in choices:
+		if not ArenaUpgrades.DEFS.has(key): continue
+		if ArenaUpgrades.DEFS[key].has("weapon"): has_weapon = true
+		if "元素" in ArenaUpgrades.DEFS[key].tags: has_element = true
+	dry_weapon_choices = 0 if has_weapon else dry_weapon_choices + 1
+	dry_element_choices = 0 if has_element else dry_element_choices + 1
+
 func reroll_passive_choice() -> void:
 	if not passive_selecting or passive_rerolls <= 0: return
 	passive_rerolls -= 1
-	passive_choices = ArenaUpgrades.roll(hero, passive_source, 3, rng)
+	var next: Array[String] = []
+	for attempt in range(3):
+		next = ArenaUpgrades.roll(hero, passive_source, 3, rng, passive_guarantee_weapon, passive_guarantee_element)
+		if next != passive_choices:
+			break
+	if next.is_empty():
+		passive_rerolls += 1
+		hud.toast("没有可刷新的卡了", 2)
+		return
+	passive_choices = next
+	_update_dry_choices(passive_choices)
 	hud.show_passive_choice(passive_choices, passive_source, passive_rerolls)
 
 func choose_passive(key: String) -> void:
@@ -690,11 +727,14 @@ func enemy_died(enemy: ArenaEnemy) -> void:
 		finish(true)
 	if hero != null:
 		if hero.passives.has("lifesteal"):
-			hero.health = minf(hero.max_health, hero.health + 6.0)
+			var lifesteal_stacks := int(hero.passives.get("lifesteal", 1))
+			hero.health = minf(hero.max_health, hero.health + 6.0 + 3.0 * (lifesteal_stacks - 1))
 		if hero.passives.has("dash_reset"):
-			hero.skill_cooldown = maxf(0.0, hero.skill_cooldown - 1.0)
+			var reset_stacks := int(hero.passives.get("dash_reset", 1))
+			hero.skill_cooldown = maxf(0.0, hero.skill_cooldown - (1.0 + 0.5 * (reset_stacks - 1)))
 		if hero.passives.has("deathblast"):
-			damage_radius(enemy.position, 80.0, 38.0)
+			var blast_stacks := int(hero.passives.get("deathblast", 1))
+			damage_radius(enemy.position, 80.0 + 10.0 * (blast_stacks - 1), 38.0 + 20.0 * (blast_stacks - 1))
 			if hero.passives.has("reaper"):
 				hero.health = minf(hero.max_health, hero.health + 5.0)
 		if hero.passives.has("pyroclasm") and enemy.burn_time > 0.0:

@@ -44,7 +44,7 @@ func _physics_process(delta: float) -> void:
 				var applied := damage
 				if execute_bonus > 0.0 and enemy.health < enemy.max_health * execute_threshold:
 					applied *= 1.0 + execute_bonus
-				if shatter and critical and enemy.slow_time > 0.0:
+				if shatter and critical:
 					applied *= 1.5
 					enemy.slow_time = maxf(enemy.slow_time, 1.0)
 				enemy.take_damage(applied)

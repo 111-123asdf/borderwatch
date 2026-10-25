@@ -49,7 +49,7 @@ func _run() -> void:
 	check("stormfire" in synergy_pool, "Synergy appears only after prerequisites")
 	game.hero.passives.erase("burn")
 	game.hero.passives.erase("chain")
-	var rolled_choices := ArenaUpgrades.roll(game.hero, "level", 3, game.rng)
+	var rolled_choices := ArenaUpgrades.roll(game.hero, "level", 3, game.rng, true, true)
 	var rolled_weapon := false
 	var rolled_element := false
 	for key in rolled_choices:
@@ -142,6 +142,24 @@ func _run() -> void:
 	game.spawn_cluster()
 	check(game.enemies.size() > 0, "Spawn director creates enemies")
 	check(game.flow_at(game.spawn_points[0]).length() > 0.0, "Spawned enemies have a flow direction")
+
+	game.dry_weapon_choices = 2
+	game.dry_element_choices = 2
+	game.open_passive_choice("level")
+	var soft_weapon := false
+	var soft_element := false
+	for key in game.passive_choices:
+		if ArenaUpgrades.DEFS[key].has("weapon"): soft_weapon = true
+		if "元素" in ArenaUpgrades.DEFS[key].tags: soft_element = true
+	check(soft_weapon and soft_element, "Two dry levels trigger weapon and element pity")
+	game.choose_passive(game.passive_choices[0])
+	var gold_before_empty: int = game.gold
+	var saved_passives: Dictionary = game.hero.passives.duplicate()
+	for key in ArenaUpgrades.DEFS:
+		game.hero.passives[key] = int(ArenaUpgrades.DEFS[key].max)
+	game.open_passive_choice("level")
+	check(not game.passive_selecting and game.gold > gold_before_empty, "Empty upgrade pool converts to gold instead of soft-locking")
+	game.hero.passives = saved_passives
 
 	game.hero.invulnerability = 0.0
 	game.hero.take_damage(9999.0)

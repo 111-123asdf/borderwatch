@@ -80,9 +80,9 @@ func configure(key: String) -> void:
 		max_shield += 10.0
 		shield = max_shield
 	elif key == "mage":
-		max_health += 15.0
+		max_health += 35.0
 		health = max_health
-		max_shield += 10.0
+		max_shield += 25.0
 		shield = max_shield
 	skill_cooldown_max = float(data.cooldown)
 	skill_cooldown = 0.0
@@ -140,6 +140,7 @@ func apply_passive(key: String) -> void:
 		"pistol_akimbo": multishot += 1
 		"pistol_quickdraw": attack_speed_mult += 0.10
 		"pistol_ricochet": pierce_bonus += 1
+		"pistol_storm": pass
 		"bow_broadhead":
 			damage_mult += 0.20
 			pierce_bonus += 1
@@ -149,10 +150,12 @@ func apply_passive(key: String) -> void:
 		"bow_marksman":
 			crit_chance = minf(0.85, crit_chance + 0.10)
 			crit_multiplier += 0.50
+		"bow_rain": pass
 		"scatter_wide": multishot += 1
 		"scatter_frost": slow_bonus += 0.8
 		"scatter_close": close_damage_bonus += 0.20
 		"scatter_reload": attack_speed_mult += 0.12
+		"scatter_barrage": pass
 		"juggernaut": damage_reduction = minf(0.6, damage_reduction + 0.20)
 		"tower_doctrine": skill_cd_mult = maxf(0.35, skill_cd_mult * 0.90)
 		"chain", "nova", "execute", "deathblast", "storm", "lifesteal", "dash_reset", "overload", "tower_link", "stormfire", "shatter", "executioner", "tempest", "reaper", "pyroclasm", "chainfrost", "permafrost":
@@ -192,8 +195,9 @@ func _physics_process(delta: float) -> void:
 		if Input.is_action_pressed("shoot") and not game.build_mode and fire_cooldown <= 0.0:
 			fire(target)
 	if passives.has("storm") and storm_cooldown <= 0.0 and target != null:
-		storm_cooldown = 6.0
-		game.storm_strike(target, 48.0 + level * 3.0)
+		var storm_stacks := int(passives.get("storm", 1))
+		storm_cooldown = maxf(3.0, 6.0 - float(storm_stacks - 1))
+		game.storm_strike(target, 48.0 + level * 3.0 + (storm_stacks - 1) * 12.0)
 		if passives.has("tempest"):
 			game.frost_nova(target.position, 110.0, 28.0 + level * 2.0, 2.0)
 	visual.dual_active = class_id == "knight" and skill_time > 0.0
@@ -219,7 +223,7 @@ func fire(target: ArenaEnemy) -> void:
 		var every := maxi(4, 8 - (int(passives["overload"]) - 1) * 2)
 		if (shots_fired + 1) % every == 0:
 			base_damage *= 2.0
-	var execute_bonus := 0.6 if passives.has("execute") else 0.0
+	var execute_bonus := 0.6 + 0.3 * (int(passives.get("execute", 1)) - 1) if passives.has("execute") else 0.0
 	var threshold := 0.50 if passives.has("executioner") else 0.35
 	var shatter := passives.has("shatter")
 	var weapon_color: Color = definition.color
@@ -235,6 +239,7 @@ func fire(target: ArenaEnemy) -> void:
 			var t := 0.0 if pellets <= 1 else float(index) / float(pellets - 1)
 			var angle := lerpf(-0.32, 0.32, t)
 			game.spawn_projectile(center(), center() + direction.rotated(angle) * 800.0, base_damage, weapon_color, splash_bonus, slow_bonus, 900.0, 0, execute_bonus, burn_dps, critical, threshold, shatter)
+		_trigger_weapon_capstone(direction, base_damage, weapon_color)
 		_trigger_on_hit(target, base_damage)
 		return
 	if weapon_key == "sniper":
@@ -250,13 +255,33 @@ func fire(target: ArenaEnemy) -> void:
 	for index in range(shots):
 		var offset := (index - (shots - 1) * 0.5) * 22.0
 		game.spawn_projectile(center() + direction.orthogonal() * offset, center() + direction * 800.0 + direction.orthogonal() * offset, base_damage, weapon_color, splash_bonus, slow_bonus, 900.0, pierce_bonus, execute_bonus, burn_dps, critical, threshold, shatter)
+	_trigger_weapon_capstone(direction, base_damage, weapon_color)
 	_trigger_on_hit(target, base_damage)
 
+func _trigger_weapon_capstone(direction: Vector2, base_damage: float, color: Color) -> void:
+	var execute_bonus := 0.6 + 0.3 * (int(passives.get("execute", 1)) - 1) if passives.has("execute") else 0.0
+	if passives.has("pistol_storm") and shots_fired % 6 == 0:
+		for angle in [-0.18, 0.0, 0.18]:
+			game.spawn_projectile(center(), center() + direction.rotated(angle) * 800.0, base_damage * 0.8, color, splash_bonus, slow_bonus, 950.0, pierce_bonus, execute_bonus, burn_dps, false, 0.35, passives.has("shatter"))
+	if passives.has("bow_rain") and shots_fired % 6 == 0:
+		for angle in [-0.22, 0.0, 0.22]:
+			game.spawn_projectile(center(), center() + direction.rotated(angle) * 800.0, base_damage * 0.7, color, splash_bonus, slow_bonus, 850.0, 1, execute_bonus, burn_dps, false, 0.35, passives.has("shatter"))
+	if passives.has("scatter_barrage") and shots_fired % 5 == 0:
+		for index in range(6):
+			var angle := TAU * float(index) / 6.0
+			game.spawn_projectile(center(), center() + Vector2.RIGHT.rotated(angle) * 800.0, base_damage * 0.55, color, splash_bonus, slow_bonus, 850.0, 0, execute_bonus, burn_dps, false, 0.35, passives.has("shatter"))
+
 func _trigger_on_hit(target: ArenaEnemy, base_damage: float) -> void:
-	if passives.has("chain") and shots_fired % 3 == 0:
-		game.chain_strike(center(), base_damage * 0.6, 2)
-	if passives.has("nova") and shots_fired % 5 == 0 and is_instance_valid(target):
-		game.frost_nova(target.position, 90.0, base_damage * 0.35, 2.0)
+	if passives.has("chain"):
+		var chain_stacks := int(passives.get("chain", 1))
+		var interval := maxi(1, 3 - (chain_stacks - 1))
+		if shots_fired % interval == 0:
+			game.chain_strike(center(), base_damage * (0.6 + 0.1 * (chain_stacks - 1)), 2 + chain_stacks - 1)
+	if passives.has("nova") and is_instance_valid(target):
+		var nova_stacks := int(passives.get("nova", 1))
+		var interval := maxi(3, 6 - nova_stacks)
+		if shots_fired % interval == 0:
+			game.frost_nova(target.position, 90.0 + 15.0 * (nova_stacks - 1), base_damage * (0.35 + 0.05 * (nova_stacks - 1)), 2.0)
 
 func use_skill(movement: Vector2) -> void:
 	skill_cooldown = skill_cooldown_max * skill_cd_mult
