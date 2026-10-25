@@ -122,12 +122,16 @@ func fire(target: ArenaEnemy) -> void:
 	var poison := 0.0
 	var pierce := 0
 	var speed := 700.0
+	shots_fired += 1
+	var overclock: bool = game.hero.passives.has("tower_overclock") and shots_fired % 5 == 0
+	if overclock: damage *= 2.0
 	if kind == "bolt":
 		pierce = level - 1
 		speed = 900.0
 	if kind == "cannon":
 		damage *= 1.0 + 0.15 * int(game.hero.passives.get("tower_cannon", 0))
 		splash = 68.0 + 8.0 * int(game.hero.passives.get("tower_cannon", 0)) + (level - 1) * 18.0
+		if overclock: splash += 20.0
 		if level >= 3: slow = 1.2
 	if kind == "frost":
 		slow = 2.6 + 0.5 * int(game.hero.passives.get("tower_frost", 0)) + (level - 1) * 0.5
@@ -152,10 +156,6 @@ func fire(target: ArenaEnemy) -> void:
 		damage *= 1.0 + 0.10 * int(game.hero.passives.get("tower_laser", 0))
 		game.beam_damage(position + Vector2(0, -84), target.position, damage, 18.0 + level * 3.0)
 		return
-	shots_fired += 1
-	if game.hero.passives.has("tower_overclock") and shots_fired % 5 == 0:
-		damage *= 2.0
-		if kind == "cannon": splash += 20.0
 	if kind == "bolt":
 		var shots := level
 		for index in range(shots):
