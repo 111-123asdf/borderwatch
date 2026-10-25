@@ -31,6 +31,8 @@ var body: Sprite2D
 var shots_fired := 0
 var last_attack_mode := ""
 var disabled_time := 0.0
+var muzzle_time := 0.0
+var recoil_time := 0.0
 
 func _ready() -> void:
 	var color := "Blue"
@@ -88,6 +90,7 @@ func upgrade() -> bool:
 
 func _physics_process(delta: float) -> void:
 	if not game.running or game.game_over: return
+	if game.hitstop > 0.0: return
 	if not active:
 		build_clock -= delta
 		if build_clock <= 0.0:
@@ -103,6 +106,8 @@ func _physics_process(delta: float) -> void:
 		queue_redraw()
 		return
 	cooldown = maxf(0.0, cooldown - delta)
+	muzzle_time = maxf(0.0, muzzle_time - delta)
+	recoil_time = maxf(0.0, recoil_time - delta)
 	for enemy in game.enemies.duplicate():
 		if is_instance_valid(enemy) and enemy.position.distance_to(position) < 72.0:
 			var contact_damage := 13.0
@@ -122,8 +127,12 @@ func fire(target: ArenaEnemy) -> void:
 	last_attack_mode = {"bolt": "bolt_volley", "cannon": "cannon_shell", "frost": "frost_nova", "arc": "arc_chain", "venom": "venom_cloud", "laser": "laser_beam", "banner": "banner_aura"}.get(kind, kind)
 	cooldown = attack_interval()
 	aim = (target.position - position).normalized()
+	muzzle_time = 0.06
+	recoil_time = 0.06
 	if kind == "banner":
 		return
+	if game.audio != null:
+		game.audio.play("explode" if kind == "cannon" else "tower", -16.0 if kind != "cannon" else -13.0)
 	var damage: float = float(definition.damage) * (1.0 + (level - 1) * 0.6) * game.tower_damage_scale() * game.tower_conditional_damage(self)
 	var splash := 0.0
 	var slow := 0.0
@@ -178,6 +187,10 @@ func _draw() -> void:
 		draw_arc(Vector2.ZERO, attack_range(), 0, TAU, 48, Color(color, 0.18), 3, true)
 	draw_arc(Vector2(0, 2), 24, 0, TAU, 28, Color(color, 0.55), 2, true)
 	draw_line(Vector2(0, -84), Vector2(0, -84) + aim * 20, Color(color, 0.9), 5, true)
+	if muzzle_time > 0.0:
+		var muzzle := Vector2(0, -84) + aim * 24
+		draw_circle(muzzle, 5.0, Color(color, muzzle_time / 0.06))
+		draw_line(muzzle, muzzle + aim * 14, Color(1.0, 0.9, 0.6, muzzle_time / 0.06), 3, true)
 	if not active:
 		draw_arc(Vector2(0, -20), 24, -PI * 0.5, -PI * 0.5 + TAU * (1.0 - build_clock / 2.0), 24, Color(0.95, 0.85, 0.5, 0.8), 3, true)
 	if health < max_health:

@@ -33,6 +33,7 @@ var ranged_cooldown := 0.0
 var boss_core_cooldown := 0.0
 var visual: ActorVisual
 var hit_flash := 0.0
+var knockback := Vector2.ZERO
 
 func center() -> Vector2:
 	return position + Vector2(0, -24 if kind != "boss" else -46)
@@ -63,6 +64,11 @@ func apply_burn(dps: float, duration: float) -> void:
 	burn_dps = maxf(burn_dps, dps * element_multiplier("fire"))
 	burn_time = maxf(burn_time, duration)
 	burn_tick = minf(burn_tick, 0.5)
+
+func apply_knockback(direction: Vector2, force: float) -> void:
+	if kind == "boss" or freeze_time > 0.0: return
+	var factor := 0.55 if elite else 1.0
+	knockback += direction.normalized() * force * factor
 
 func apply_poison(dps: float, duration: float) -> void:
 	poison_dps = maxf(poison_dps, dps)
@@ -165,6 +171,12 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	if dead or not game.running or game.game_over: return
+	if game.hitstop > 0.0:
+		queue_redraw()
+		return
+	if knockback.length_squared() > 1.0:
+		position += knockback * delta
+		knockback = knockback.move_toward(Vector2.ZERO, 520.0 * delta)
 	slow_time = maxf(0.0, slow_time - delta)
 	burn_time = maxf(0.0, burn_time - delta)
 	poison_time = maxf(0.0, poison_time - delta)
@@ -319,7 +331,9 @@ func _draw() -> void:
 		draw_arc(Vector2.ZERO, radius + 16, 0, TAU, 28, Color(0.7, 0.95, 1.0, 0.7), 3, true)
 		draw_string(ThemeDB.fallback_font, Vector2(width * 0.5 - 14, top - 31), "冻", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(0.8, 0.98, 1.0))
 	if hit_flash > 0.0:
-		draw_circle(Vector2.ZERO, radius + 4, Color(1.0, 0.9, 0.8, 0.3))
+		var flash_alpha := hit_flash / 0.1
+		draw_arc(Vector2.ZERO, radius + 3, 0, TAU, 24, Color(1.0, 0.96, 0.86, flash_alpha * 0.75), 2.5, true)
+		draw_line(Vector2(-radius * 0.7, 0), Vector2(radius * 0.7, 0), Color(1.0, 0.9, 0.75, flash_alpha * 0.5), 1.5, true)
 	if locked_tower != null and is_instance_valid(locked_tower):
 		draw_line(Vector2.ZERO, locked_tower.position - position, Color(1.0, 0.35, 0.28, 0.55), 2, true)
 	if locked_hero and game.hero != null:

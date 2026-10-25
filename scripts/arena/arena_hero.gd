@@ -29,6 +29,9 @@ var level := 1
 var xp_target := 35
 var gold_gained := 0
 var hurt_flash := 0.0
+var muzzle_time := 0.0
+var recoil_time := 0.0
+var muzzle_direction := Vector2.LEFT
 var passives := {}
 var damage_mult := 1.0
 var attack_speed_mult := 1.0
@@ -221,7 +224,11 @@ func weapon_title() -> String:
 
 func _physics_process(delta: float) -> void:
 	if not game.running or game.game_over: return
+	if game.hitstop > 0.0: return
 	fire_cooldown = maxf(0.0, fire_cooldown - delta)
+	muzzle_time = maxf(0.0, muzzle_time - delta)
+	recoil_time = maxf(0.0, recoil_time - delta)
+	visual.position = -muzzle_direction * (4.0 * recoil_time / 0.08)
 	skill_cooldown = maxf(0.0, skill_cooldown - delta)
 	storm_cooldown = maxf(0.0, storm_cooldown - delta)
 	skill_time = maxf(0.0, skill_time - delta)
@@ -295,6 +302,11 @@ func fire(target: ArenaEnemy) -> void:
 	var weapon_color: Color = definition.color
 	var dual := class_id == "knight" and skill_time > 0.0
 	shots_fired += 1
+	muzzle_time = 0.07
+	recoil_time = 0.08
+	muzzle_direction = direction
+	if game.audio != null:
+		game.audio.play("shoot", -12.0)
 	visual.attack(direction, 0.18)
 	if weapon_key == "sword":
 		game.damage_radius(center() + direction * 55, float(definition.reach), base_damage * (2.0 if dual else 1.0))
@@ -382,6 +394,9 @@ func take_damage(amount: float) -> void:
 	shield_regen_delay = 3.0
 	invulnerability = 0.35
 	hurt_flash = 0.12
+	if game.audio != null:
+		game.audio.play("hurt", -7.0)
+	game.hit_feedback(center(), amount)
 	if shield_before > 0.0 and shield <= 0.0:
 		game.shake(8.0)
 		game.hud.toast("护盾破碎", 1.2)
@@ -410,3 +425,14 @@ func _draw() -> void:
 		draw_arc(Vector2(0, -10), 62, 0, TAU, 40, Color(0.65, 0.85, 1.0, 0.55), 3, true)
 	if hurt_flash > 0.0:
 		draw_circle(Vector2(0, -28), 28, Color(1.0, 0.35, 0.3, 0.25))
+	if muzzle_time > 0.0:
+		var muzzle_origin := Vector2(0, -30) + muzzle_direction * 30.0
+		var muzzle_color: Color = weapon_definition().color
+		var alpha := muzzle_time / 0.07
+		draw_circle(muzzle_origin, 6.0, Color(muzzle_color, alpha * 0.85))
+		draw_colored_polygon(PackedVector2Array([
+			muzzle_origin,
+			muzzle_origin + muzzle_direction.rotated(0.34) * 22.0,
+			muzzle_origin + muzzle_direction * 8.0,
+			muzzle_origin + muzzle_direction.rotated(-0.34) * 22.0,
+		]), Color(1.0, 0.85, 0.45, alpha * 0.8))

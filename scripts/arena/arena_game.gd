@@ -49,6 +49,7 @@ var enemies: Array[ArenaEnemy] = []
 var drops: Array[ArenaDrop] = []
 var hero: ArenaHero
 var hud: ArenaHUD
+var audio: ArenaAudio
 var camera: Camera2D
 var build_mode := false
 var build_kind := "bolt"
@@ -63,6 +64,10 @@ var focus_max := 10.0
 var sim_speed := 1.0
 var elapsed := 0.0
 var shake_amount := 0.0
+var shake_direction := Vector2.ZERO
+var hitstop := 0.0
+var hitstop_lock := 0.0
+var sparks: Array[Dictionary] = []
 var bolts: Array[Dictionary] = []
 var rings: Array[Dictionary] = []
 var floaters: Array[Dictionary] = []
@@ -118,6 +123,8 @@ func _ready() -> void:
 	hud = ArenaHUD.new()
 	hud.game = self
 	add_child(hud)
+	audio = ArenaAudio.new()
+	add_child(audio)
 	running = false
 	hud.show_hero_select()
 
@@ -339,9 +346,23 @@ func tower_destroyed(tower: ArenaTower) -> void:
 	debug.towers_lost += 1
 	blocked[cell_index(tower.cell)] = false
 	towers.erase(tower)
+	rings.append({"point": tower.position, "radius": 66.0, "life": 0.32, "max_life": 0.32, "color": Color("ff8b6a")})
+	for index in range(8):
+		var angle := randf() * TAU
+		sparks.append({
+			"point": tower.position,
+			"velocity": Vector2.RIGHT.rotated(angle) * randf_range(100.0, 280.0),
+			"life": randf_range(0.16, 0.32),
+			"max_life": 0.32,
+			"color": Color("ff9d65"),
+		})
+	hitstop = maxf(hitstop, 0.05)
+	shake(5.0, (tower.position - CORE).normalized())
+	if audio != null:
+		audio.play("explode", -9.0)
 	tower.queue_free()
 	_rebuild_flow()
-	hud.toast("一座塔被铁甲撞毁", 2)
+	hud.toast("一座塔被摧毁", 2)
 
 func nearest_damaged_tower(point: Vector2, radius: float) -> ArenaTower:
 	var result: ArenaTower
@@ -960,6 +981,8 @@ func _spawn_boss() -> void:
 func boss_phase_shift(point: Vector2, phase: int) -> void:
 	rings.append({"point": point, "radius": 320.0, "life": 0.55})
 	shake(8.0 + phase * 2.0)
+	if audio != null:
+		audio.play("phase", -4.0, 0.9 + phase * 0.05)
 	for tower in towers:
 		if is_instance_valid(tower) and tower.position.distance_to(point) <= 360.0:
 			tower.disabled_time = maxf(tower.disabled_time, 1.2 + phase * 0.4)
@@ -1017,6 +1040,7 @@ func enemy_died(enemy: ArenaEnemy) -> void:
 	if not is_instance_valid(enemy): return
 	enemies.erase(enemy)
 	stats.kills += 1
+	death_feedback(enemy)
 	if enemy.kind == "boss":
 		boss_dead = true
 		boss = null
@@ -1056,6 +1080,24 @@ func enemy_died(enemy: ArenaEnemy) -> void:
 
 func enemy_escaped(enemy: ArenaEnemy) -> void:
 	enemies.erase(enemy)
+
+func death_feedback(enemy: ArenaEnemy) -> void:
+	var point := enemy.center()
+	var color := Color("ffb36e") if enemy.elite else Color("ff8b6a")
+	rings.append({"point": point, "radius": 40.0 if enemy.elite else 26.0, "life": 0.3, "max_life": 0.3, "color": color})
+	for index in range(10 if enemy.elite else 5):
+		var angle := randf() * TAU
+		sparks.append({
+			"point": point,
+			"velocity": Vector2.RIGHT.rotated(angle) * randf_range(120.0, 320.0),
+			"life": randf_range(0.18, 0.38),
+			"max_life": 0.38,
+			"color": color,
+		})
+	hitstop = maxf(hitstop, 0.06 if enemy.elite else 0.04)
+	shake(4.0 if enemy.elite else 2.2, (point - CORE).normalized())
+	if audio != null:
+		audio.play("kill", -8.0 if enemy.elite else -12.0)
 
 func core_hit(amount: float) -> void:
 	if game_over: return
@@ -1283,15 +1325,39 @@ func storm_strike(target: ArenaEnemy, damage: float) -> void:
 	target.take_damage(lightning_damage * target.element_multiplier("lightning"))
 	shake(4.0)
 
-func hit_feedback(point: Vector2, amount: float) -> void:
+func hit_feedback(point: Vector2, amount: float, critical := false, direction := Vector2.ZERO, enemy: ArenaEnemy = null, kill := false) -> void:
 	if amount <= 0.0: return
+	var color := Color("ffd36e") if critical else Color(1.0, 0.9, 0.55)
 	floaters.append({
 		"point": point + Vector2(randf_range(-12, 12), randf_range(-8, 8)),
-		"text": str(int(round(amount))),
-		"life": 0.5,
-		"max_life": 0.5,
+		"text": ("✦" if critical else "") + str(int(round(amount))),
+		"life": 0.55 if critical else 0.45,
+		"max_life": 0.55 if critical else 0.45,
+		"color": color,
+		"size": 19 if critical else 14,
 	})
-	shake(minf(3.0, amount * 0.03))
+	rings.append({"point": point, "radius": 20.0 if critical else 13.0, "life": 0.22, "max_life": 0.22, "color": color})
+	for index in range(7 if critical else 4):
+		var angle := randf() * TAU
+		var speed := randf_range(90.0, 260.0) * (1.3 if critical else 1.0)
+		sparks.append({
+			"point": point,
+			"velocity": Vector2.RIGHT.rotated(angle) * speed + direction * 80.0,
+			"life": randf_range(0.12, 0.24),
+			"max_life": 0.24,
+			"color": color,
+		})
+	if hitstop_lock <= 0.0:
+		hitstop_lock = 0.07
+		hitstop = maxf(hitstop, 0.055 if kill else (0.038 if critical else 0.018))
+	shake(minf(6.0, amount * 0.035) * (1.8 if critical else 1.0), direction)
+	if audio != null:
+		audio.play("crit" if critical else "hit", -7.0 if critical else -11.0)
+	if enemy != null and is_instance_valid(enemy) and direction != Vector2.ZERO:
+		enemy.apply_knockback(direction, 46.0 if critical else 28.0)
+
+func ambient_hit(point: Vector2, amount: float) -> void:
+	hit_feedback(point, amount)
 
 func clear_hostile_projectiles() -> void:
 	for projectile in get_tree().get_nodes_in_group("hostile_projectile"):
@@ -1300,6 +1366,8 @@ func clear_hostile_projectiles() -> void:
 
 func enemy_explosion(point: Vector2, radius: float, hero_damage: float, tower_damage: float) -> void:
 	rings.append({"point": point, "radius": radius, "life": 0.35})
+	if audio != null:
+		audio.play("explode", -8.0)
 	if hero != null and hero.position.distance_to(point) < radius:
 		hero.take_damage(hero_damage)
 	for tower in towers.duplicate():
@@ -1385,9 +1453,16 @@ func _unhandled_input(event: InputEvent) -> void:
 func _process(delta: float) -> void:
 	if not running: return
 	elapsed += delta
+	hitstop = maxf(0.0, hitstop - delta)
+	hitstop_lock = maxf(0.0, hitstop_lock - delta)
 	_update_build_mode(delta)
 	_update_phase(delta)
 	_update_camera(delta)
+	for spark in sparks:
+		spark.life -= delta
+		spark.point += spark.velocity * delta
+		spark.velocity *= 0.92
+	sparks = sparks.filter(func(item): return item.life > 0.0)
 	for bolt in bolts: bolt.life -= delta
 	bolts = bolts.filter(func(item): return item.life > 0.0)
 	for ring in rings: ring.life -= delta
@@ -1441,10 +1516,15 @@ func _update_camera(delta: float) -> void:
 	camera.position = camera.position.lerp(target, 1.0 - exp(-6.0 * delta))
 	camera.zoom = camera.zoom.lerp(Vector2(zoom, zoom), 1.0 - exp(-7.0 * delta))
 	shake_amount = maxf(0.0, shake_amount - delta * 28.0)
-	camera.offset = Vector2(randf_range(-shake_amount, shake_amount), randf_range(-shake_amount, shake_amount))
+	if shake_direction != Vector2.ZERO:
+		camera.offset = shake_direction * randf_range(-shake_amount, shake_amount) + shake_direction.orthogonal() * randf_range(-shake_amount * 0.35, shake_amount * 0.35)
+	else:
+		camera.offset = Vector2(randf_range(-shake_amount, shake_amount), randf_range(-shake_amount, shake_amount))
 
-func shake(amount: float) -> void:
-	shake_amount = maxf(shake_amount, amount)
+func shake(amount: float, direction := Vector2.ZERO) -> void:
+	if amount > shake_amount:
+		shake_amount = amount
+		shake_direction = direction.normalized() if direction != Vector2.ZERO else Vector2.ZERO
 
 func _update_phase(delta: float) -> void:
 	match phase:
@@ -1520,10 +1600,15 @@ func _draw() -> void:
 		draw_line(bolt.start, bolt.end, Color(0.7, 0.95, 1.0, bolt.life / 0.18), 4, true)
 		draw_line(bolt.start, bolt.end, Color.WHITE, 1.5, true)
 	for ring in rings:
-		var progress: float = 1.0 - ring.life / 0.35
-		draw_arc(ring.point, ring.radius * (0.4 + progress * 0.6), 0, TAU, 40, Color(0.65, 0.95, 1.0, ring.life / 0.35), 4, true)
+		var ring_life: float = float(ring.get("max_life", 0.35))
+		var progress: float = 1.0 - ring.life / ring_life
+		var ring_color: Color = ring.get("color", Color(0.65, 0.95, 1.0))
+		draw_arc(ring.point, ring.radius * (0.4 + progress * 0.6), 0, TAU, 40, Color(ring_color, ring.life / ring_life), 4, true)
+	for spark in sparks:
+		var spark_alpha: float = clampf(spark.life / spark.max_life, 0.0, 1.0)
+		draw_line(spark.point - spark.velocity * 0.012, spark.point, Color(spark.color, spark_alpha), 2.5, true)
 	for floater in floaters:
-		draw_string(ThemeDB.fallback_font, floater.point, floater.text, HORIZONTAL_ALIGNMENT_CENTER, -1, 14, Color(1.0, 0.9, 0.55, floater.life / floater.max_life))
+		draw_string(ThemeDB.fallback_font, floater.point, floater.text, HORIZONTAL_ALIGNMENT_CENTER, -1, int(floater.get("size", 14)), Color(floater.get("color", Color(1.0, 0.9, 0.55)), floater.life / floater.max_life))
 	if build_mode:
 		for cell in range(GRID_W * GRID_H):
 			if reach[cell] == 0: continue

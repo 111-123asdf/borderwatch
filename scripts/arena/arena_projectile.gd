@@ -20,6 +20,7 @@ var hit_ids := {}
 var life := 1.6
 
 func _physics_process(delta: float) -> void:
+	if game.hitstop > 0.0: return
 	life -= delta
 	if life <= 0.0:
 		queue_free()
@@ -40,7 +41,7 @@ func _physics_process(delta: float) -> void:
 			hit_ids[enemy_id] = true
 			if splash > 0.0:
 				game.damage_radius(position, splash, damage)
-				game.hit_feedback(position, damage)
+				game.hit_feedback(position, damage, false, direction)
 			else:
 				var applied := damage
 				var element := ""
@@ -60,7 +61,7 @@ func _physics_process(delta: float) -> void:
 					enemy.apply_poison(poison_dps, 3.0)
 				if game.hero != null and game.hero.passives.has("thermal_shock") and enemy.burn_time > 0.0 and enemy.slow_time > 0.0:
 					game.damage_radius(enemy.position, 90.0, damage * 0.55)
-				game.hit_feedback(enemy.center(), applied)
+				game.hit_feedback(enemy.center(), applied, critical, direction, enemy, enemy.dead)
 			if slow > 0.0:
 				enemy.apply_frost(slow)
 			if pierce > 0:
@@ -71,7 +72,7 @@ func _physics_process(delta: float) -> void:
 	queue_redraw()
 
 func _draw() -> void:
-	draw_line(-direction * 10, direction * 4, Color(color, 0.5), 4, true)
+	draw_line(-direction * 24, direction * 4, Color(color, 0.45), 4, true)
 	draw_circle(Vector2.ZERO, 4.0 if splash <= 0.0 else 6.0, color)
 	if critical and not hostile:
 		draw_arc(Vector2.ZERO, 9, 0, TAU, 16, Color(1.0, 0.9, 0.45, 0.8), 2, true)

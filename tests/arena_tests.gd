@@ -217,6 +217,15 @@ func _run() -> void:
 	var tower_disabled_before: float = mode_tower.disabled_time
 	game.boss_phase_shift(mode_tower.position, 1)
 	check(mode_tower.disabled_time > tower_disabled_before, "Boss phase shift silences nearby towers")
+	var hitstop_before: float = game.hitstop
+	game.hit_feedback(mode_tower.position + Vector2(40, 0), 25.0, true, Vector2.RIGHT)
+	check(game.hitstop > hitstop_before and game.sparks.size() > 0, "Critical hits add hitstop and impact sparks")
+	check(game.audio != null and game.audio.streams.size() >= 6, "Procedural combat audio is available")
+	var knockback_test: ArenaEnemy = game.spawn_enemy("torch", game.CORE + Vector2(760, 260), 100.0)
+	knockback_test.apply_knockback(Vector2.LEFT, 40.0)
+	check(knockback_test.knockback.length() > 0.0, "Enemies receive knockback")
+	game.enemy_escaped(knockback_test)
+	knockback_test.queue_free()
 
 	game.hero.position = game.CORE + Vector2(160, 0)
 	var gold_before: int = game.gold
