@@ -476,6 +476,7 @@ func _update_build_strip() -> void:
 func _tag_color(tag: String) -> String:
 	match tag:
 		"武器": return "#ffd36e"
+		"职业": return "#ff9fb0"
 		"弹道": return "#ffad7a"
 		"元素": return "#8be8ff"
 		"生存": return "#9fe8b0"
@@ -493,7 +494,7 @@ func _build_tag_bbcode() -> String:
 		for tag in ArenaUpgrades.DEFS[key].tags:
 			counts[tag] = int(counts.get(tag, 0)) + 1
 	var parts: Array[String] = []
-	for tag in ["武器", "弹道", "元素", "生存", "经济", "塔防"]:
+	for tag in ["武器", "职业", "弹道", "元素", "生存", "经济", "塔防"]:
 		var count := int(counts.get(tag, 0))
 		if count > 0:
 			parts.append("[color=%s]%s %d[/color]" % [_tag_color(tag), tag, count])

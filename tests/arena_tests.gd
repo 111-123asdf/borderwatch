@@ -41,6 +41,10 @@ func _run() -> void:
 	var level_before: int = game.hero.level
 	var level_pool := ArenaUpgrades.build_pool(game.hero, "level")
 	check("pistol_akimbo" in level_pool and not ("bow_hunter" in level_pool), "Weapon-specific upgrades filter by weapon")
+	check("knight_bulwark" in level_pool and not ("ranger_tempo" in level_pool), "Class-specific upgrades filter by hero")
+	var pre_bulwark: float = game.hero.damage_reduction
+	game.hero.apply_passive("knight_bulwark")
+	check(game.hero.damage_reduction > pre_bulwark, "Knight class passive applies its effect")
 	var camp_pool := ArenaUpgrades.build_pool(game.hero, "camp")
 	check(not ("power" in camp_pool), "Camp pool excludes common upgrades")
 	game.hero.passives["burn"] = 1

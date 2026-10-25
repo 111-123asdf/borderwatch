@@ -50,6 +50,18 @@ var execute_threshold := 0.35
 var crit_multiplier := 2.0
 var close_damage_bonus := 0.0
 var damage_reduction := 0.0
+var dual_duration_bonus := 0.0
+var shield_damage_bonus := 0.0
+var shield_break_shock := false
+var tempo_bonus := 0.0
+var tempo_time := 0.0
+var dash_trail := false
+var full_health_bonus := 0.0
+var dash_cd_mult := 1.0
+var barrier_duration_bonus := 0.0
+var barrier_damage_bonus := 0.0
+var barrier_reflect := false
+var mage_echo := false
 
 func _ready() -> void:
 	collision_layer = 2
@@ -83,6 +95,11 @@ func configure(key: String) -> void:
 		max_health += 35.0
 		health = max_health
 		max_shield += 25.0
+		shield = max_shield
+	else:
+		max_health += 25.0
+		health = max_health
+		max_shield += 15.0
 		shield = max_shield
 	skill_cooldown_max = float(data.cooldown)
 	skill_cooldown = 0.0
@@ -158,6 +175,18 @@ func apply_passive(key: String) -> void:
 		"scatter_barrage": pass
 		"juggernaut": damage_reduction = minf(0.6, damage_reduction + 0.20)
 		"tower_doctrine": skill_cd_mult = maxf(0.35, skill_cd_mult * 0.90)
+		"knight_bulwark": damage_reduction = minf(0.6, damage_reduction + 0.06)
+		"knight_riposte": shield_break_shock = true
+		"knight_dual": dual_duration_bonus += 1.5
+		"knight_bastion": shield_damage_bonus += 0.20
+		"ranger_tempo": tempo_bonus += 0.15
+		"ranger_trail": dash_trail = true
+		"ranger_mark": full_health_bonus += 0.20
+		"ranger_evasion": dash_cd_mult = maxf(0.4, dash_cd_mult * 0.65)
+		"mage_barrier": barrier_duration_bonus += 0.5
+		"mage_overcharge": barrier_damage_bonus += 0.25
+		"mage_reflect": barrier_reflect = true
+		"mage_echo": mage_echo = true
 		"chain", "nova", "execute", "deathblast", "storm", "lifesteal", "dash_reset", "overload", "tower_link", "stormfire", "shatter", "executioner", "tempest", "reaper", "pyroclasm", "chainfrost", "permafrost":
 			pass
 
@@ -167,6 +196,7 @@ func _physics_process(delta: float) -> void:
 	skill_cooldown = maxf(0.0, skill_cooldown - delta)
 	storm_cooldown = maxf(0.0, storm_cooldown - delta)
 	skill_time = maxf(0.0, skill_time - delta)
+	tempo_time = maxf(0.0, tempo_time - delta)
 	barrier_time = maxf(0.0, barrier_time - delta)
 	invulnerability = maxf(0.0, invulnerability - delta)
 	hurt_flash = maxf(0.0, hurt_flash - delta)
@@ -206,12 +236,19 @@ func _physics_process(delta: float) -> void:
 
 func fire(target: ArenaEnemy) -> void:
 	var definition := weapon_definition()
-	fire_cooldown = float(definition.interval) / attack_speed_mult
+	var tempo := 1.0 + (tempo_bonus if tempo_time > 0.0 else 0.0)
+	fire_cooldown = float(definition.interval) / (attack_speed_mult * tempo)
 	var direction := aim
 	if is_instance_valid(target):
 		direction = (target.position - center()).normalized()
 		aim = direction
 	var base_damage: float = float(definition.damage) * (1.0 + (level - 1) * 0.05) * game.hero_damage_scale() * class_damage_scale() * damage_mult
+	if class_id == "knight" and shield > 0.0:
+		base_damage *= 1.0 + shield_damage_bonus
+	if class_id == "ranger" and is_instance_valid(target) and target.health >= target.max_health * 0.95:
+		base_damage *= 1.0 + full_health_bonus
+	if class_id == "mage" and barrier_time > 0.0:
+		base_damage *= 1.0 + barrier_damage_bonus
 	if is_instance_valid(target) and target.slow_time > 0.0:
 		base_damage *= 1.0 + slow_damage_bonus
 	if is_instance_valid(target) and target.position.distance_to(center()) < 300.0:
@@ -277,6 +314,8 @@ func _trigger_on_hit(target: ArenaEnemy, base_damage: float) -> void:
 		var interval := maxi(1, 3 - (chain_stacks - 1))
 		if shots_fired % interval == 0:
 			game.chain_strike(center(), base_damage * (0.6 + 0.1 * (chain_stacks - 1)), 2 + chain_stacks - 1)
+	if passives.has("mage_echo") and is_instance_valid(target) and shots_fired % 4 == 0:
+		game.damage_radius(target.position, 80.0, base_damage * 0.5)
 	if passives.has("nova") and is_instance_valid(target):
 		var nova_stacks := int(passives.get("nova", 1))
 		var interval := maxi(3, 6 - nova_stacks)
@@ -286,17 +325,23 @@ func _trigger_on_hit(target: ArenaEnemy, base_damage: float) -> void:
 func use_skill(movement: Vector2) -> void:
 	skill_cooldown = skill_cooldown_max * skill_cd_mult
 	if class_id == "ranger":
+		skill_cooldown *= dash_cd_mult
 		dash_time = 0.18
-		invulnerability = maxf(invulnerability, 0.24)
+		invulnerability = maxf(invulnerability, 0.24 + (0.10 if passives.has("ranger_evasion") else 0.0))
 		dash_direction = movement.normalized() if movement.length() > 0.1 else facing
+		tempo_time = 3.0
+		if dash_trail:
+			game.frost_nova(center(), 110.0, 28.0 + level * 2.0, 1.5)
 		game.hud.toast("掠影翻滚：短暂无敌", 1)
 	elif class_id == "mage":
-		barrier_time = 3.5
+		barrier_time = 3.5 + barrier_duration_bonus
 		game.clear_hostile_projectiles()
-		game.hud.toast("星纹结界：清弹 3.5 秒", 1)
+		if barrier_reflect:
+			game.damage_radius(center(), 130.0, 40.0 + level * 3.0)
+		game.hud.toast("星纹结界：清弹 %.1f 秒" % barrier_time, 1)
 	else:
-		skill_time = 5.0
-		game.hud.toast("火力双生：5 秒双持", 1)
+		skill_time = 5.0 + dual_duration_bonus
+		game.hud.toast("火力双生：%.1f 秒双持" % skill_time, 1)
 
 func take_damage(amount: float) -> void:
 	if invulnerability > 0.0 or game.game_over: return
@@ -311,6 +356,8 @@ func take_damage(amount: float) -> void:
 	if shield_before > 0.0 and shield <= 0.0:
 		game.shake(8.0)
 		game.hud.toast("护盾破碎", 1.2)
+		if shield_break_shock:
+			game.damage_radius(center(), 140.0, 50.0 + level * 4.0)
 	else:
 		game.hud.toast("护盾吸收", 0.6)
 	if health <= 0.0:

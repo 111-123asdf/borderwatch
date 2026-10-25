@@ -61,6 +61,18 @@ const DEFS := {
 	"scatter_close": {"name": "抵近射击", "desc": "近距离伤害 +20%", "rarity": "common", "tags": ["武器", "弹道"], "max": 3, "weapon": "scatter", "pool": "both"},
 	"scatter_reload": {"name": "快速装填", "desc": "散弹攻速 +12%", "rarity": "rare", "tags": ["武器", "弹道"], "max": 2, "weapon": "scatter", "pool": "both"},
 	"scatter_barrage": {"name": "星弹爆发", "desc": "每第 5 次射击追加一圈弹丸", "rarity": "epic", "tags": ["武器", "弹道"], "max": 1, "weapon": "scatter", "pool": "both"},
+	"knight_bulwark": {"name": "壁垒", "desc": "受到的伤害 -6%", "rarity": "common", "tags": ["职业", "生存"], "max": 3, "hero_class": "knight", "pool": "both"},
+	"knight_riposte": {"name": "破盾反击", "desc": "护盾破碎时释放冲击波", "rarity": "rare", "tags": ["职业", "生存"], "max": 1, "hero_class": "knight", "pool": "both"},
+	"knight_dual": {"name": "双持延续", "desc": "火力双生持续时间 +1.5 秒", "rarity": "rare", "tags": ["职业", "武器"], "max": 2, "hero_class": "knight", "pool": "both"},
+	"knight_bastion": {"name": "堡垒", "desc": "护盾存在时伤害 +20%", "rarity": "epic", "tags": ["职业", "生存"], "max": 1, "hero_class": "knight", "pool": "both"},
+	"ranger_tempo": {"name": "踏风", "desc": "翻滚后 3 秒攻速 +15%", "rarity": "common", "tags": ["职业", "弹道"], "max": 3, "hero_class": "ranger", "pool": "both"},
+	"ranger_trail": {"name": "霜迹", "desc": "翻滚落点触发霜爆", "rarity": "rare", "tags": ["职业", "元素"], "max": 1, "hero_class": "ranger", "pool": "both"},
+	"ranger_mark": {"name": "猎印", "desc": "对满血敌人伤害 +20%", "rarity": "rare", "tags": ["职业", "弹道"], "max": 2, "hero_class": "ranger", "pool": "both"},
+	"ranger_evasion": {"name": "无影", "desc": "翻滚冷却 -35%，无敌 +0.1 秒", "rarity": "epic", "tags": ["职业", "生存"], "max": 1, "hero_class": "ranger", "pool": "both"},
+	"mage_barrier": {"name": "结界延长", "desc": "星纹结界持续 +0.5 秒", "rarity": "common", "tags": ["职业", "生存"], "max": 3, "hero_class": "mage", "pool": "both"},
+	"mage_overcharge": {"name": "过载结界", "desc": "结界期间伤害 +25%", "rarity": "rare", "tags": ["职业", "弹道"], "max": 2, "hero_class": "mage", "pool": "both"},
+	"mage_reflect": {"name": "星纹反震", "desc": "开结界时冲击周围敌人", "rarity": "rare", "tags": ["职业", "元素"], "max": 1, "hero_class": "mage", "pool": "both"},
+	"mage_echo": {"name": "奥术回响", "desc": "每第 4 发追加奥术爆炸", "rarity": "epic", "tags": ["职业", "元素"], "max": 1, "hero_class": "mage", "pool": "both"},
 	"stormfire": {"name": "雷火", "desc": "连锁命中引发燃烧爆炸", "rarity": "synergy", "tags": ["协同", "元素"], "max": 1, "requires": ["burn", "chain"], "pool": "both"},
 	"shatter": {"name": "碎冰", "desc": "暴击冻结目标 1 秒并 +50% 伤害", "rarity": "synergy", "tags": ["协同", "元素"], "max": 1, "requires": ["frost", "crit"], "pool": "both"},
 	"executioner": {"name": "行刑者", "desc": "处决阈值提高到 50%", "rarity": "synergy", "tags": ["协同", "弹道"], "max": 1, "requires": ["execute", "crit"], "pool": "both"},
@@ -103,6 +115,7 @@ static func build_pool(hero, source: String, banished: Array[String] = []) -> Ar
 		var stacks := int(hero.passives.get(key, 0))
 		if stacks >= int(data.max): continue
 		if data.has("weapon") and String(data.weapon) != hero.weapon_key: continue
+		if data.has("hero_class") and String(data.hero_class) != hero.class_id: continue
 		if source == "camp" and String(data.rarity) == "common": continue
 		var requirements: Array = data.get("requires", [])
 		var missing := false
@@ -137,6 +150,8 @@ static func weight_for(key: String, hero) -> float:
 		weight = 80.0
 		if key in ready_synergies(hero):
 			weight = 170.0
+	if DEFS[key].has("hero_class") and String(DEFS[key].hero_class) == hero.class_id:
+		weight *= 1.6
 	return weight
 
 static func roll(hero, source: String, count: int, rng: RandomNumberGenerator, guarantee_weapon := false, guarantee_element := false, banished: Array[String] = []) -> Array[String]:

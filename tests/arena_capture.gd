@@ -14,6 +14,7 @@ func _run() -> void:
 	root.add_child(game)
 	await process_frame
 	game.start_with_hero("knight")
+	game.hero.apply_passive("knight_bulwark")
 	game.hero.apply_passive("power")
 	game.hero.apply_passive("burn")
 	game.hero.apply_passive("chain")
