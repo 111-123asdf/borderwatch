@@ -442,7 +442,7 @@ func confirm_build() -> bool:
 
 func select_tower_at_mouse() -> void:
 	if not running: return
-	var tower := nearest_tower(get_global_mouse_position(), 58.0)
+	var tower := nearest_tower(get_global_mouse_position(), 46.0)
 	if tower != null:
 		select_tower(tower)
 
@@ -1328,6 +1328,13 @@ func _unhandled_input(event: InputEvent) -> void:
 			if build_mode:
 				toggle_build_mode()
 				get_viewport().set_input_as_handled()
+				return
+			var tower := nearest_tower(get_global_mouse_position(), 46.0)
+			if tower != null:
+				select_tower(tower)
+			else:
+				close_tower_panel()
+			get_viewport().set_input_as_handled()
 			return
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP or event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			if build_mode:
@@ -1343,9 +1350,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				confirm_build()
 				get_viewport().set_input_as_handled()
 				return
-			select_tower_at_mouse()
 			if selected_tower != null:
-				get_viewport().set_input_as_handled()
+				close_tower_panel()
 			return
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
@@ -1367,6 +1373,11 @@ func _unhandled_input(event: InputEvent) -> void:
 				number_build("banner")
 			KEY_T:
 				cycle_all_targets()
+			KEY_ESCAPE:
+				if build_mode:
+					toggle_build_mode()
+				elif selected_tower != null:
+					close_tower_panel()
 			KEY_E: repair_nearest()
 			KEY_R: get_tree().reload_current_scene()
 

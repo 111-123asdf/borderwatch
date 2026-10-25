@@ -739,7 +739,7 @@ func _process(delta: float) -> void:
 	if game.build_mode:
 		build_label.text = "B/数字选塔 · 滚轮切塔 · 左键放置 · 右键取消"
 	else:
-		build_label.text = "B 建造 · 滚轮/1-7 选塔 · 左键放置 · T 全塔目标 · 空格技能 · R 重开"
+		build_label.text = "B 建造 · 右键点塔管理 · 左键攻击 · T 全塔目标 · 空格技能 · R 重开"
 	_update_build_menu()
 	_update_tower_panel()
 	if game.boss != null and is_instance_valid(game.boss) and not game.boss.dead:

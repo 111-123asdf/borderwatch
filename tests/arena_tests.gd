@@ -115,6 +115,13 @@ func _run() -> void:
 	var all_target_before: String = game.default_target_mode
 	game.cycle_all_targets()
 	check(game.default_target_mode != all_target_before and game.towers[0].target_mode == game.default_target_mode, "Global targeting applies to every tower")
+	game.select_tower(basic_tower)
+	var dismiss_click := InputEventMouseButton.new()
+	dismiss_click.button_index = MOUSE_BUTTON_LEFT
+	dismiss_click.pressed = true
+	dismiss_click.position = Vector2(2, 2)
+	game._unhandled_input(dismiss_click)
+	check(game.selected_tower == null, "Clicking outside closes the tower panel")
 	var gold_before_sell: int = game.gold
 	var count_before_sell: int = game.towers.size()
 	game.select_tower(game.towers[1])

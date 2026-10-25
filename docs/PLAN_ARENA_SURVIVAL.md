@@ -46,7 +46,7 @@ WASD 移动；左键自动攻击；1/2/3 选塔再按同键建造；Space 技能
 - 已实现：8 区域远处刷怪、热点休息期预告、30/16 秒压力/休息、预算按 30 秒铺开；三英雄选择（骑士双持/游侠翻滚/秘术师清弹结界）；起手武器固定，81 张带稀有度/标签/层数/武器过滤/职业过滤/协同前置的被动（见 [PASSIVE_SYSTEM.md](PASSIVE_SYSTEM.md)）；三座营地宝匣只出 rare+；七塔体系见 [TOWER_REDESIGN.md](TOWER_REDESIGN.md)；怪物/出怪见 [ENEMY_REDESIGN.md](ENEMY_REDESIGN.md)；自由建塔、8 邻接禁止、路径验证、流场寻路；塔建造时间/耐久/修理/升级；经验金币掉落、磁铁、休息结束普通掉落消失；数字键慢速建造（先塔影再确认）、建造位旁塔型图标、塔面板升级/修理、镜头拉高、射程/流场/网格预览、专注条；核心/Boss/预算/建造 HUD、右上小地图。
 - 第二轮手感/压力：移速 +20%、移动加速/减速、镜头拉近/前瞻/平滑/受击震屏；新增冲锋兵、重甲兵、轰炸兵、精英怪（高血/大体积/大掉落）、工兵拆塔、Boss 66%/33% 召唤阶段；出怪预算 34+10×(轮-1)，核心 700，Boss 5000 血。
 - 迁移记录：[ARENA_MIGRATION.md](ARENA_MIGRATION.md)；尚未实现：完整营地遭遇/NPC、Boss 架势、小地图/边缘箭头、所有刷怪区路径预览、正式平衡、音效、美术替换。
-- 验证：`tools/verify_arena.ps1`（当前 77 项通过）；`tests/arena_capture.gd` 真实画面摆位，`tests/arena_passive_capture.gd` 塔防卡预览，`tests/arena_probe.gd` 多策略 headless 探针；`tools/verify.ps1` 旧模式 62/74 + 三英雄通关未回归。
+- 验证：`tools/verify_arena.ps1`（当前 78 项通过）；`tests/arena_capture.gd` 真实画面摆位，`tests/arena_passive_capture.gd` 塔防卡预览，`tests/arena_probe.gd` 多策略 headless 探针；`tools/verify.ps1` 旧模式 62/74 + 三英雄通关未回归。
 - 试玩结论：[ARENA_PLAYTEST_FINDINGS.md](ARENA_PLAYTEST_FINDINGS.md)；三英雄自然经济+修理均可通关，4 塔失败/8～10 塔可胜的旧边界已被强力被动打破，需下一轮真人确认。
 - 已知风险：当前仍可能被“围一圈留一口”的迷宫策略影响；塔耐久与飞行/工兵反制、休息段活动、刷怪公平性需要下一轮真人试玩确认。
 
