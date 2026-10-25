@@ -138,8 +138,8 @@ static func build_pool(hero, source: String, banished: Array[String] = []) -> Ar
 		var data: Dictionary = DEFS[key]
 		var stacks := int(hero.passives.get(key, 0))
 		if stacks >= int(data.max): continue
-		if data.has("weapon") and String(data.weapon) != hero.weapon_key: continue
-		if data.has("hero_class") and String(data.hero_class) != hero.class_id: continue
+		if data.has("weapon") and not hero.has_weapon_equipped(String(data.weapon)): continue
+		if data.has("hero_class") and not hero.has_class_tag(String(data.hero_class)): continue
 		if source == "camp" and String(data.rarity) == "common": continue
 		var requirements: Array = data.get("requires", [])
 		var missing := false
@@ -181,9 +181,9 @@ static func weight_for(key: String, hero, cycle := 1) -> float:
 			weight = maxf(weight, 30.0) * 3.0
 		elif stage == 0:
 			weight = 0.0
-	if DEFS[key].has("hero_class") and String(DEFS[key].hero_class) == hero.class_id:
+	if DEFS[key].has("hero_class") and hero.has_class_tag(String(DEFS[key].hero_class)):
 		weight *= 1.6
-	if DEFS[key].has("weapon") and String(DEFS[key].weapon) == hero.weapon_key:
+	if DEFS[key].has("weapon") and hero.has_weapon_equipped(String(DEFS[key].weapon)):
 		weight *= 1.3
 	return weight
 

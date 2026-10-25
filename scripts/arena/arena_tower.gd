@@ -20,8 +20,8 @@ var game: Node2D
 var kind := "bolt"
 var cell := Vector2i.ZERO
 var level := 1
-var health := 320.0
-var max_health := 320.0
+var health := 400.0
+var max_health := 400.0
 var active := false
 var build_clock := 2.0
 var cooldown := 0.0
@@ -83,7 +83,7 @@ func upgrade() -> bool:
 	if level >= MAX_LEVEL or game.gold < upgrade_price(): return false
 	game.gold -= upgrade_price()
 	level += 1
-	max_health += 50.0
+	max_health += 60.0
 	health = max_health
 	game.hud.toast("塔升级到 Lv.%d" % level, 1)
 	return true
@@ -155,13 +155,13 @@ func fire(target: ArenaEnemy) -> void:
 		if game.hero.passives.has("tower_winter"):
 			slow += 1.5
 			damage *= 1.15
-		game.frost_nova(target.position, 74.0 + 12.0 * level, damage, slow)
+		game.frost_nova(target.position, 74.0 + 12.0 * level, damage, slow, "tower")
 		return
 	if kind == "arc":
 		var jumps := 2 + level + int(game.hero.passives.get("tower_arc", 0))
 		if game.hero.passives.has("tower_arc"):
 			damage *= 1.0 + 0.15 * int(game.hero.passives.get("tower_arc", 0))
-		game.chain_strike(position, damage, jumps)
+		game.chain_strike(position, damage, jumps, "tower")
 		return
 	if kind == "venom":
 		poison = (6.0 + 4.0 * level) * (1.0 + 0.15 * int(game.hero.passives.get("tower_venom", 0)))
@@ -177,9 +177,9 @@ func fire(target: ArenaEnemy) -> void:
 		var shots := level
 		for index in range(shots):
 			var offset := (index - (shots - 1) * 0.5) * 12.0
-			game.spawn_projectile(position + Vector2(0, -84) + aim.orthogonal() * offset, target.position + aim.orthogonal() * offset, damage * (0.85 if shots > 1 else 1.0), definition.color, 0.0, 0.0, speed, pierce, 0.0, 0.0, false, 0.35, false, 0.0)
+			game.spawn_projectile(position + Vector2(0, -84) + aim.orthogonal() * offset, target.position + aim.orthogonal() * offset, damage * (0.85 if shots > 1 else 1.0), definition.color, 0.0, 0.0, speed, pierce, 0.0, 0.0, false, 0.35, false, 0.0, "tower")
 		return
-	game.spawn_projectile(position + Vector2(0, -84), target.position, damage, definition.color, splash, slow, speed, pierce, 0.0, 0.0, false, 0.35, false, poison)
+	game.spawn_projectile(position + Vector2(0, -84), target.position, damage, definition.color, splash, slow, speed, pierce, 0.0, 0.0, false, 0.35, false, poison, "tower")
 
 func _draw() -> void:
 	var color: Color = STATS[kind].color

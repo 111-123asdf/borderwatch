@@ -44,6 +44,11 @@ func _run() -> void:
 	check("knight_bulwark" in level_pool and not ("ranger_tempo" in level_pool), "Class-specific upgrades filter by hero")
 	check(ArenaUpgrades.weight_for("power", game.hero, 1) > ArenaUpgrades.weight_for("storm", game.hero, 1), "Early pool favors common cards")
 	check(ArenaUpgrades.weight_for("storm", game.hero, 6) > ArenaUpgrades.weight_for("power", game.hero, 6), "Late pool favors epic cards")
+	check(game.level_cycles == 8, "First level is configured for eight cycles")
+	game.hero.extra_weapon_keys.append("bow")
+	var dual_weapon_pool := ArenaUpgrades.build_pool(game.hero, "level")
+	check("bow_broadhead" in dual_weapon_pool, "Card pool supports multiple equipped weapon keys")
+	game.hero.extra_weapon_keys.erase("bow")
 	var pre_bulwark: float = game.hero.damage_reduction
 	game.hero.apply_passive("knight_bulwark")
 	check(game.hero.damage_reduction > pre_bulwark, "Knight class passive applies its effect")
@@ -221,6 +226,12 @@ func _run() -> void:
 	game.hit_feedback(mode_tower.position + Vector2(40, 0), 25.0, true, Vector2.RIGHT)
 	check(game.hitstop > hitstop_before and game.sparks.size() > 0, "Critical hits add hitstop and impact sparks")
 	check(game.audio != null and game.audio.streams.size() >= 6, "Procedural combat audio is available")
+	var damage_test: ArenaEnemy = game.spawn_enemy("torch", game.CORE + Vector2(740, 220), 100.0)
+	var hero_damage_before: float = float(game.damage_stats.hero)
+	damage_test.take_damage(12.0, "hero")
+	check(float(game.damage_stats.hero) > hero_damage_before, "Damage attribution records hero damage")
+	game.enemy_escaped(damage_test)
+	damage_test.queue_free()
 	var knockback_test: ArenaEnemy = game.spawn_enemy("torch", game.CORE + Vector2(760, 260), 100.0)
 	knockback_test.apply_knockback(Vector2.LEFT, 40.0)
 	check(knockback_test.knockback.length() > 0.0, "Enemies receive knockback")
@@ -330,6 +341,7 @@ func _run() -> void:
 	game.choose_passive(game.passive_choices[0])
 	game.hero.passives["burn"] = 1
 	game.hero.passives["chain"] = 1
+	game.hero.passives.erase("stormfire")
 	var ready_synergies := ArenaUpgrades.ready_synergies(game.hero)
 	check("stormfire" in ready_synergies, "Ready synergy enters the weighted pool")
 	game.hero.passives.erase("burn")

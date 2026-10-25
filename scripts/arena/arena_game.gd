@@ -21,9 +21,11 @@ var hero_selected := false
 var game_over := false
 var victory := false
 var gold := START_GOLD
-var core_health := 700.0
-var core_max := 700.0
+var core_health := 750.0
+var core_max := 750.0
 var cycle := 1
+var level_cycles := 8
+var level_name := "林线"
 var phase := "rest"
 var phase_clock := 5.0
 var spawn_budget := 0
@@ -88,6 +90,7 @@ var dry_element_choices := 0
 var passive_guarantee_weapon := false
 var passive_guarantee_element := false
 var stats := {"kills": 0, "hero_kills": 0, "tower_kills": 0, "built": 0, "cycles": 0}
+var damage_stats := {"hero": 0.0, "tower": 0.0, "other": 0.0}
 var debug := {
 	"leaks": 0,
 	"leak_damage": 0.0,
@@ -509,10 +512,10 @@ func start_spawn() -> void:
 	expire_normal_drops()
 	phase = "spawn"
 	phase_clock = 30.0
-	spawn_budget = 34 + 10 * (cycle - 1)
+	spawn_budget = 28 + 7 * (cycle - 1)
 	spawn_interval = 30.0 / maxf(1.0, ceilf(float(spawn_budget) / 4.0))
 	spawn_timer = 0.0
-	if cycle >= 6 and not boss_spawned:
+	if cycle >= level_cycles and not boss_spawned:
 		_spawn_boss()
 	_set_phase_text("出怪：林线有动静（热点 %s，预算 %d）" % [_region_name(hot_region), spawn_budget])
 	hud.toast("出怪：热点 %s；本轮预算 %d" % [_region_name(hot_region), spawn_budget], 3)
@@ -1036,10 +1039,18 @@ func spawn_enemy(kind: String, point: Vector2, health: float, elite := false) ->
 	debug.spawns += 1
 	return enemy
 
+func record_damage(amount: float, source: String) -> void:
+	var key := source if source in ["hero", "tower"] else "other"
+	damage_stats[key] = float(damage_stats[key]) + maxf(0.0, amount)
+
 func enemy_died(enemy: ArenaEnemy) -> void:
 	if not is_instance_valid(enemy): return
 	enemies.erase(enemy)
 	stats.kills += 1
+	if enemy.last_source == "hero":
+		stats.hero_kills += 1
+	elif enemy.last_source == "tower":
+		stats.tower_kills += 1
 	death_feedback(enemy)
 	if enemy.kind == "boss":
 		boss_dead = true
@@ -1050,7 +1061,7 @@ func enemy_died(enemy: ArenaEnemy) -> void:
 		spawn_drop(enemy.position, 20, 15, true)
 	else:
 		spawn_drop(enemy.position, 6, 5, false)
-	if boss_dead and cycle >= 6 and enemies.is_empty() and pending_spawns.is_empty():
+	if boss_dead and cycle >= level_cycles and enemies.is_empty() and pending_spawns.is_empty():
 		finish(true)
 	if hero != null:
 		if hero.passives.has("lifesteal"):
@@ -1061,15 +1072,15 @@ func enemy_died(enemy: ArenaEnemy) -> void:
 			hero.skill_cooldown = maxf(0.0, hero.skill_cooldown - (1.0 + 0.5 * (reset_stacks - 1)))
 		if hero.passives.has("deathblast"):
 			var blast_stacks := int(hero.passives.get("deathblast", 1))
-			damage_radius(enemy.position, 80.0 + 10.0 * (blast_stacks - 1), 38.0 + 20.0 * (blast_stacks - 1))
+			damage_radius(enemy.position, 80.0 + 10.0 * (blast_stacks - 1), 38.0 + 20.0 * (blast_stacks - 1), "hero")
 			if hero.passives.has("reaper"):
 				hero.health = minf(hero.max_health, hero.health + 5.0)
 		if hero.passives.has("pyroclasm") and enemy.burn_time > 0.0:
-			damage_radius(enemy.position, 90.0, 32.0)
+			damage_radius(enemy.position, 90.0, 32.0, "hero")
 		if hero.passives.has("wildfire") and enemy.burn_time > 0.0:
 			for other in enemies.duplicate():
 				if is_instance_valid(other) and not other.dead and other != enemy and other.position.distance_to(enemy.position) < 120.0:
-					other.apply_burn(hero.burn_dps * 0.6, 3.0)
+					other.apply_burn(hero.burn_dps * 0.6, 3.0, "hero")
 		if enemy.elite and enemy.elite_mod == "volatile":
 			enemy_explosion(enemy.position, 110.0, 12.0, 18.0)
 		if enemy.kind == "splitter":
@@ -1225,7 +1236,7 @@ func nearest_enemy(point: Vector2, radius: float) -> ArenaEnemy:
 			result = enemy
 	return result
 
-func spawn_projectile(origin: Vector2, target: Vector2, damage: float, color: Color, splash := 0.0, slow := 0.0, speed := 760.0, pierce := 0, execute_bonus := 0.0, burn_dps := 0.0, critical := false, execute_threshold := 0.35, shatter := false, poison_dps := 0.0) -> ArenaProjectile:
+func spawn_projectile(origin: Vector2, target: Vector2, damage: float, color: Color, splash := 0.0, slow := 0.0, speed := 760.0, pierce := 0, execute_bonus := 0.0, burn_dps := 0.0, critical := false, execute_threshold := 0.35, shatter := false, poison_dps := 0.0, source := "other") -> ArenaProjectile:
 	var projectile := ArenaProjectile.new()
 	projectile.game = self
 	projectile.position = origin
@@ -1239,6 +1250,7 @@ func spawn_projectile(origin: Vector2, target: Vector2, damage: float, color: Co
 	projectile.execute_bonus = execute_bonus
 	projectile.burn_dps = burn_dps
 	projectile.poison_dps = poison_dps
+	projectile.source = source
 	projectile.critical = critical
 	projectile.execute_threshold = execute_threshold
 	projectile.shatter = shatter
@@ -1258,7 +1270,7 @@ func enemy_shot(origin: Vector2, target: Vector2, damage: float, speed := 190.0)
 	projectile.add_to_group("hostile_projectile")
 	return projectile
 
-func chain_strike(origin: Vector2, damage: float, jumps: int) -> void:
+func chain_strike(origin: Vector2, damage: float, jumps: int, source := "hero") -> void:
 	var from := origin
 	var hit: Array[int] = []
 	for index in range(jumps):
@@ -1277,34 +1289,34 @@ func chain_strike(origin: Vector2, damage: float, jumps: int) -> void:
 		var lightning_damage := damage
 		if hero != null and hero.passives.has("conductive") and (target.burn_time > 0.0 or target.slow_time > 0.0 or target.freeze_time > 0.0):
 			lightning_damage *= 1.4
-		target.take_damage(lightning_damage * target.element_multiplier("lightning"))
+		target.take_damage(lightning_damage * target.element_multiplier("lightning"), source)
 		if hero != null and hero.passives.has("burn"):
-			target.apply_burn(hero.burn_dps, 3.0)
+			target.apply_burn(hero.burn_dps, 3.0, source)
 		if hero != null and hero.passives.has("stormfire"):
-			damage_radius(target.position, 72.0, damage * 0.55)
+			damage_radius(target.position, 72.0, damage * 0.55, source)
 		if hero != null and hero.passives.has("chainfrost"):
 			target.apply_frost(1.5)
 		from = target.center()
 	shake(2.0)
 
-func poison_cloud(point: Vector2, radius: float, damage: float, poison: float) -> void:
+func poison_cloud(point: Vector2, radius: float, damage: float, poison: float, source := "tower") -> void:
 	rings.append({"point": point, "radius": radius, "life": 0.35})
 	for enemy in enemies.duplicate():
 		if is_instance_valid(enemy) and not enemy.dead and enemy.position.distance_to(point) <= radius:
-			enemy.take_damage(damage)
-			enemy.apply_poison(poison, 3.0)
+			enemy.take_damage(damage, source)
+			enemy.apply_poison(poison, 3.0, source)
 	shake(2.0)
 
-func beam_damage(origin: Vector2, endpoint: Vector2, damage: float, width: float) -> void:
+func beam_damage(origin: Vector2, endpoint: Vector2, damage: float, width: float, source := "tower") -> void:
 	bolts.append({"start": origin, "end": endpoint, "life": 0.12})
 	for enemy in enemies.duplicate():
 		if not is_instance_valid(enemy) or enemy.dead: continue
 		var closest := Geometry2D.get_closest_point_to_segment(enemy.position, origin, endpoint)
 		if closest.distance_to(enemy.position) <= width + enemy.radius:
-			enemy.take_damage(damage)
+			enemy.take_damage(damage, source)
 	shake(1.5)
 
-func frost_nova(point: Vector2, radius: float, damage: float, slow: float) -> void:
+func frost_nova(point: Vector2, radius: float, damage: float, slow: float, source := "hero") -> void:
 	if hero != null and hero.passives.has("permafrost"):
 		radius += 30.0
 		slow += 1.0
@@ -1312,17 +1324,17 @@ func frost_nova(point: Vector2, radius: float, damage: float, slow: float) -> vo
 	rings.append({"point": point, "radius": radius, "life": 0.35})
 	for enemy in enemies.duplicate():
 		if is_instance_valid(enemy) and not enemy.dead and enemy.position.distance_to(point) < radius:
-			enemy.take_damage(damage * enemy.element_multiplier("frost"))
+			enemy.take_damage(damage * enemy.element_multiplier("frost"), source)
 			enemy.apply_frost(slow)
 	shake(3.0)
 
-func storm_strike(target: ArenaEnemy, damage: float) -> void:
+func storm_strike(target: ArenaEnemy, damage: float, source := "hero") -> void:
 	if not is_instance_valid(target): return
 	bolts.append({"start": target.center() + Vector2(0, -320), "end": target.center(), "life": 0.18})
 	var lightning_damage := damage
 	if hero != null and hero.passives.has("conductive") and (target.burn_time > 0.0 or target.slow_time > 0.0 or target.freeze_time > 0.0):
 		lightning_damage *= 1.4
-	target.take_damage(lightning_damage * target.element_multiplier("lightning"))
+	target.take_damage(lightning_damage * target.element_multiplier("lightning"), source)
 	shake(4.0)
 
 func hit_feedback(point: Vector2, amount: float, critical := false, direction := Vector2.ZERO, enemy: ArenaEnemy = null, kill := false) -> void:
@@ -1381,10 +1393,10 @@ func shaman_support(point: Vector2) -> void:
 			enemy.health = minf(enemy.max_health, enemy.health + enemy.max_health * 0.05)
 			rings.append({"point": enemy.position, "radius": 26.0, "life": 0.25})
 
-func damage_radius(point: Vector2, radius: float, damage: float) -> void:
+func damage_radius(point: Vector2, radius: float, damage: float, source := "other") -> void:
 	for enemy in enemies.duplicate():
 		if is_instance_valid(enemy) and not enemy.dead and enemy.position.distance_to(point) < radius:
-			enemy.take_damage(damage)
+			enemy.take_damage(damage, source)
 
 func _set_phase_text(text: String) -> void:
 	if hud != null: hud.phase_hint = text
@@ -1538,7 +1550,7 @@ func _update_phase(delta: float) -> void:
 			if spawn_budget > 0 and spawn_timer <= 0.0:
 				spawn_cluster()
 			if spawn_budget <= 0 and enemies.is_empty() and pending_spawns.is_empty():
-				if cycle >= 6 and boss_dead:
+				if cycle >= level_cycles and boss_dead:
 					finish(true)
 				else:
 					_advance_cycle()
@@ -1546,11 +1558,11 @@ func _update_phase(delta: float) -> void:
 				phase = "clear"
 		"clear":
 			if enemies.is_empty() and pending_spawns.is_empty():
-				if cycle >= 6 and boss_dead: finish(true)
+				if cycle >= level_cycles and boss_dead: finish(true)
 				else: _advance_cycle()
 
 func _advance_cycle() -> void:
-	if cycle >= 6: return
+	if cycle >= level_cycles: return
 	cycle += 1
 	start_rest(16.0)
 

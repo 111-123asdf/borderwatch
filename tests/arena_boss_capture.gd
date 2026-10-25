@@ -15,7 +15,7 @@ func _run() -> void:
 	for index in range(cells.size()):
 		game.build_kind = ["bolt", "cannon", "frost"][index % 3]
 		game.place_tower(cells[index])
-	game.cycle = 6
+	game.cycle = game.level_cycles
 	game.start_spawn()
 	await create_timer(2.0).timeout
 	await RenderingServer.frame_post_draw

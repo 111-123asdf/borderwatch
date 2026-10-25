@@ -37,7 +37,7 @@ func _run() -> void:
 	game.sim_speed = 4.0
 	_setup_towers()
 	var dt := 1.0 / 60.0
-	while not game.game_over and elapsed < 240.0:
+	while not game.game_over and elapsed < 360.0:
 		_drive()
 		await process_frame
 		elapsed += dt
@@ -184,6 +184,10 @@ func _print_result() -> void:
 		"level": game.hero.level,
 		"towers": game.towers.size(),
 		"spawns": game.debug.spawns,
+		"damage_hero": snappedf(float(game.damage_stats.hero), 1.0),
+		"damage_tower": snappedf(float(game.damage_stats.tower), 1.0),
+		"hero_kills": game.stats.hero_kills,
+		"tower_kills": game.stats.tower_kills,
 		"leaks": game.debug.leaks,
 		"leak_damage": snappedf(game.debug.leak_damage, 0.1),
 		"drops_spawned": game.debug.drops_spawned,

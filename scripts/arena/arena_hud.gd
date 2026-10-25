@@ -732,7 +732,7 @@ func _process(delta: float) -> void:
 	core_bar.max_value = game.core_max
 	core_bar.value = game.core_health
 	var phase_name := "休息" if game.phase == "rest" else ("出怪" if game.phase == "spawn" else "清场")
-	phase_label.text = "第 %d / 6 轮 · %s %ds · 热点 %s" % [game.cycle, phase_name, ceili(game.phase_clock), game._region_name(game.hot_region)]
+	phase_label.text = "%s · 第 %d / %d 轮 · %s %ds · 热点 %s" % [game.level_name, game.cycle, game.level_cycles, phase_name, ceili(game.phase_clock), game._region_name(game.hot_region)]
 	hint_label.text = phase_hint
 	if game.build_mode and game.build_reason != "":
 		hint_label.text = "不能建造：" + game.build_reason

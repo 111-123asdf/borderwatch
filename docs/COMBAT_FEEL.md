@@ -93,7 +93,7 @@
 
 ## 8. 验证
 
-- `tools/verify_arena.ps1`：81 项
+- `tools/verify_arena.ps1`：84 项
 - 新增：
   - 暴击 hitstop/火花
   - 程序化音频流存在

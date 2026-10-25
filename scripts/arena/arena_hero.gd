@@ -4,6 +4,8 @@ extends CharacterBody2D
 var game: Node2D
 var visual: ActorVisual
 var class_id := "knight"
+var class_tags: Array[String] = []
+var extra_weapon_keys: Array[String] = []
 var health := 120.0
 var max_health := 120.0
 var shield := 60.0
@@ -123,6 +125,19 @@ func center() -> Vector2:
 
 func weapon_definition() -> Dictionary:
 	return Rules.weapon(weapon_key)
+
+func equipped_weapon_keys() -> Array[String]:
+	var keys: Array[String] = [weapon_key]
+	for key in extra_weapon_keys:
+		if key != "" and not keys.has(key):
+			keys.append(key)
+	return keys
+
+func has_class_tag(tag: String) -> bool:
+	return tag == class_id or tag in class_tags
+
+func has_weapon_equipped(key: String) -> bool:
+	return key in equipped_weapon_keys()
 
 func class_damage_scale() -> float:
 	if class_id == "ranger": return 1.40
@@ -309,30 +324,30 @@ func fire(target: ArenaEnemy) -> void:
 		game.audio.play("shoot", -12.0)
 	visual.attack(direction, 0.18)
 	if weapon_key == "sword":
-		game.damage_radius(center() + direction * 55, float(definition.reach), base_damage * (2.0 if dual else 1.0))
+		game.damage_radius(center() + direction * 55, float(definition.reach), base_damage * (2.0 if dual else 1.0), "hero")
 		return
 	if weapon_key == "scatter":
 		var pellets := 5 + multishot
 		for index in range(pellets):
 			var t := 0.0 if pellets <= 1 else float(index) / float(pellets - 1)
 			var angle := lerpf(-0.32, 0.32, t)
-			game.spawn_projectile(center(), center() + direction.rotated(angle) * 800.0, base_damage, weapon_color, splash_bonus, slow_bonus, 900.0, 0, execute_bonus, burn_dps, critical, threshold, shatter)
+			game.spawn_projectile(center(), center() + direction.rotated(angle) * 800.0, base_damage, weapon_color, splash_bonus, slow_bonus, 900.0, 0, execute_bonus, burn_dps, critical, threshold, shatter, 0.0, "hero")
 		_trigger_weapon_capstone(direction, base_damage, weapon_color)
 		_trigger_on_hit(target, base_damage)
 		return
 	if weapon_key == "sniper":
-		game.spawn_projectile(center(), center() + direction * 800.0, base_damage, weapon_color, splash_bonus, slow_bonus, 1100.0, 3 + pierce_bonus, execute_bonus, burn_dps, critical, threshold, shatter)
+		game.spawn_projectile(center(), center() + direction * 800.0, base_damage, weapon_color, splash_bonus, slow_bonus, 1100.0, 3 + pierce_bonus, execute_bonus, burn_dps, critical, threshold, shatter, 0.0, "hero")
 		_trigger_on_hit(target, base_damage)
 		return
 	if weapon_key == "boomerang":
 		for angle in [-0.12, 0.12]:
-			game.spawn_projectile(center(), center() + direction.rotated(angle) * 800.0, base_damage, weapon_color, splash_bonus, slow_bonus, 700.0, pierce_bonus, execute_bonus, burn_dps, critical, threshold, shatter)
+			game.spawn_projectile(center(), center() + direction.rotated(angle) * 800.0, base_damage, weapon_color, splash_bonus, slow_bonus, 700.0, pierce_bonus, execute_bonus, burn_dps, critical, threshold, shatter, 0.0, "hero")
 		_trigger_on_hit(target, base_damage)
 		return
 	var shots := (2 if dual else 1) + multishot
 	for index in range(shots):
 		var offset := (index - (shots - 1) * 0.5) * 22.0
-		game.spawn_projectile(center() + direction.orthogonal() * offset, center() + direction * 800.0 + direction.orthogonal() * offset, base_damage, weapon_color, splash_bonus, slow_bonus, 900.0, pierce_bonus, execute_bonus, burn_dps, critical, threshold, shatter)
+		game.spawn_projectile(center() + direction.orthogonal() * offset, center() + direction * 800.0 + direction.orthogonal() * offset, base_damage, weapon_color, splash_bonus, slow_bonus, 900.0, pierce_bonus, execute_bonus, burn_dps, critical, threshold, shatter, 0.0, "hero")
 	_trigger_weapon_capstone(direction, base_damage, weapon_color)
 	_trigger_on_hit(target, base_damage)
 
@@ -340,14 +355,14 @@ func _trigger_weapon_capstone(direction: Vector2, base_damage: float, color: Col
 	var execute_bonus := 0.6 + 0.3 * (int(passives.get("execute", 1)) - 1) if passives.has("execute") else 0.0
 	if passives.has("pistol_storm") and shots_fired % 6 == 0:
 		for angle in [-0.18, 0.0, 0.18]:
-			game.spawn_projectile(center(), center() + direction.rotated(angle) * 800.0, base_damage * 0.8, color, splash_bonus, slow_bonus, 950.0, pierce_bonus, execute_bonus, burn_dps, false, 0.35, passives.has("shatter"))
+			game.spawn_projectile(center(), center() + direction.rotated(angle) * 800.0, base_damage * 0.8, color, splash_bonus, slow_bonus, 950.0, pierce_bonus, execute_bonus, burn_dps, false, 0.35, passives.has("shatter"), 0.0, "hero")
 	if passives.has("bow_rain") and shots_fired % 6 == 0:
 		for angle in [-0.22, 0.0, 0.22]:
-			game.spawn_projectile(center(), center() + direction.rotated(angle) * 800.0, base_damage * 0.7, color, splash_bonus, slow_bonus, 850.0, 1, execute_bonus, burn_dps, false, 0.35, passives.has("shatter"))
+			game.spawn_projectile(center(), center() + direction.rotated(angle) * 800.0, base_damage * 0.7, color, splash_bonus, slow_bonus, 850.0, 1, execute_bonus, burn_dps, false, 0.35, passives.has("shatter"), 0.0, "hero")
 	if passives.has("scatter_barrage") and shots_fired % 5 == 0:
 		for index in range(6):
 			var angle := TAU * float(index) / 6.0
-			game.spawn_projectile(center(), center() + Vector2.RIGHT.rotated(angle) * 800.0, base_damage * 0.55, color, splash_bonus, slow_bonus, 850.0, 0, execute_bonus, burn_dps, false, 0.35, passives.has("shatter"))
+			game.spawn_projectile(center(), center() + Vector2.RIGHT.rotated(angle) * 800.0, base_damage * 0.55, color, splash_bonus, slow_bonus, 850.0, 0, execute_bonus, burn_dps, false, 0.35, passives.has("shatter"), 0.0, "hero")
 
 func _trigger_on_hit(target: ArenaEnemy, base_damage: float) -> void:
 	if passives.has("chain"):
@@ -356,7 +371,7 @@ func _trigger_on_hit(target: ArenaEnemy, base_damage: float) -> void:
 		if shots_fired % interval == 0:
 			game.chain_strike(center(), base_damage * (0.6 + 0.1 * (chain_stacks - 1)), 2 + chain_stacks - 1)
 	if passives.has("mage_echo") and is_instance_valid(target) and shots_fired % 4 == 0:
-		game.damage_radius(target.position, 80.0, base_damage * 0.5)
+		game.damage_radius(target.position, 80.0, base_damage * 0.5, "hero")
 	if passives.has("nova") and is_instance_valid(target):
 		var nova_stacks := int(passives.get("nova", 1))
 		var interval := maxi(3, 6 - nova_stacks)
@@ -378,7 +393,7 @@ func use_skill(movement: Vector2) -> void:
 		barrier_time = 3.5 + barrier_duration_bonus
 		game.clear_hostile_projectiles()
 		if barrier_reflect:
-			game.damage_radius(center(), 130.0, 40.0 + level * 3.0)
+			game.damage_radius(center(), 130.0, 40.0 + level * 3.0, "hero")
 		game.hud.toast("星纹结界：清弹 %.1f 秒" % barrier_time, 1)
 	else:
 		skill_time = 5.0 + dual_duration_bonus
@@ -401,7 +416,7 @@ func take_damage(amount: float) -> void:
 		game.shake(8.0)
 		game.hud.toast("护盾破碎", 1.2)
 		if shield_break_shock:
-			game.damage_radius(center(), 140.0, 50.0 + level * 4.0)
+			game.damage_radius(center(), 140.0, 50.0 + level * 4.0, "hero")
 	else:
 		game.hud.toast("护盾吸收", 0.6)
 	if health <= 0.0:

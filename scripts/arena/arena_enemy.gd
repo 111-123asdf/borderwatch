@@ -17,9 +17,12 @@ var boss_phase := 0
 var burn_time := 0.0
 var burn_dps := 0.0
 var burn_tick := 0.0
+var burn_source := "other"
 var poison_time := 0.0
 var poison_dps := 0.0
 var poison_tick := 0.0
+var poison_source := "other"
+var last_source := "other"
 var freeze_time := 0.0
 var chill_stacks := 0
 var health := 60.0
@@ -60,20 +63,22 @@ func element_multiplier(element: String) -> float:
 		multiplier -= 0.35
 	return multiplier
 
-func apply_burn(dps: float, duration: float) -> void:
+func apply_burn(dps: float, duration: float, source := "other") -> void:
 	burn_dps = maxf(burn_dps, dps * element_multiplier("fire"))
 	burn_time = maxf(burn_time, duration)
 	burn_tick = minf(burn_tick, 0.5)
+	burn_source = source
 
 func apply_knockback(direction: Vector2, force: float) -> void:
 	if kind == "boss" or freeze_time > 0.0: return
 	var factor := 0.55 if elite else 1.0
 	knockback += direction.normalized() * force * factor
 
-func apply_poison(dps: float, duration: float) -> void:
+func apply_poison(dps: float, duration: float, source := "other") -> void:
 	poison_dps = maxf(poison_dps, dps)
 	poison_time = maxf(poison_time, duration)
 	poison_tick = minf(poison_tick, 0.5)
+	poison_source = source
 
 func apply_frost(duration: float) -> void:
 	slow_time = maxf(slow_time, duration * element_multiplier("frost"))
@@ -185,11 +190,11 @@ func _physics_process(delta: float) -> void:
 	poison_tick -= delta
 	if burn_time > 0.0 and burn_tick <= 0.0:
 		burn_tick = 0.5
-		take_damage(burn_dps * 0.5)
+		take_damage(burn_dps * 0.5, burn_source)
 		if dead: return
 	if poison_time > 0.0 and poison_tick <= 0.0:
 		poison_tick = 0.5
-		take_damage(poison_dps * 0.5)
+		take_damage(poison_dps * 0.5, poison_source)
 		if dead: return
 	if freeze_time > 0.0:
 		queue_redraw()
@@ -298,10 +303,14 @@ func _physics_process(delta: float) -> void:
 		game.hero.take_damage(contact)
 	queue_redraw()
 
-func take_damage(amount: float) -> void:
+func take_damage(amount: float, source := "other") -> void:
 	if dead: return
 	if elite and elite_mod == "warding":
 		amount *= 0.8
+	if kind == "boss" and source == "tower":
+		amount *= 0.65
+	last_source = source
+	game.record_damage(amount, source)
 	health -= amount
 	hit_flash = 0.1
 	visual.hit_flash = 0.1

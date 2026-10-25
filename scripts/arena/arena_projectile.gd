@@ -13,6 +13,7 @@ var pierce := 0
 var execute_bonus := 0.0
 var burn_dps := 0.0
 var poison_dps := 0.0
+var source := "other"
 var critical := false
 var execute_threshold := 0.35
 var shatter := false
@@ -40,7 +41,7 @@ func _physics_process(delta: float) -> void:
 			if hit_ids.has(enemy_id): continue
 			hit_ids[enemy_id] = true
 			if splash > 0.0:
-				game.damage_radius(position, splash, damage)
+				game.damage_radius(position, splash, damage, source)
 				game.hit_feedback(position, damage, false, direction)
 			else:
 				var applied := damage
@@ -54,11 +55,12 @@ func _physics_process(delta: float) -> void:
 				if shatter and critical:
 					applied *= 1.5
 					enemy.apply_frost(1.0)
-				enemy.take_damage(applied)
+				enemy.take_damage(applied, source)
+				var hit_source := source
 				if burn_dps > 0.0:
-					enemy.apply_burn(burn_dps, 3.0)
+					enemy.apply_burn(burn_dps, 3.0, hit_source)
 				if poison_dps > 0.0:
-					enemy.apply_poison(poison_dps, 3.0)
+					enemy.apply_poison(poison_dps, 3.0, hit_source)
 				if game.hero != null and game.hero.passives.has("thermal_shock") and enemy.burn_time > 0.0 and enemy.slow_time > 0.0:
 					game.damage_radius(enemy.position, 90.0, damage * 0.55)
 				game.hit_feedback(enemy.center(), applied, critical, direction, enemy, enemy.dead)
