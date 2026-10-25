@@ -19,6 +19,11 @@ const RARITY_WEIGHTS := {
 	"epic": 10.0,
 	"synergy": 45.0,
 }
+const STAGE_WEIGHTS := [
+	{"common": 82.0, "rare": 16.0, "epic": 2.0, "synergy": 0.0},
+	{"common": 48.0, "rare": 38.0, "epic": 10.0, "synergy": 28.0},
+	{"common": 18.0, "rare": 38.0, "epic": 30.0, "synergy": 58.0},
+]
 
 const DEFS := {
 	"power": {"name": "过载", "desc": "武器伤害 +12%", "rarity": "common", "tags": ["弹道"], "max": 5, "pool": "both"},
@@ -150,18 +155,27 @@ static func ready_synergies(hero) -> Array[String]:
 			ready.append(String(key))
 	return ready
 
-static func weight_for(key: String, hero) -> float:
+static func stage_for_cycle(cycle: int) -> int:
+	if cycle <= 2: return 0
+	if cycle <= 4: return 1
+	return 2
+
+static func weight_for(key: String, hero, cycle := 1) -> float:
 	var rarity := String(DEFS[key].rarity)
-	var weight := float(RARITY_WEIGHTS.get(rarity, 1.0))
+	var stage := stage_for_cycle(cycle)
+	var weight := float(STAGE_WEIGHTS[stage].get(rarity, 0.0))
 	if rarity == "synergy":
-		weight = 80.0
 		if key in ready_synergies(hero):
-			weight = 170.0
+			weight = maxf(weight, 30.0) * 3.0
+		elif stage == 0:
+			weight = 0.0
 	if DEFS[key].has("hero_class") and String(DEFS[key].hero_class) == hero.class_id:
 		weight *= 1.6
+	if DEFS[key].has("weapon") and String(DEFS[key].weapon) == hero.weapon_key:
+		weight *= 1.3
 	return weight
 
-static func roll(hero, source: String, count: int, rng: RandomNumberGenerator, guarantee_weapon := false, guarantee_element := false, banished: Array[String] = []) -> Array[String]:
+static func roll(hero, source: String, count: int, rng: RandomNumberGenerator, guarantee_weapon := false, guarantee_element := false, banished: Array[String] = [], cycle := 1) -> Array[String]:
 	var pool := build_pool(hero, source, banished)
 	var picked: Array[String] = []
 	if guarantee_weapon:
@@ -185,11 +199,11 @@ static func roll(hero, source: String, count: int, rng: RandomNumberGenerator, g
 	while picked.size() < count and pool.size() > 0:
 		var total := 0.0
 		for key in pool:
-			total += weight_for(String(key), hero)
+			total += weight_for(String(key), hero, cycle)
 		var roll_value := rng.randf() * total
 		var chosen := ""
 		for key in pool:
-			roll_value -= weight_for(String(key), hero)
+			roll_value -= weight_for(String(key), hero, cycle)
 			if roll_value <= 0.0:
 				chosen = key
 				break

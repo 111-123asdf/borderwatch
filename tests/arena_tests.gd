@@ -42,6 +42,8 @@ func _run() -> void:
 	var level_pool := ArenaUpgrades.build_pool(game.hero, "level")
 	check("pistol_akimbo" in level_pool and not ("bow_hunter" in level_pool), "Weapon-specific upgrades filter by weapon")
 	check("knight_bulwark" in level_pool and not ("ranger_tempo" in level_pool), "Class-specific upgrades filter by hero")
+	check(ArenaUpgrades.weight_for("power", game.hero, 1) > ArenaUpgrades.weight_for("storm", game.hero, 1), "Early pool favors common cards")
+	check(ArenaUpgrades.weight_for("storm", game.hero, 6) > ArenaUpgrades.weight_for("power", game.hero, 6), "Late pool favors epic cards")
 	var pre_bulwark: float = game.hero.damage_reduction
 	game.hero.apply_passive("knight_bulwark")
 	check(game.hero.damage_reduction > pre_bulwark, "Knight class passive applies its effect")

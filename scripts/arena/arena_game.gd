@@ -595,7 +595,7 @@ func open_passive_choice(source: String) -> void:
 	passive_source = source
 	passive_guarantee_weapon = dry_weapon_choices >= 2
 	passive_guarantee_element = dry_element_choices >= 2
-	passive_choices = ArenaUpgrades.roll(hero, source, 3, rng, passive_guarantee_weapon, passive_guarantee_element, banished_passives)
+	passive_choices = ArenaUpgrades.roll(hero, source, 3, rng, passive_guarantee_weapon, passive_guarantee_element, banished_passives, cycle)
 	if passive_choices.is_empty():
 		passive_selecting = false
 		var rewards := maxi(1, pending_level_choices)
@@ -626,7 +626,7 @@ func reroll_passive_choice() -> void:
 	passive_rerolls -= 1
 	var next: Array[String] = []
 	for attempt in range(3):
-		next = ArenaUpgrades.roll(hero, passive_source, 3, rng, passive_guarantee_weapon, passive_guarantee_element, banished_passives)
+		next = ArenaUpgrades.roll(hero, passive_source, 3, rng, passive_guarantee_weapon, passive_guarantee_element, banished_passives, cycle)
 		if next != passive_choices:
 			break
 	if next.is_empty():
@@ -643,7 +643,7 @@ func banish_passive_choice(key: String) -> void:
 	banished_passives.append(key)
 	passive_choices.erase(key)
 	for attempt in range(3):
-		var replacement := ArenaUpgrades.roll(hero, passive_source, 1, rng, false, false, banished_passives)
+		var replacement := ArenaUpgrades.roll(hero, passive_source, 1, rng, false, false, banished_passives, cycle)
 		if not replacement.is_empty() and not passive_choices.has(replacement[0]):
 			passive_choices.append(replacement[0])
 			break
