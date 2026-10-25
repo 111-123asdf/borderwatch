@@ -82,6 +82,7 @@ const DEFS := {
 	"pyroclasm": {"name": "燃爆", "desc": "燃烧的敌人死亡时爆炸", "rarity": "synergy", "tags": ["协同", "元素"], "max": 1, "requires": ["burn", "blast"], "pool": "both"},
 	"chainfrost": {"name": "霜链", "desc": "连锁命中附加霜冻", "rarity": "synergy", "tags": ["协同", "元素"], "max": 1, "requires": ["chain", "frost"], "pool": "both"},
 	"permafrost": {"name": "永冻", "desc": "霜环范围与减速大幅提高", "rarity": "synergy", "tags": ["协同", "元素"], "max": 1, "requires": ["nova", "frost"], "pool": "both"},
+	"thermal_shock": {"name": "热震", "desc": "同时燃烧且减速的敌人被命中时爆炸", "rarity": "synergy", "tags": ["协同", "元素"], "max": 1, "requires": ["burn", "frost"], "pool": "both"},
 	"juggernaut": {"name": "不动如山", "desc": "受到的伤害 -20%", "rarity": "synergy", "tags": ["协同", "生存"], "max": 1, "requires": ["vitality", "aegis"], "pool": "both"},
 }
 

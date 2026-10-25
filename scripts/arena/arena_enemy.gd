@@ -4,6 +4,8 @@ extends Node2D
 var game: Node2D
 var kind := "torch"
 var elite := false
+var weakness := ""
+var affinity := ""
 var boss_phase := 0
 var burn_time := 0.0
 var burn_dps := 0.0
@@ -22,6 +24,33 @@ var hit_flash := 0.0
 
 func center() -> Vector2:
 	return position + Vector2(0, -24 if kind != "boss" else -46)
+
+func element_color(element: String) -> Color:
+	match element:
+		"fire": return Color("ff8a5c")
+		"frost": return Color("8be8ff")
+		"lightning": return Color("ffe36e")
+	return Color.WHITE
+
+func element_name(element: String) -> String:
+	match element:
+		"fire": return "火"
+		"frost": return "冰"
+		"lightning": return "雷"
+	return element
+
+func element_multiplier(element: String) -> float:
+	var multiplier := 1.0
+	if element != "" and element == weakness:
+		multiplier += 0.50
+	if element != "" and element == affinity:
+		multiplier -= 0.35
+	return multiplier
+
+func apply_burn(dps: float, duration: float) -> void:
+	burn_dps = maxf(burn_dps, dps * element_multiplier("fire"))
+	burn_time = maxf(burn_time, duration)
+	burn_tick = minf(burn_tick, 0.5)
 
 func _ready() -> void:
 	visual = ActorVisual.new()
@@ -165,9 +194,18 @@ func take_damage(amount: float) -> void:
 func _draw() -> void:
 	if dead: return
 	var width := 42.0 if kind != "boss" else 76.0
+	var top := -44.0 if kind != "boss" else -70.0
 	if health < max_health:
-		draw_rect(Rect2(-width * 0.5, -44 if kind != "boss" else -70, width, 5), Color("251f21"))
-		draw_rect(Rect2(-width * 0.5, -44 if kind != "boss" else -70, width * health / max_health, 5), Color("df8267"))
+		draw_rect(Rect2(-width * 0.5, top, width, 5), Color("251f21"))
+		draw_rect(Rect2(-width * 0.5, top, width * health / max_health, 5), Color("df8267"))
+	if weakness != "":
+		draw_string(ThemeDB.fallback_font, Vector2(-width * 0.5, top - 5), "弱%s" % element_name(weakness), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, element_color(weakness))
+	if affinity != "":
+		draw_arc(Vector2.ZERO, radius + 5, 0, TAU, 24, Color(element_color(affinity), 0.55), 2, true)
+	if burn_time > 0.0:
+		draw_string(ThemeDB.fallback_font, Vector2(width * 0.5 - 14, top - 5), "火", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, element_color("fire"))
+	if slow_time > 0.0:
+		draw_string(ThemeDB.fallback_font, Vector2(width * 0.5 - 14, top - 18), "冰", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, element_color("frost"))
 	if hit_flash > 0.0:
 		draw_circle(Vector2.ZERO, radius + 4, Color(1.0, 0.9, 0.8, 0.3))
 	if kind == "shielded":

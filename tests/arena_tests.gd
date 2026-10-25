@@ -154,6 +154,16 @@ func _run() -> void:
 	check(game.enemies.size() > 0, "Spawn director creates enemies")
 	check(game.flow_at(game.spawn_points[0]).length() > 0.0, "Spawned enemies have a flow direction")
 
+	var armored_test: ArenaEnemy = game.spawn_enemy("armored", game.CORE + Vector2(700, 0), 100.0)
+	check(armored_test.weakness == "lightning" and armored_test.element_multiplier("lightning") > 1.0, "Armored enemies are weak to lightning")
+	game.enemy_escaped(armored_test)
+	armored_test.queue_free()
+	var brute_test: ArenaEnemy = game.spawn_enemy("brute", game.CORE + Vector2(700, 100), 100.0)
+	brute_test.apply_burn(10.0, 3.0)
+	check(brute_test.weakness == "fire" and brute_test.burn_dps > 10.0, "Fire weakness amplifies burn")
+	game.enemy_escaped(brute_test)
+	brute_test.queue_free()
+
 	game.dry_weapon_choices = 2
 	game.dry_element_choices = 2
 	game.open_passive_choice("level")

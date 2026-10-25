@@ -712,11 +712,34 @@ func boss_summon(point: Vector2) -> void:
 		var health := 70.0 + cycle * 12.0
 		spawn_enemy(kind, spawn_point, health, index == 0)
 
+func _weakness_for(kind: String) -> String:
+	match kind:
+		"armored", "shielded": return "lightning"
+		"brute": return "fire"
+		"bomber", "sapper", "charger": return "frost"
+		"shooter": return "lightning"
+		"boss": return "frost"
+	return ""
+
+func _affinity_for(kind: String, elite: bool, weakness: String) -> String:
+	if not elite and kind != "boss":
+		return ""
+	var elements := ["fire", "frost", "lightning"]
+	if kind == "boss":
+		return "fire"
+	for _attempt in range(4):
+		var pick: String = elements[rng.randi_range(0, elements.size() - 1)]
+		if pick != weakness:
+			return pick
+	return ""
+
 func spawn_enemy(kind: String, point: Vector2, health: float, elite := false) -> ArenaEnemy:
 	var enemy := ArenaEnemy.new()
 	enemy.game = self
 	enemy.kind = kind
 	enemy.elite = elite
+	enemy.weakness = _weakness_for(kind)
+	enemy.affinity = _affinity_for(kind, elite, enemy.weakness)
 	enemy.max_health = health
 	enemy.health = health
 	enemy.position = point
@@ -884,7 +907,7 @@ func chain_strike(origin: Vector2, damage: float, jumps: int) -> void:
 		if target == null: break
 		hit.append(target.get_instance_id())
 		bolts.append({"start": from, "end": target.center(), "life": 0.14})
-		target.take_damage(damage)
+		target.take_damage(damage * target.element_multiplier("lightning"))
 		if hero != null and hero.passives.has("burn"):
 			target.apply_burn(hero.burn_dps, 3.0)
 		if hero != null and hero.passives.has("stormfire"):
@@ -902,14 +925,14 @@ func frost_nova(point: Vector2, radius: float, damage: float, slow: float) -> vo
 	rings.append({"point": point, "radius": radius, "life": 0.35})
 	for enemy in enemies.duplicate():
 		if is_instance_valid(enemy) and not enemy.dead and enemy.position.distance_to(point) < radius:
-			enemy.take_damage(damage)
-			enemy.slow_time = maxf(enemy.slow_time, slow)
+			enemy.take_damage(damage * enemy.element_multiplier("frost"))
+			enemy.slow_time = maxf(enemy.slow_time, slow * enemy.element_multiplier("frost"))
 	shake(3.0)
 
 func storm_strike(target: ArenaEnemy, damage: float) -> void:
 	if not is_instance_valid(target): return
 	bolts.append({"start": target.center() + Vector2(0, -320), "end": target.center(), "life": 0.18})
-	target.take_damage(damage)
+	target.take_damage(damage * target.element_multiplier("lightning"))
 	shake(4.0)
 
 func hit_feedback(point: Vector2, amount: float) -> void:
