@@ -50,6 +50,7 @@ var hud: ArenaHUD
 var camera: Camera2D
 var build_mode := false
 var build_kind := "bolt"
+var default_target_mode := "nearest"
 var build_cell := Vector2i(-1, -1)
 var build_valid := false
 var build_site_ok := false
@@ -322,6 +323,7 @@ func place_tower(cell: Vector2i) -> bool:
 	tower.kind = build_kind
 	tower.cell = cell
 	tower.position = cell_center(cell)
+	tower.target_mode = default_target_mode
 	add_child(tower)
 	towers.append(tower)
 	stats.built += 1
@@ -999,6 +1001,16 @@ func cycle_tower_target() -> void:
 	hud.toast("目标：%s" % ArenaTower.TARGET_LABELS[selected_tower.target_mode], 1)
 	hud.show_tower_panel(selected_tower)
 
+func cycle_all_targets() -> void:
+	var index := ArenaTower.TARGET_MODES.find(default_target_mode)
+	default_target_mode = ArenaTower.TARGET_MODES[(index + 1) % ArenaTower.TARGET_MODES.size()]
+	for tower in towers:
+		if is_instance_valid(tower):
+			tower.target_mode = default_target_mode
+	hud.toast("全塔目标：%s" % ArenaTower.TARGET_LABELS[default_target_mode], 2)
+	if selected_tower != null:
+		hud.show_tower_panel(selected_tower)
+
 func sell_selected() -> void:
 	if selected_tower == null or not is_instance_valid(selected_tower): return
 	var tower := selected_tower
@@ -1190,6 +1202,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				number_build("laser")
 			KEY_7:
 				number_build("banner")
+			KEY_T:
+				cycle_all_targets()
 			KEY_E: repair_nearest()
 			KEY_R: get_tree().reload_current_scene()
 

@@ -112,6 +112,9 @@ func _run() -> void:
 	var target_before: String = basic_tower.target_mode
 	game.cycle_tower_target()
 	check(basic_tower.target_mode != target_before, "Tower targeting mode cycles")
+	var all_target_before: String = game.default_target_mode
+	game.cycle_all_targets()
+	check(game.default_target_mode != all_target_before and game.towers[0].target_mode == game.default_target_mode, "Global targeting applies to every tower")
 	var gold_before_sell: int = game.gold
 	var count_before_sell: int = game.towers.size()
 	game.select_tower(game.towers[1])

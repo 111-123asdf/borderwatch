@@ -582,9 +582,8 @@ func _update_build_menu() -> void:
 
 func _build_tower_panel() -> void:
 	tower_panel = Panel.new()
-	tower_panel.position = Vector2(-350, -250)
 	tower_panel.size = Vector2(330, 284)
-	tower_panel.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT, true)
+	tower_panel.set_anchors_preset(Control.PRESET_TOP_LEFT, true)
 	tower_panel.visible = false
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color("142a28")
@@ -648,6 +647,19 @@ func show_tower_panel(tower: ArenaTower) -> void:
 		return
 	tower_panel.visible = true
 	_update_tower_panel()
+	_position_tower_panel()
+
+func _position_tower_panel() -> void:
+	if game.selected_tower == null or not is_instance_valid(game.selected_tower): return
+	var viewport_size: Vector2 = game.get_viewport().get_visible_rect().size
+	var screen: Vector2 = game.get_viewport().get_canvas_transform() * game.selected_tower.position
+	var offset := Vector2(46, -tower_panel.size.y - 24)
+	if screen.x > viewport_size.x * 0.56:
+		offset.x = -tower_panel.size.x - 46
+	var position := screen + offset
+	position.x = clampf(position.x, 12, viewport_size.x - tower_panel.size.x - 12)
+	position.y = clampf(position.y, 12, viewport_size.y - tower_panel.size.y - 12)
+	tower_panel.position = position
 
 func _update_tower_panel() -> void:
 	if game.selected_tower == null or not is_instance_valid(game.selected_tower):
@@ -656,7 +668,7 @@ func _update_tower_panel() -> void:
 	var tower: ArenaTower = game.selected_tower
 	tower_panel.visible = not hero_selecting and not relic_selecting and not game.passive_selecting
 	tower_title.text = "%s  Lv.%d" % [ArenaTower.STATS[tower.kind].name, tower.level]
-	tower_stats.text = "射程 %d · 间隔 %.2fs · 目标 %s" % [int(tower.attack_range()), tower.attack_interval(), ArenaTower.TARGET_LABELS[tower.target_mode]]
+	tower_stats.text = "射程 %d · 间隔 %.2fs · 目标 %s · T 全塔" % [int(tower.attack_range()), tower.attack_interval(), ArenaTower.TARGET_LABELS[tower.target_mode]]
 	if tower.level >= ArenaTower.MAX_LEVEL:
 		tower_upgrade.text = "已满级"
 		tower_upgrade.disabled = true
@@ -667,6 +679,7 @@ func _update_tower_panel() -> void:
 	tower_sell.text = "拆除 · %d 金" % tower.sell_value()
 	tower_repair.disabled = tower.health >= tower.max_health or game.gold < 30
 	tower_bonus.text = _tower_bonus_text(tower) + "\n" + tower.next_upgrade_text()
+	_position_tower_panel()
 
 func _tower_bonus_text(tower: ArenaTower) -> String:
 	if game.hero == null: return ""
@@ -723,7 +736,7 @@ func _process(delta: float) -> void:
 	if game.build_mode:
 		build_label.text = "B/数字选塔 · 滚轮切塔 · 左键放置 · 右键取消"
 	else:
-		build_label.text = "B 建造 · 滚轮/1-7 选塔 · 左键放置 · 空格技能 · R 重开"
+		build_label.text = "B 建造 · 滚轮/1-7 选塔 · 左键放置 · T 全塔目标 · 空格技能 · R 重开"
 	_update_build_menu()
 	_update_tower_panel()
 	if game.boss != null and is_instance_valid(game.boss) and not game.boss.dead:
