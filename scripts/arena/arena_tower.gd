@@ -23,6 +23,7 @@ var level := 1
 var health := 400.0
 var max_health := 400.0
 var active := false
+var destroyed := false
 var build_clock := 2.0
 var cooldown := 0.0
 var aim := Vector2.LEFT

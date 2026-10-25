@@ -345,7 +345,8 @@ func place_tower(cell: Vector2i) -> bool:
 	return true
 
 func tower_destroyed(tower: ArenaTower) -> void:
-	if not is_instance_valid(tower): return
+	if not is_instance_valid(tower) or tower.destroyed: return
+	tower.destroyed = true
 	debug.towers_lost += 1
 	blocked[cell_index(tower.cell)] = false
 	towers.erase(tower)
@@ -986,10 +987,11 @@ func boss_phase_shift(point: Vector2, phase: int) -> void:
 	shake(8.0 + phase * 2.0)
 	if audio != null:
 		audio.play("phase", -4.0, 0.9 + phase * 0.05)
-	for tower in towers:
+	for tower in towers.duplicate():
 		if is_instance_valid(tower) and tower.position.distance_to(point) <= 360.0:
 			tower.disabled_time = maxf(tower.disabled_time, 1.2 + phase * 0.4)
 			tower.health -= 8.0 * phase
+			if tower.health <= 0.0: tower_destroyed(tower)
 	hud.toast("Boss 阶段 %d：冲击波静默附近塔" % (phase + 1), 3)
 
 func boss_summon(point: Vector2) -> void:
@@ -1217,6 +1219,7 @@ func sell_selected() -> void:
 	var tower := selected_tower
 	var refund := tower.sell_value()
 	gold += refund
+	tower.destroyed = true
 	blocked[cell_index(tower.cell)] = false
 	towers.erase(tower)
 	tower.queue_free()
