@@ -2,13 +2,13 @@ class_name ArenaTower
 extends Node2D
 
 const STATS := {
-	"bolt": {"name": "巡林弩塔", "cost": 70, "damage": 22.0, "interval": 0.55, "range": 340.0, "color": Color("edc76c")},
-	"cannon": {"name": "星火重炮", "cost": 110, "damage": 40.0, "interval": 1.25, "range": 380.0, "color": Color("ff9d65")},
-	"frost": {"name": "寒霜哨塔", "cost": 90, "damage": 10.0, "interval": 0.8, "range": 320.0, "color": Color("87dfeb")},
-	"arc": {"name": "鸣雷弧塔", "cost": 120, "damage": 28.0, "interval": 1.05, "range": 360.0, "color": Color("ffe36e")},
-	"venom": {"name": "腐毒藤塔", "cost": 100, "damage": 14.0, "interval": 0.9, "range": 330.0, "color": Color("9fe86e")},
-	"laser": {"name": "曜光棱塔", "cost": 140, "damage": 15.0, "interval": 0.28, "range": 360.0, "color": Color("ffb36e")},
-	"banner": {"name": "战地号令", "cost": 85, "damage": 0.0, "interval": 1.0, "range": 260.0, "color": Color("ff9fb0")},
+	"bolt": {"name": "巡林弩塔", "cost": 70, "damage": 22.0, "interval": 0.55, "range": 340.0, "color": Color("edc76c"), "role": "单体持续", "trait": "高攻速弩箭，升级增加穿透与齐射"},
+	"cannon": {"name": "星火重炮", "cost": 110, "damage": 40.0, "interval": 1.25, "range": 380.0, "color": Color("ff9d65"), "role": "群体爆发", "trait": "抛射爆炸，Lv3 附加减速"},
+	"frost": {"name": "寒霜哨塔", "cost": 90, "damage": 10.0, "interval": 0.8, "range": 320.0, "color": Color("87dfeb"), "role": "控场", "trait": "范围霜爆，叠冻气冻结"},
+	"arc": {"name": "鸣雷弧塔", "cost": 120, "damage": 28.0, "interval": 1.05, "range": 360.0, "color": Color("ffe36e"), "role": "连锁", "trait": "直接弹射多名敌人，升级加跳数"},
+	"venom": {"name": "腐毒藤塔", "cost": 100, "damage": 14.0, "interval": 0.9, "range": 330.0, "color": Color("9fe86e"), "role": "持续伤害", "trait": "毒云范围中毒，适合高血精英"},
+	"laser": {"name": "曜光棱塔", "cost": 140, "damage": 15.0, "interval": 0.28, "range": 360.0, "color": Color("ffb36e"), "role": "穿透直线", "trait": "瞬时光束贯穿直线上的敌人"},
+	"banner": {"name": "战地号令", "cost": 85, "damage": 0.0, "interval": 1.0, "range": 260.0, "color": Color("ff9fb0"), "role": "支援", "trait": "不攻击，光环提高附近塔伤害"},
 }
 const TOWER_ORDER := ["bolt", "cannon", "frost", "arc", "venom", "laser", "banner"]
 const MAX_LEVEL := 3
@@ -50,7 +50,7 @@ func attack_range() -> float:
 	var range_bonus := 0.0
 	if kind == "frost" and game.hero != null:
 		range_bonus = 15.0 * int(game.hero.passives.get("tower_frost", 0))
-	return (float(STATS[kind].range) + (level - 1) * 22.0 + range_bonus) * (1.12 if game.hero != null and game.hero.position.distance_to(position) < 340.0 else 1.0)
+	return (float(STATS[kind].range) + (level - 1) * 22.0 + range_bonus) * (1.12 if game.hero != null and game.hero.position.distance_to(position) < 340.0 else 1.0) + game.tower_global_range_bonus()
 
 func attack_interval() -> float:
 	var level_speed := 1.0 + 0.08 * (level - 1)
@@ -134,6 +134,8 @@ func fire(target: ArenaEnemy) -> void:
 		if game.hero.passives.has("tower_winter"):
 			slow += 1.5
 			damage *= 1.15
+		game.frost_nova(target.position, 74.0 + 12.0 * level, damage, slow)
+		return
 	if kind == "arc":
 		var jumps := 2 + level + int(game.hero.passives.get("tower_arc", 0))
 		if game.hero.passives.has("tower_arc"):
@@ -142,14 +144,24 @@ func fire(target: ArenaEnemy) -> void:
 		return
 	if kind == "venom":
 		poison = (6.0 + 4.0 * level) * (1.0 + 0.15 * int(game.hero.passives.get("tower_venom", 0)))
+		game.poison_cloud(target.position, 82.0 + 10.0 * level, damage, poison)
+		return
 	if kind == "laser":
 		pierce = 1 + level
 		speed = 1200.0
 		damage *= 1.0 + 0.10 * int(game.hero.passives.get("tower_laser", 0))
+		game.beam_damage(position + Vector2(0, -84), target.position, damage, 18.0 + level * 3.0)
+		return
 	shots_fired += 1
 	if game.hero.passives.has("tower_overclock") and shots_fired % 5 == 0:
 		damage *= 2.0
 		if kind == "cannon": splash += 20.0
+	if kind == "bolt":
+		var shots := level
+		for index in range(shots):
+			var offset := (index - (shots - 1) * 0.5) * 12.0
+			game.spawn_projectile(position + Vector2(0, -84) + aim.orthogonal() * offset, target.position + aim.orthogonal() * offset, damage * (0.85 if shots > 1 else 1.0), definition.color, 0.0, 0.0, speed, pierce, 0.0, 0.0, false, 0.35, false, 0.0)
+		return
 	game.spawn_projectile(position + Vector2(0, -84), target.position, damage, definition.color, splash, slow, speed, pierce, 0.0, 0.0, false, 0.35, false, poison)
 
 func _draw() -> void:

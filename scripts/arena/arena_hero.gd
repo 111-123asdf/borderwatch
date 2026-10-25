@@ -189,7 +189,7 @@ func apply_passive(key: String) -> void:
 		"mage_overcharge": barrier_damage_bonus += 0.25
 		"mage_reflect": barrier_reflect = true
 		"mage_echo": mage_echo = true
-		"chain", "nova", "execute", "deathblast", "storm", "lifesteal", "dash_reset", "overload", "tower_link", "tower_bolt", "tower_cannon", "tower_frost", "tower_network", "tower_commander", "tower_engineer", "tower_arc", "tower_venom", "tower_laser", "tower_banner", "tower_fortress", "tower_overclock", "tower_winter", "tower_command", "stormfire", "shatter", "executioner", "tempest", "reaper", "pyroclasm", "chainfrost", "permafrost", "thermal_shock", "wildfire", "deepfreeze", "conductive":
+		"chain", "nova", "execute", "deathblast", "storm", "lifesteal", "dash_reset", "overload", "tower_link", "tower_bolt", "tower_cannon", "tower_frost", "tower_network", "tower_commander", "tower_engineer", "tower_arc", "tower_venom", "tower_laser", "tower_banner", "tower_mixed", "tower_fortress", "tower_overclock", "tower_winter", "tower_command", "stormfire", "shatter", "executioner", "tempest", "reaper", "pyroclasm", "chainfrost", "permafrost", "thermal_shock", "wildfire", "deepfreeze", "conductive":
 			pass
 	_update_weapon_tier()
 

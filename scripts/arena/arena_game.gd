@@ -374,13 +374,7 @@ func repair_nearest() -> void:
 	hud.toast("塔已修复", 2)
 
 func try_build_at_mouse() -> void:
-	if not build_mode: return
-	var cell := world_to_cell(get_global_mouse_position())
-	var tower := _tower_at(cell)
-	if tower != null:
-		select_tower(tower)
-		return
-	place_tower(cell)
+	confirm_build()
 
 func set_build_kind(kind: String) -> void:
 	if ArenaTower.STATS.has(kind):
@@ -408,11 +402,27 @@ func toggle_build_mode() -> void:
 	build_valid = build_reason == ""
 
 func build_from_menu(kind: String) -> void:
-	if not build_mode: return
+	number_build(kind)
+
+func number_build(kind: String) -> void:
+	if not ArenaTower.STATS.has(kind): return
+	if not build_mode:
+		toggle_build_mode()
+		if not build_mode: return
 	set_build_kind(kind)
+
+func cycle_build_kind(step: int) -> void:
+	if not build_mode: return
+	var index := ArenaTower.TOWER_ORDER.find(build_kind)
+	if index < 0: index = 0
+	var next := (index + step + ArenaTower.TOWER_ORDER.size()) % ArenaTower.TOWER_ORDER.size()
+	set_build_kind(ArenaTower.TOWER_ORDER[next])
+
+func confirm_build() -> bool:
+	if not build_mode: return false
 	if build_cell.x < 0:
 		hud.toast("先选一个建造位置", 2)
-		return
+		return false
 	var target := build_cell
 	var built := place_tower(target)
 	if not built:
@@ -423,19 +433,7 @@ func build_from_menu(kind: String) -> void:
 		build_mode = false
 		Engine.time_scale = sim_speed
 		get_viewport().gui_release_focus()
-
-func number_build(kind: String) -> void:
-	if not build_mode:
-		toggle_build_mode()
-		if not build_mode: return
-		set_build_kind(kind)
-		hud.toast("已选择 %s：再按一次数字键建造" % ArenaTower.STATS[kind].name, 2)
-		return
-	if build_kind != kind:
-		set_build_kind(kind)
-		hud.toast("切换到 %s：再按一次建造" % ArenaTower.STATS[kind].name, 2)
-		return
-	build_from_menu(kind)
+	return built
 
 func select_tower_at_mouse() -> void:
 	if not running: return
@@ -517,7 +515,7 @@ func tower_damage_scale() -> float:
 
 func tower_attack_speed_scale(kind := "", tower_position := Vector2.ZERO) -> float:
 	if hero == null: return 1.0
-	var scale := 1.0
+	var scale := 1.0 + tower_global_speed_bonus()
 	if kind == "bolt":
 		scale += 0.10 * int(hero.passives.get("tower_bolt", 0))
 	if hero.passives.has("tower_command") and tower_position.distance_to(hero.position) <= 240.0:
@@ -531,6 +529,30 @@ func tower_cost_scale() -> float:
 func tower_cost(kind: String) -> int:
 	if not ArenaTower.STATS.has(kind): return 0
 	return int(round(float(ArenaTower.STATS[kind].cost) * tower_cost_scale()))
+
+func distinct_tower_kinds() -> int:
+	var kinds := {}
+	for tower in towers:
+		if is_instance_valid(tower): kinds[tower.kind] = true
+	return kinds.size()
+
+func tower_global_damage_bonus() -> float:
+	if hero == null: return 0.0
+	var bonus := 0.0
+	bonus += 0.05 * int(hero.passives.get("tower_cannon", 0))
+	bonus += 0.04 * int(hero.passives.get("tower_arc", 0))
+	bonus += 0.05 * int(hero.passives.get("tower_venom", 0))
+	bonus += 0.04 * int(hero.passives.get("tower_laser", 0))
+	bonus += 0.04 * int(hero.passives.get("tower_mixed", 0)) * distinct_tower_kinds()
+	return bonus
+
+func tower_global_speed_bonus() -> float:
+	if hero == null: return 0.0
+	return 0.04 * int(hero.passives.get("tower_bolt", 0))
+
+func tower_global_range_bonus() -> float:
+	if hero == null: return 0.0
+	return 8.0 * (int(hero.passives.get("tower_frost", 0)) + int(hero.passives.get("tower_laser", 0)))
 
 func tower_support_bonus(tower: ArenaTower) -> float:
 	if hero == null or tower == null: return 0.0
@@ -546,7 +568,7 @@ func tower_support_bonus(tower: ArenaTower) -> float:
 
 func tower_conditional_damage(tower: ArenaTower) -> float:
 	if hero == null or tower == null: return 1.0
-	var scale := 1.0 + tower_support_bonus(tower)
+	var scale := 1.0 + tower_support_bonus(tower) + tower_global_damage_bonus()
 	var adjacent := 0
 	for other in towers:
 		if other == tower or not is_instance_valid(other): continue
@@ -1063,6 +1085,23 @@ func chain_strike(origin: Vector2, damage: float, jumps: int) -> void:
 		from = target.center()
 	shake(2.0)
 
+func poison_cloud(point: Vector2, radius: float, damage: float, poison: float) -> void:
+	rings.append({"point": point, "radius": radius, "life": 0.35})
+	for enemy in enemies.duplicate():
+		if is_instance_valid(enemy) and not enemy.dead and enemy.position.distance_to(point) <= radius:
+			enemy.take_damage(damage)
+			enemy.apply_poison(poison, 3.0)
+	shake(2.0)
+
+func beam_damage(origin: Vector2, endpoint: Vector2, damage: float, width: float) -> void:
+	bolts.append({"start": origin, "end": endpoint, "life": 0.12})
+	for enemy in enemies.duplicate():
+		if not is_instance_valid(enemy) or enemy.dead: continue
+		var closest := Geometry2D.get_closest_point_to_segment(enemy.position, origin, endpoint)
+		if closest.distance_to(enemy.position) <= width + enemy.radius:
+			enemy.take_damage(damage)
+	shake(1.5)
+
 func frost_nova(point: Vector2, radius: float, damage: float, slow: float) -> void:
 	if hero != null and hero.passives.has("permafrost"):
 		radius += 30.0
@@ -1115,17 +1154,18 @@ func _unhandled_input(event: InputEvent) -> void:
 				toggle_build_mode()
 				get_viewport().set_input_as_handled()
 			return
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP or event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			if build_mode:
+				cycle_build_kind(-1 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1)
+				get_viewport().set_input_as_handled()
+				return
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			if build_mode:
 				var mouse: Vector2 = event.position
 				if hud.build_palette.visible and hud.build_palette.get_global_rect().has_point(mouse):
-					for kind in hud.palette_buttons:
-						var button: Button = hud.palette_buttons[kind]
-						if button.get_global_rect().has_point(mouse):
-							number_build(kind)
-							get_viewport().set_input_as_handled()
-							return
-				select_tower_at_mouse()
+					get_viewport().set_input_as_handled()
+					return
+				confirm_build()
 				get_viewport().set_input_as_handled()
 				return
 			select_tower_at_mouse()
@@ -1134,6 +1174,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
+			KEY_B:
+				toggle_build_mode()
 			KEY_1:
 				number_build("bolt")
 			KEY_2:

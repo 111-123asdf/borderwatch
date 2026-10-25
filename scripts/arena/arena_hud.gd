@@ -43,7 +43,11 @@ var passive_reroll: Button
 var passive_banish: Button
 var passive_banish_count := 0
 var build_palette: Panel
-var palette_buttons := {}
+var build_name: Label
+var build_role: Label
+var build_stats: Label
+var build_trait: Label
+var build_hint: Label
 var tower_panel: Panel
 var tower_title: Label
 var tower_stats: Label
@@ -467,31 +471,33 @@ func hide_passive_choice() -> void:
 
 func _build_palette() -> void:
 	build_palette = Panel.new()
-	build_palette.size = Vector2(360, 184)
+	build_palette.size = Vector2(390, 154)
 	build_palette.visible = false
 	build_palette.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color("142a28")
-	style.border_color = Color("58796d")
+	style.bg_color = Color(0.06, 0.12, 0.11, 0.94)
+	style.border_color = Color("d6bd7a")
 	style.set_border_width_all(1)
 	style.set_corner_radius_all(9)
 	build_palette.add_theme_stylebox_override("panel", style)
 	root.add_child(build_palette)
-	var index := 0
-	for kind in ArenaTower.TOWER_ORDER:
-		var data: Dictionary = ArenaTower.STATS[kind]
-		var button := Button.new()
-		button.position = Vector2(8 + (index % 4) * 88, 8 + int(index / 4) * 88)
-		button.size = Vector2(82, 76)
-		button.text = "%s\n%d金" % [data.name, game.tower_cost(kind)]
-		button.add_theme_font_size_override("font_size", 12)
-		button.add_theme_color_override("font_color", CREAM)
-		button.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_style_button(button)
-		button.pressed.connect(game.number_build.bind(kind))
-		build_palette.add_child(button)
-		palette_buttons[kind] = button
-		index += 1
+	build_name = _label(Rect2(14, 10, 362, 28), 19, GOLD)
+	root.remove_child(build_name)
+	build_palette.add_child(build_name)
+	build_role = _label(Rect2(14, 38, 362, 20), 13, Color("ffcf9a"))
+	root.remove_child(build_role)
+	build_palette.add_child(build_role)
+	build_stats = _label(Rect2(14, 60, 362, 22), 13, Color("cfe3d4"))
+	root.remove_child(build_stats)
+	build_palette.add_child(build_stats)
+	build_trait = _label(Rect2(14, 84, 362, 36), 12, Color("9fb9aa"))
+	root.remove_child(build_trait)
+	build_trait.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	build_palette.add_child(build_trait)
+	build_hint = _label(Rect2(14, 126, 362, 20), 11, Color("d6bd7a"))
+	root.remove_child(build_hint)
+	build_hint.text = "滚轮 / 1-7 切换 · 左键放置 · 右键取消"
+	build_palette.add_child(build_hint)
 
 func _update_build_strip() -> void:
 	build_tags.text = _build_tag_bbcode()
@@ -561,9 +567,14 @@ func _update_build_menu() -> void:
 	if not game.build_mode or game.build_cell.x < 0:
 		build_palette.visible = false
 		return
+	var data: Dictionary = ArenaTower.STATS[game.build_kind]
+	build_name.text = "%s   %d 金" % [data.name, game.tower_cost(game.build_kind)]
+	build_role.text = "%s   基础伤害 %d" % [data.role, int(data.damage)]
+	build_stats.text = "射程 %d · 攻击间隔 %.2fs" % [int(data.range), float(data.interval)]
+	build_trait.text = data.trait
 	var screen: Vector2 = game.get_viewport().get_canvas_transform() * game.cell_center(game.build_cell)
 	var viewport_size: Vector2 = game.get_viewport().get_visible_rect().size
-	var position := screen + Vector2(34, -104)
+	var position := screen + Vector2(34, -170)
 	position.x = clampf(position.x, 12, viewport_size.x - build_palette.size.x - 12)
 	position.y = clampf(position.y, 12, viewport_size.y - build_palette.size.y - 12)
 	build_palette.position = position
@@ -710,9 +721,9 @@ func _process(delta: float) -> void:
 	if game.build_mode and game.build_reason != "":
 		hint_label.text = "不能建造：" + game.build_reason
 	if game.build_mode:
-		build_label.text = "1/2/3/4/5/6/7 选塔，再按同键建造 · 右键取消"
+		build_label.text = "B/数字选塔 · 滚轮切塔 · 左键放置 · 右键取消"
 	else:
-		build_label.text = "1-7 选塔并再按一次建造 · 左键点塔升级 · 空格技能 · R 重开"
+		build_label.text = "B 建造 · 滚轮/1-7 选塔 · 左键放置 · 空格技能 · R 重开"
 	_update_build_menu()
 	_update_tower_panel()
 	if game.boss != null and is_instance_valid(game.boss) and not game.boss.dead:

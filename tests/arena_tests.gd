@@ -126,34 +126,46 @@ func _run() -> void:
 	game.build_cell = game._nearest_build_cell(Vector2i(25, 20))
 	game.build_site_ok = true
 	game.build_valid = true
-	game.set_build_kind("bolt")
-	game.hud.palette_buttons["bolt"].emit_signal("pressed")
-	check(game.towers.size() == before_menu_build + 1, "Build menu icon places a tower")
+	game.number_build("bolt")
+	check(game.confirm_build() and game.towers.size() == before_menu_build + 1, "Selected tower places on confirm")
 	var before_second_build: int = game.towers.size()
 	game.toggle_build_mode()
 	game.build_cell = game._nearest_build_cell(Vector2i(26, 20))
 	game.build_site_ok = true
 	game.build_valid = true
-	game.set_build_kind("bolt")
-	game.hud.palette_buttons["bolt"].emit_signal("pressed")
-	check(game.towers.size() == before_second_build + 1, "Build menu can be used again after a build")
+	game.number_build("bolt")
+	check(game.confirm_build() and game.towers.size() == before_second_build + 1, "Build selection can be used again")
 	var before_manual_click: int = game.towers.size()
 	game.toggle_build_mode()
 	game.build_cell = game._nearest_build_cell(Vector2i(24, 24))
-	game.set_build_kind("bolt")
+	game.number_build("bolt")
 	await create_timer(0.1).timeout
-	var click_button: Button = game.hud.palette_buttons["bolt"]
 	var click_event := InputEventMouseButton.new()
 	click_event.button_index = MOUSE_BUTTON_LEFT
 	click_event.pressed = true
-	click_event.position = click_button.get_global_rect().get_center()
+	click_event.position = Vector2(2, 2)
 	game._unhandled_input(click_event)
-	check(game.towers.size() == before_manual_click + 1, "Build menu click event places a tower")
+	check(game.towers.size() == before_manual_click + 1, "Left click confirms tower placement")
 	var before_confirmed = game.towers.size()
 	game.number_build("bolt")
-	check(game.towers.size() == before_confirmed and game.build_mode, "First number key only enters build mode")
+	check(game.towers.size() == before_confirmed and game.build_mode, "Number key only selects a tower")
+	game.confirm_build()
+	check(game.towers.size() == before_confirmed + 1, "Confirm places the selected tower")
+	game.toggle_build_mode()
 	game.number_build("bolt")
-	check(game.towers.size() == before_confirmed + 1, "Second press of the same number builds")
+	var wheel_change: String = game.build_kind
+	var wheel_event := InputEventMouseButton.new()
+	wheel_event.button_index = MOUSE_BUTTON_WHEEL_DOWN
+	wheel_event.pressed = true
+	game._unhandled_input(wheel_event)
+	check(game.build_kind != wheel_change, "Mouse wheel switches selected tower")
+	var global_before: float = game.tower_global_damage_bonus()
+	game.hero.apply_passive("tower_cannon")
+	check(game.tower_global_damage_bonus() > global_before, "Specialist tower card also buffs all towers")
+	game.build_cell = game._nearest_build_cell(Vector2i(26, 24))
+	game.number_build("cannon")
+	game.confirm_build()
+	check(game.distinct_tower_kinds() >= 2, "Mixed tower composition is tracked")
 
 	game.hero.position = game.CORE + Vector2(160, 0)
 	var gold_before: int = game.gold
