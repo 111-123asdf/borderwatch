@@ -22,8 +22,8 @@ var hero_selected := false
 var game_over := false
 var victory := false
 var gold := START_GOLD
-var core_health := 650.0
-var core_max := 650.0
+var core_health := 700.0
+var core_max := 700.0
 var cycle := 1
 var phase := "rest"
 var phase_clock := 5.0
@@ -873,6 +873,10 @@ func enemy_died(enemy: ArenaEnemy) -> void:
 				hero.health = minf(hero.max_health, hero.health + 5.0)
 		if hero.passives.has("pyroclasm") and enemy.burn_time > 0.0:
 			damage_radius(enemy.position, 90.0, 32.0)
+		if hero.passives.has("wildfire") and enemy.burn_time > 0.0:
+			for other in enemies.duplicate():
+				if is_instance_valid(other) and not other.dead and other != enemy and other.position.distance_to(enemy.position) < 120.0:
+					other.apply_burn(hero.burn_dps * 0.6, 3.0)
 
 func enemy_escaped(enemy: ArenaEnemy) -> void:
 	enemies.erase(enemy)
@@ -1003,13 +1007,16 @@ func chain_strike(origin: Vector2, damage: float, jumps: int) -> void:
 		if target == null: break
 		hit.append(target.get_instance_id())
 		bolts.append({"start": from, "end": target.center(), "life": 0.14})
-		target.take_damage(damage * target.element_multiplier("lightning"))
+		var lightning_damage := damage
+		if hero != null and hero.passives.has("conductive") and (target.burn_time > 0.0 or target.slow_time > 0.0 or target.freeze_time > 0.0):
+			lightning_damage *= 1.4
+		target.take_damage(lightning_damage * target.element_multiplier("lightning"))
 		if hero != null and hero.passives.has("burn"):
 			target.apply_burn(hero.burn_dps, 3.0)
 		if hero != null and hero.passives.has("stormfire"):
 			damage_radius(target.position, 72.0, damage * 0.55)
 		if hero != null and hero.passives.has("chainfrost"):
-			target.slow_time = maxf(target.slow_time, 1.5)
+			target.apply_frost(1.5)
 		from = target.center()
 	shake(2.0)
 
@@ -1022,13 +1029,16 @@ func frost_nova(point: Vector2, radius: float, damage: float, slow: float) -> vo
 	for enemy in enemies.duplicate():
 		if is_instance_valid(enemy) and not enemy.dead and enemy.position.distance_to(point) < radius:
 			enemy.take_damage(damage * enemy.element_multiplier("frost"))
-			enemy.slow_time = maxf(enemy.slow_time, slow * enemy.element_multiplier("frost"))
+			enemy.apply_frost(slow)
 	shake(3.0)
 
 func storm_strike(target: ArenaEnemy, damage: float) -> void:
 	if not is_instance_valid(target): return
 	bolts.append({"start": target.center() + Vector2(0, -320), "end": target.center(), "life": 0.18})
-	target.take_damage(damage * target.element_multiplier("lightning"))
+	var lightning_damage := damage
+	if hero != null and hero.passives.has("conductive") and (target.burn_time > 0.0 or target.slow_time > 0.0 or target.freeze_time > 0.0):
+		lightning_damage *= 1.4
+	target.take_damage(lightning_damage * target.element_multiplier("lightning"))
 	shake(4.0)
 
 func hit_feedback(point: Vector2, amount: float) -> void:

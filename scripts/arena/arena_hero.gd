@@ -89,9 +89,9 @@ func configure(key: String) -> void:
 	shield_regen_delay = 0.0
 	speed = float(data.speed) * 1.20
 	if key == "ranger":
-		max_health += 10.0
+		max_health += 25.0
 		health = max_health
-		max_shield += 10.0
+		max_shield += 15.0
 		shield = max_shield
 	elif key == "mage":
 		max_health += 35.0
@@ -189,7 +189,7 @@ func apply_passive(key: String) -> void:
 		"mage_overcharge": barrier_damage_bonus += 0.25
 		"mage_reflect": barrier_reflect = true
 		"mage_echo": mage_echo = true
-		"chain", "nova", "execute", "deathblast", "storm", "lifesteal", "dash_reset", "overload", "tower_link", "tower_bolt", "tower_cannon", "tower_frost", "tower_network", "tower_commander", "tower_engineer", "tower_fortress", "tower_overclock", "tower_winter", "tower_command", "stormfire", "shatter", "executioner", "tempest", "reaper", "pyroclasm", "chainfrost", "permafrost", "thermal_shock":
+		"chain", "nova", "execute", "deathblast", "storm", "lifesteal", "dash_reset", "overload", "tower_link", "tower_bolt", "tower_cannon", "tower_frost", "tower_network", "tower_commander", "tower_engineer", "tower_fortress", "tower_overclock", "tower_winter", "tower_command", "stormfire", "shatter", "executioner", "tempest", "reaper", "pyroclasm", "chainfrost", "permafrost", "thermal_shock", "wildfire", "deepfreeze", "conductive":
 			pass
 	_update_weapon_tier()
 

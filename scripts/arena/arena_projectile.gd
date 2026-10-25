@@ -51,14 +51,15 @@ func _physics_process(delta: float) -> void:
 					applied *= 1.0 + execute_bonus
 				if shatter and critical:
 					applied *= 1.5
-					enemy.slow_time = maxf(enemy.slow_time, 1.0)
+					enemy.apply_frost(1.0)
 				enemy.take_damage(applied)
 				if burn_dps > 0.0:
 					enemy.apply_burn(burn_dps, 3.0)
-				enemy.slow_time = maxf(enemy.slow_time, slow * enemy.element_multiplier("frost"))
 				if game.hero != null and game.hero.passives.has("thermal_shock") and enemy.burn_time > 0.0 and enemy.slow_time > 0.0:
 					game.damage_radius(enemy.position, 90.0, damage * 0.55)
 				game.hit_feedback(enemy.center(), applied)
+			if slow > 0.0:
+				enemy.apply_frost(slow)
 			if pierce > 0:
 				pierce -= 1
 			else:

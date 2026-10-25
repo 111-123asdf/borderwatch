@@ -10,6 +10,8 @@ var boss_phase := 0
 var burn_time := 0.0
 var burn_dps := 0.0
 var burn_tick := 0.0
+var freeze_time := 0.0
+var chill_stacks := 0
 var health := 60.0
 var max_health := 60.0
 var speed := 72.0
@@ -51,6 +53,15 @@ func apply_burn(dps: float, duration: float) -> void:
 	burn_dps = maxf(burn_dps, dps * element_multiplier("fire"))
 	burn_time = maxf(burn_time, duration)
 	burn_tick = minf(burn_tick, 0.5)
+
+func apply_frost(duration: float) -> void:
+	slow_time = maxf(slow_time, duration * element_multiplier("frost"))
+	chill_stacks += 1
+	var threshold := 2 if game.hero != null and game.hero.passives.has("deepfreeze") else 3
+	if chill_stacks >= threshold:
+		chill_stacks = 0
+		var extra := 0.5 if game.hero != null and game.hero.passives.has("deepfreeze") else 0.0
+		freeze_time = maxf(freeze_time, 1.0 + extra)
 
 func _ready() -> void:
 	visual = ActorVisual.new()
@@ -113,11 +124,15 @@ func _physics_process(delta: float) -> void:
 	if dead or not game.running or game.game_over: return
 	slow_time = maxf(0.0, slow_time - delta)
 	burn_time = maxf(0.0, burn_time - delta)
+	freeze_time = maxf(0.0, freeze_time - delta)
 	burn_tick -= delta
 	if burn_time > 0.0 and burn_tick <= 0.0:
 		burn_tick = 0.5
 		take_damage(burn_dps * 0.5)
 		if dead: return
+	if freeze_time > 0.0:
+		queue_redraw()
+		return
 	hit_flash = maxf(0.0, hit_flash - delta)
 	attack_cooldown = maxf(0.0, attack_cooldown - delta)
 	ranged_cooldown = maxf(0.0, ranged_cooldown - delta)
@@ -206,6 +221,9 @@ func _draw() -> void:
 		draw_string(ThemeDB.fallback_font, Vector2(width * 0.5 - 14, top - 5), "火", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, element_color("fire"))
 	if slow_time > 0.0:
 		draw_string(ThemeDB.fallback_font, Vector2(width * 0.5 - 14, top - 18), "冰", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, element_color("frost"))
+	if freeze_time > 0.0:
+		draw_arc(Vector2.ZERO, radius + 16, 0, TAU, 28, Color(0.7, 0.95, 1.0, 0.7), 3, true)
+		draw_string(ThemeDB.fallback_font, Vector2(width * 0.5 - 14, top - 31), "冻", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(0.8, 0.98, 1.0))
 	if hit_flash > 0.0:
 		draw_circle(Vector2.ZERO, radius + 4, Color(1.0, 0.9, 0.8, 0.3))
 	if kind == "shielded":

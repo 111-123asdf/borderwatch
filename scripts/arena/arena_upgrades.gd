@@ -98,6 +98,9 @@ const DEFS := {
 	"chainfrost": {"name": "霜链", "desc": "连锁命中附加霜冻", "rarity": "synergy", "tags": ["协同", "元素"], "max": 1, "requires": ["chain", "frost"], "pool": "both"},
 	"permafrost": {"name": "永冻", "desc": "霜环范围与减速大幅提高", "rarity": "synergy", "tags": ["协同", "元素"], "max": 1, "requires": ["nova", "frost"], "pool": "both"},
 	"thermal_shock": {"name": "热震", "desc": "同时燃烧且减速的敌人被命中时爆炸", "rarity": "synergy", "tags": ["协同", "元素"], "max": 1, "requires": ["burn", "frost"], "pool": "both"},
+	"wildfire": {"name": "野火", "desc": "燃烧敌人死亡时把火传给附近敌人", "rarity": "rare", "tags": ["元素"], "max": 1, "requires": ["burn"], "pool": "both"},
+	"deepfreeze": {"name": "深寒", "desc": "霜附叠加 2 层即冻结，冻结延长 0.5 秒", "rarity": "rare", "tags": ["元素"], "max": 1, "requires": ["frost"], "pool": "both"},
+	"conductive": {"name": "导电", "desc": "连锁/雷暴命中燃烧或减速目标时伤害 +40%", "rarity": "epic", "tags": ["元素"], "max": 1, "requires": ["chain", "storm"], "pool": "both"},
 	"juggernaut": {"name": "不动如山", "desc": "受到的伤害 -20%", "rarity": "synergy", "tags": ["协同", "生存"], "max": 1, "requires": ["vitality", "aegis"], "pool": "both"},
 }
 
