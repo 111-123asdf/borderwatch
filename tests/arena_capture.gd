@@ -31,6 +31,9 @@ func _run() -> void:
 		game.place_tower(cells[index])
 	game.start_spawn()
 	game.spawn_budget = 28
+	var status_enemy: ArenaEnemy = game.spawn_enemy("armored", game.CORE + Vector2(150, -120), 120.0)
+	status_enemy.apply_burn(6.0, 4.0)
+	status_enemy.slow_time = 4.0
 	for index in range(3):
 		game.spawn_cluster()
 	await create_timer(1.4).timeout
