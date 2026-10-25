@@ -19,6 +19,7 @@ var build_clock := 2.0
 var cooldown := 0.0
 var aim := Vector2.LEFT
 var body: Sprite2D
+var shots_fired := 0
 
 func _ready() -> void:
 	var color := "Blue" if kind == "bolt" else ("Purple" if kind == "cannon" else "Yellow")
@@ -36,7 +37,7 @@ func attack_range() -> float:
 	return (float(STATS[kind].range) + (level - 1) * 24.0 + range_bonus) * (1.12 if game.hero != null and game.hero.position.distance_to(position) < 340.0 else 1.0)
 
 func attack_interval() -> float:
-	return float(STATS[kind].interval) / game.tower_attack_speed_scale(kind)
+	return float(STATS[kind].interval) / game.tower_attack_speed_scale(kind, position)
 
 func upgrade_price() -> int:
 	return int(float(STATS[kind].cost) * (0.55 + level * 0.25) * game.upgrade_scale() * game.tower_cost_scale())
@@ -62,7 +63,10 @@ func _physics_process(delta: float) -> void:
 	cooldown = maxf(0.0, cooldown - delta)
 	for enemy in game.enemies.duplicate():
 		if is_instance_valid(enemy) and enemy.position.distance_to(position) < 72.0:
-			health -= 13.0 * delta
+			var contact_damage := 13.0
+			if game.hero.passives.has("tower_fortress"):
+				contact_damage *= 0.75
+			health -= contact_damage * delta
 			if health <= 0.0:
 				game.tower_destroyed(self)
 				return
@@ -83,6 +87,13 @@ func fire(target: ArenaEnemy) -> void:
 		splash = 68.0 + 8.0 * int(game.hero.passives.get("tower_cannon", 0))
 	if kind == "frost":
 		slow = 2.6 + 0.5 * int(game.hero.passives.get("tower_frost", 0))
+		if game.hero.passives.has("tower_winter"):
+			slow += 1.5
+			damage *= 1.15
+	shots_fired += 1
+	if game.hero.passives.has("tower_overclock") and shots_fired % 5 == 0:
+		damage *= 2.0
+		if kind == "cannon": splash += 20.0
 	game.spawn_projectile(position + Vector2(0, -84), target.position, damage, definition.color, splash, slow, 700.0)
 
 func _draw() -> void:

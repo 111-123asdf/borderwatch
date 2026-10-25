@@ -60,6 +60,13 @@ func _run() -> void:
 	var tower_cost_before: int = game.tower_cost("bolt")
 	game.hero.apply_passive("tower_engineer")
 	check(game.tower_cost("bolt") < tower_cost_before, "Tower engineer passive discounts construction")
+	game.hero.apply_passive("tower_command")
+	check(game.tower_attack_speed_scale("cannon", game.hero.position) > 1.0, "Tower command speeds nearby towers")
+	game.hero.passives["tower_link"] = 1
+	game.hero.passives["tower_network"] = 1
+	check("tower_fortress" in ArenaUpgrades.ready_synergies(game.hero), "Tower synergy is ready after prerequisites")
+	game.hero.passives.erase("tower_link")
+	game.hero.passives.erase("tower_network")
 	var camp_pool := ArenaUpgrades.build_pool(game.hero, "camp")
 	check(not ("power" in camp_pool), "Camp pool excludes common upgrades")
 	game.hero.passives["burn"] = 1

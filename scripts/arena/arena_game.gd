@@ -517,9 +517,14 @@ func tower_damage_scale() -> float:
 			scale += 0.30
 	return scale
 
-func tower_attack_speed_scale(kind := "") -> float:
-	if hero == null or kind != "bolt": return 1.0
-	return 1.0 + 0.10 * int(hero.passives.get("tower_bolt", 0))
+func tower_attack_speed_scale(kind := "", tower_position := Vector2.ZERO) -> float:
+	if hero == null: return 1.0
+	var scale := 1.0
+	if kind == "bolt":
+		scale += 0.10 * int(hero.passives.get("tower_bolt", 0))
+	if hero.passives.has("tower_command") and tower_position.distance_to(hero.position) <= 240.0:
+		scale += 0.20
+	return scale
 
 func tower_cost_scale() -> float:
 	if hero == null: return 1.0
@@ -532,14 +537,16 @@ func tower_cost(kind: String) -> int:
 func tower_conditional_damage(tower: ArenaTower) -> float:
 	if hero == null or tower == null: return 1.0
 	var scale := 1.0
+	var adjacent := 0
+	for other in towers:
+		if other == tower or not is_instance_valid(other): continue
+		if absi(other.cell.x - tower.cell.x) <= 2 and absi(other.cell.y - tower.cell.y) <= 2:
+			adjacent += 1
 	var network := int(hero.passives.get("tower_network", 0))
 	if network > 0:
-		var adjacent := 0
-		for other in towers:
-			if other == tower or not is_instance_valid(other): continue
-			if absi(other.cell.x - tower.cell.x) <= 2 and absi(other.cell.y - tower.cell.y) <= 2:
-				adjacent += 1
 		scale += 0.10 * network * adjacent
+	if hero.passives.has("tower_fortress"):
+		scale += 0.10 * adjacent
 	if hero.passives.has("tower_commander") and tower.position.distance_to(hero.position) <= 240.0:
 		scale += 0.25
 	return scale

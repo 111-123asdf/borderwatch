@@ -645,6 +645,10 @@ func _tower_bonus_text(tower: ArenaTower) -> String:
 	if frost > 0: parts.append("霜核 ×%d" % frost)
 	if game.hero.passives.has("tower_network"): parts.append("塔网")
 	if game.hero.passives.has("tower_commander"): parts.append("指挥")
+	if game.hero.passives.has("tower_fortress"): parts.append("堡垒网络")
+	if game.hero.passives.has("tower_overclock"): parts.append("超载炮击")
+	if game.hero.passives.has("tower_winter"): parts.append("永冻核心")
+	if game.hero.passives.has("tower_command"): parts.append("指挥协议")
 	if game.hero.passives.has("tower_doctrine"): parts.append("塔防协议")
 	return "加成：" + (" · ".join(PackedStringArray(parts)) if parts.size() > 0 else "无")
 
