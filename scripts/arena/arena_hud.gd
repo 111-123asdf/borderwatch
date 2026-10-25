@@ -24,6 +24,9 @@ var core_label: Label
 var core_bar: ProgressBar
 var boss_label: Label
 var boss_bar: ProgressBar
+var boss_check_panel: Panel
+var boss_check_label: Label
+var boss_check_time := 0.0
 var focus_bar: ProgressBar
 var result_panel: Panel
 var result_label: Label
@@ -146,6 +149,23 @@ func _ready() -> void:
 	boss_bar.visible = false
 	_style_bar(boss_bar, Color("ff7868"), Color("2a1d1c"))
 	root.add_child(boss_bar)
+	boss_check_panel = Panel.new()
+	boss_check_panel.size = Vector2(640, 92)
+	boss_check_panel.set_anchors_preset(Control.PRESET_CENTER_TOP, true)
+	boss_check_panel.position = Vector2(-320, 130)
+	var check_style := StyleBoxFlat.new()
+	check_style.bg_color = Color(0.08, 0.11, 0.10, 0.90)
+	check_style.border_color = Color("d6bd7a")
+	check_style.set_border_width_all(1)
+	check_style.set_corner_radius_all(8)
+	boss_check_panel.add_theme_stylebox_override("panel", check_style)
+	boss_check_panel.visible = false
+	root.add_child(boss_check_panel)
+	boss_check_label = _label(Rect2(16, 8, 608, 76), 13, CREAM)
+	root.remove_child(boss_check_label)
+	boss_check_label.add_theme_font_size_override("font_size", 13)
+	boss_check_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	boss_check_panel.add_child(boss_check_label)
 	build_label = _label(Rect2(-420, -72, 840, 26), 15, CREAM)
 	build_label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM, true)
 	build_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -641,6 +661,8 @@ func _process(delta: float) -> void:
 	build_palette.visible = false
 	boss_label.visible = show_hud and game.boss != null and is_instance_valid(game.boss) and not game.boss.dead
 	boss_bar.visible = boss_label.visible
+	boss_check_time = maxf(0.0, boss_check_time - delta)
+	boss_check_panel.visible = show_hud and boss_check_time > 0.0
 	if hero_selecting or relic_selecting or game.passive_selecting:
 		tower_panel.visible = false
 		return
@@ -677,6 +699,30 @@ func _process(delta: float) -> void:
 	result_panel.visible = game.game_over
 	if game.game_over:
 		result_label.text = ("守住了\n\n" if game.victory else "你倒下了\n\n") + "第 %d 轮 · 击杀 %d · 建塔 %d\n\n按 R 重开" % [game.cycle, game.stats.kills, game.stats.built]
+
+func show_boss_check(report: Dictionary) -> void:
+	var warnings: Array = report.get("warnings", [])
+	var warning_text := "Build 完整" if warnings.is_empty() else "提示：" + "、".join(PackedStringArray(warnings))
+	boss_check_label.text = "Boss 战 Build 检查  [%s]    武器 Lv.%d · 元素 %d · 协同 %d · 塔防 %d · 生存 %d\nBoss 抗%s · 弱%s    %s" % [
+		String(report.get("grade", "C")),
+		int(report.get("weapon_level", 1)),
+		int(report.get("elements", 0)),
+		int(report.get("synergies", 0)),
+		int(report.get("towers", 0)),
+		int(report.get("survival", 0)),
+		_element_cn(String(report.get("boss_affinity", "fire"))),
+		_element_cn(String(report.get("boss_weakness", "frost"))),
+		warning_text,
+	]
+	boss_check_time = 7.0
+	boss_check_panel.visible = true
+
+func _element_cn(element: String) -> String:
+	match element:
+		"fire": return "火"
+		"frost": return "冰"
+		"lightning": return "雷"
+	return element
 
 func toast(message: String, duration := 2.0) -> void:
 	toast_label.text = message

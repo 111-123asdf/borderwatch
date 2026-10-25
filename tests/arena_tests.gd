@@ -171,6 +171,8 @@ func _run() -> void:
 	check(brute_test.weakness == "fire" and brute_test.burn_dps > 10.0, "Fire weakness amplifies burn")
 	game.enemy_escaped(brute_test)
 	brute_test.queue_free()
+	var build_check: Dictionary = game.build_report()
+	check(build_check.has("grade") and build_check.has("boss_affinity") and build_check.has("warnings"), "Boss build report has grade, affinity and warnings")
 
 	game.dry_weapon_choices = 2
 	game.dry_element_choices = 2

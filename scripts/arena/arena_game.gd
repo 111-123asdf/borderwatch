@@ -724,10 +724,72 @@ func spawn_cluster() -> void:
 	spawned_this_phase += count
 	debug.regions[region] += 1
 
+func build_report() -> Dictionary:
+	var fire := 0
+	var frost := 0
+	var lightning := 0
+	var towers := 0
+	var survival := 0
+	var class_cards := 0
+	var synergies := 0
+	for key in hero.passives:
+		var stacks := int(hero.passives[key])
+		if key in ["burn", "pyroclasm", "thermal_shock"]:
+			fire += stacks
+		if key in ["frost", "nova", "permafrost", "scatter_frost", "chainfrost"]:
+			frost += stacks
+		if key in ["chain", "storm", "tempest", "stormfire"]:
+			lightning += stacks
+		if ArenaUpgrades.DEFS.has(key):
+			var data: Dictionary = ArenaUpgrades.DEFS[key]
+			if "塔防" in data.tags: towers += stacks
+			if "生存" in data.tags: survival += stacks
+			if "职业" in data.tags: class_cards += stacks
+			if String(data.rarity) == "synergy": synergies += 1
+	var element_total := fire + frost + lightning
+	var dominant := ""
+	var best := 0
+	for pair in [["fire", fire], ["frost", frost], ["lightning", lightning]]:
+		if int(pair[1]) > best:
+			best = int(pair[1])
+			dominant = String(pair[0])
+	var counter := {"fire": "frost", "frost": "lightning", "lightning": "fire"}
+	var boss_affinity := String(dominant) if dominant != "" else "fire"
+	var boss_weakness := String(counter.get(dominant, "frost"))
+	var warnings: Array[String] = []
+	if hero.weapon_level < 2: warnings.append("武器未进化")
+	if element_total < 2: warnings.append("元素覆盖不足")
+	if synergies == 0: warnings.append("没有协同")
+	if towers == 0: warnings.append("没有塔防投入")
+	if survival == 0: warnings.append("没有生存卡")
+	var score := hero.weapon_level * 2 + element_total + synergies * 3 + towers * 2 + survival + class_cards
+	var grade := "C"
+	if score >= 20: grade = "S"
+	elif score >= 14: grade = "A"
+	elif score >= 9: grade = "B"
+	return {
+		"score": score,
+		"grade": grade,
+		"weapon_level": hero.weapon_level,
+		"elements": element_total,
+		"dominant": dominant,
+		"synergies": synergies,
+		"towers": towers,
+		"survival": survival,
+		"class_cards": class_cards,
+		"boss_affinity": boss_affinity,
+		"boss_weakness": boss_weakness,
+		"warnings": warnings,
+	}
+
 func _spawn_boss() -> void:
 	boss_spawned = true
+	var report := build_report()
 	var point: Vector2 = spawn_points[hot_region]
 	boss = spawn_enemy("boss", point, 5000.0)
+	boss.affinity = String(report.boss_affinity)
+	boss.weakness = String(report.boss_weakness)
+	hud.show_boss_check(report)
 	hud.toast("焚林统领从%s林线走来" % _region_name(hot_region), 4)
 
 func boss_summon(point: Vector2) -> void:
