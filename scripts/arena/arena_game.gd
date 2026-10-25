@@ -12,7 +12,6 @@ const GRID_H := 41
 const BUILD_RADIUS := 1050.0
 const SPAWN_RADIUS := 1150.0
 const CORE_EXCLUSION := 140.0
-const TOWER_LIMIT := 10
 const REGION_COUNT := 8
 const START_GOLD := 260
 
@@ -267,7 +266,6 @@ func can_place(cell: Vector2i) -> String:
 			var other := cell + Vector2i(ox, oy)
 			if other.x < 0 or other.y < 0 or other.x >= GRID_W or other.y >= GRID_H: continue
 			if _tower_at(other) != null: return "不能挨着其他塔"
-	if towers.size() >= tower_limit(): return "塔位已满"
 	if gold < tower_cost(build_kind): return "金币不足"
 	for enemy in enemies:
 		if is_instance_valid(enemy) and enemy.position.distance_to(point) < 46: return "敌人太近"
@@ -562,12 +560,6 @@ func tower_conditional_damage(tower: ArenaTower) -> float:
 	if hero.passives.has("tower_commander") and tower.position.distance_to(hero.position) <= 240.0:
 		scale += 0.25
 	return scale
-
-func tower_limit() -> int:
-	var limit := TOWER_LIMIT
-	if "lone" in relics: limit -= 2
-	if "swarm" in relics: limit += 2
-	return limit
 
 func kill_gold_scale() -> float:
 	return 1.40 if "raid" in relics else 1.0
@@ -959,6 +951,44 @@ func expire_normal_drops() -> void:
 			drops.erase(drop)
 			debug.drops_expired += 1
 			drop.queue_free()
+
+func tower_target(tower: ArenaTower) -> ArenaEnemy:
+	if tower == null or not is_instance_valid(tower): return null
+	var reach := tower.attack_range()
+	var best: ArenaEnemy
+	var best_score := -INF
+	for enemy in enemies:
+		if not is_instance_valid(enemy) or enemy.dead: continue
+		var distance := tower.position.distance_to(enemy.position)
+		if distance > reach: continue
+		var score := -distance
+		match tower.target_mode:
+			"strongest": score = enemy.health
+			"first": score = -enemy.position.distance_to(CORE)
+		if score > best_score:
+			best_score = score
+			best = enemy
+	return best
+
+func cycle_tower_target() -> void:
+	if selected_tower == null or not is_instance_valid(selected_tower): return
+	var index := ArenaTower.TARGET_MODES.find(selected_tower.target_mode)
+	selected_tower.target_mode = ArenaTower.TARGET_MODES[(index + 1) % ArenaTower.TARGET_MODES.size()]
+	hud.toast("目标：%s" % ArenaTower.TARGET_LABELS[selected_tower.target_mode], 1)
+	hud.show_tower_panel(selected_tower)
+
+func sell_selected() -> void:
+	if selected_tower == null or not is_instance_valid(selected_tower): return
+	var tower := selected_tower
+	var refund := tower.sell_value()
+	gold += refund
+	blocked[cell_index(tower.cell)] = false
+	towers.erase(tower)
+	tower.queue_free()
+	selected_tower = null
+	hud.show_tower_panel(null)
+	_rebuild_flow()
+	hud.toast("已拆除塔，返还 %d 金" % refund, 2)
 
 func nearest_enemy(point: Vector2, radius: float) -> ArenaEnemy:
 	var result: ArenaEnemy

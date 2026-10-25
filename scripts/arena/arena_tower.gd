@@ -12,6 +12,9 @@ const STATS := {
 }
 const TOWER_ORDER := ["bolt", "cannon", "frost", "arc", "venom", "laser", "banner"]
 const MAX_LEVEL := 3
+const TARGET_MODES := ["nearest", "strongest", "first"]
+const TARGET_LABELS := {"nearest": "最近", "strongest": "最强", "first": "最前"}
+const TARGET_HINTS := {"nearest": "优先打离塔最近的敌人", "strongest": "优先打当前生命最高的敌人", "first": "优先打离核心最近的敌人"}
 
 var game: Node2D
 var kind := "bolt"
@@ -23,6 +26,7 @@ var active := false
 var build_clock := 2.0
 var cooldown := 0.0
 var aim := Vector2.LEFT
+var target_mode := "nearest"
 var body: Sprite2D
 var shots_fired := 0
 
@@ -46,10 +50,14 @@ func attack_range() -> float:
 	var range_bonus := 0.0
 	if kind == "frost" and game.hero != null:
 		range_bonus = 15.0 * int(game.hero.passives.get("tower_frost", 0))
-	return (float(STATS[kind].range) + (level - 1) * 24.0 + range_bonus) * (1.12 if game.hero != null and game.hero.position.distance_to(position) < 340.0 else 1.0)
+	return (float(STATS[kind].range) + (level - 1) * 22.0 + range_bonus) * (1.12 if game.hero != null and game.hero.position.distance_to(position) < 340.0 else 1.0)
 
 func attack_interval() -> float:
-	return float(STATS[kind].interval) / game.tower_attack_speed_scale(kind, position)
+	var level_speed := 1.0 + 0.08 * (level - 1)
+	return float(STATS[kind].interval) / (game.tower_attack_speed_scale(kind, position) * level_speed)
+
+func sell_value() -> int:
+	return int(float(STATS[kind].cost) * 0.6 * (1.0 + 0.25 * (level - 1)))
 
 func upgrade_price() -> int:
 	return int(float(STATS[kind].cost) * (0.55 + level * 0.25) * game.upgrade_scale() * game.tower_cost_scale())
@@ -97,7 +105,7 @@ func _physics_process(delta: float) -> void:
 			if health <= 0.0:
 				game.tower_destroyed(self)
 				return
-	var target: ArenaEnemy = game.nearest_enemy(position, attack_range())
+	var target: ArenaEnemy = game.tower_target(self)
 	if target != null and cooldown <= 0.0:
 		fire(target)
 	queue_redraw()

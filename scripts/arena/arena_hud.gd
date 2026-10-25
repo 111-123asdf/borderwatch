@@ -46,7 +46,10 @@ var build_palette: Panel
 var palette_buttons := {}
 var tower_panel: Panel
 var tower_title: Label
+var tower_stats: Label
 var tower_upgrade: Button
+var tower_target: Button
+var tower_sell: Button
 var tower_repair: Button
 var tower_close: Button
 var tower_bonus: Label
@@ -569,7 +572,7 @@ func _update_build_menu() -> void:
 func _build_tower_panel() -> void:
 	tower_panel = Panel.new()
 	tower_panel.position = Vector2(-350, -250)
-	tower_panel.size = Vector2(330, 220)
+	tower_panel.size = Vector2(330, 284)
 	tower_panel.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT, true)
 	tower_panel.visible = false
 	var style := StyleBoxFlat.new()
@@ -579,33 +582,50 @@ func _build_tower_panel() -> void:
 	style.set_corner_radius_all(9)
 	tower_panel.add_theme_stylebox_override("panel", style)
 	root.add_child(tower_panel)
-	tower_title = _label(Rect2(18, 14, 294, 28), 18, GOLD)
+	tower_title = _label(Rect2(18, 10, 294, 26), 18, GOLD)
 	root.remove_child(tower_title)
 	tower_panel.add_child(tower_title)
+	tower_stats = _label(Rect2(18, 38, 294, 18), 12, Color("9fb9aa"))
+	root.remove_child(tower_stats)
+	tower_panel.add_child(tower_stats)
 	tower_upgrade = Button.new()
-	tower_upgrade.position = Vector2(18, 60)
-	tower_upgrade.size = Vector2(294, 46)
+	tower_upgrade.position = Vector2(18, 62)
+	tower_upgrade.size = Vector2(294, 40)
 	tower_upgrade.add_theme_font_size_override("font_size", 15)
 	_style_button(tower_upgrade)
 	tower_upgrade.pressed.connect(game.upgrade_selected)
 	tower_panel.add_child(tower_upgrade)
+	tower_target = Button.new()
+	tower_target.position = Vector2(18, 108)
+	tower_target.size = Vector2(140, 36)
+	tower_target.add_theme_font_size_override("font_size", 13)
+	_style_button(tower_target)
+	tower_target.pressed.connect(game.cycle_tower_target)
+	tower_panel.add_child(tower_target)
+	tower_sell = Button.new()
+	tower_sell.position = Vector2(172, 108)
+	tower_sell.size = Vector2(140, 36)
+	tower_sell.add_theme_font_size_override("font_size", 13)
+	_style_button(tower_sell)
+	tower_sell.pressed.connect(game.sell_selected)
+	tower_panel.add_child(tower_sell)
 	tower_repair = Button.new()
-	tower_repair.position = Vector2(18, 116)
-	tower_repair.size = Vector2(140, 42)
+	tower_repair.position = Vector2(18, 150)
+	tower_repair.size = Vector2(140, 36)
 	tower_repair.text = "修理 30 金"
-	tower_repair.add_theme_font_size_override("font_size", 14)
+	tower_repair.add_theme_font_size_override("font_size", 13)
 	_style_button(tower_repair)
 	tower_repair.pressed.connect(game.repair_selected)
 	tower_panel.add_child(tower_repair)
 	tower_close = Button.new()
-	tower_close.position = Vector2(172, 116)
-	tower_close.size = Vector2(140, 42)
+	tower_close.position = Vector2(172, 150)
+	tower_close.size = Vector2(140, 36)
 	tower_close.text = "关闭"
-	tower_close.add_theme_font_size_override("font_size", 14)
+	tower_close.add_theme_font_size_override("font_size", 13)
 	_style_button(tower_close)
 	tower_close.pressed.connect(game.close_tower_panel)
 	tower_panel.add_child(tower_close)
-	tower_bonus = _label(Rect2(18, 164, 294, 50), 11, Color("9fb9aa"))
+	tower_bonus = _label(Rect2(18, 192, 294, 82), 11, Color("9fb9aa"))
 	root.remove_child(tower_bonus)
 	tower_panel.add_child(tower_bonus)
 	tower_bonus.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -625,12 +645,15 @@ func _update_tower_panel() -> void:
 	var tower: ArenaTower = game.selected_tower
 	tower_panel.visible = not hero_selecting and not relic_selecting and not game.passive_selecting
 	tower_title.text = "%s  Lv.%d" % [ArenaTower.STATS[tower.kind].name, tower.level]
+	tower_stats.text = "射程 %d · 间隔 %.2fs · 目标 %s" % [int(tower.attack_range()), tower.attack_interval(), ArenaTower.TARGET_LABELS[tower.target_mode]]
 	if tower.level >= ArenaTower.MAX_LEVEL:
 		tower_upgrade.text = "已满级"
 		tower_upgrade.disabled = true
 	else:
 		tower_upgrade.text = "升级 Lv.%d · %d 金" % [tower.level + 1, tower.upgrade_price()]
 		tower_upgrade.disabled = game.gold < tower.upgrade_price()
+	tower_target.text = "目标：%s" % ArenaTower.TARGET_LABELS[tower.target_mode]
+	tower_sell.text = "拆除 · %d 金" % tower.sell_value()
 	tower_repair.disabled = tower.health >= tower.max_health or game.gold < 30
 	tower_bonus.text = _tower_bonus_text(tower) + "\n" + tower.next_upgrade_text()
 

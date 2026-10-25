@@ -102,6 +102,21 @@ func _run() -> void:
 	var banner_cell: Vector2i = cell + Vector2i(2, 0)
 	game.place_tower(banner_cell)
 	check(game.tower_support_bonus(game.towers[0]) > 0.0, "Banner aura buffs nearby towers")
+	var basic_tower: ArenaTower = game.towers[0]
+	var range_before: float = basic_tower.attack_range()
+	var interval_before: float = basic_tower.attack_interval()
+	basic_tower.level = 2
+	check(basic_tower.attack_range() > range_before and basic_tower.attack_interval() < interval_before, "Tower level improves range and attack speed")
+	basic_tower.level = 1
+	game.select_tower(basic_tower)
+	var target_before: String = basic_tower.target_mode
+	game.cycle_tower_target()
+	check(basic_tower.target_mode != target_before, "Tower targeting mode cycles")
+	var gold_before_sell: int = game.gold
+	var count_before_sell: int = game.towers.size()
+	game.select_tower(game.towers[1])
+	game.sell_selected()
+	check(game.towers.size() == count_before_sell - 1 and game.gold > gold_before_sell, "Tower can be sold for a refund")
 	check(game.blocked[game.cell_index(cell)], "Tower blocks its grid cell")
 	check(game.can_place(cell + Vector2i(1, 0)) == "不能挨着其他塔", "Towers cannot be adjacent")
 	check(game.can_place(game.world_to_cell(game.CORE + Vector2(1200, 0))) == "超出建造范围", "Build radius is enforced")
