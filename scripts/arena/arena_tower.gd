@@ -30,10 +30,16 @@ func _ready() -> void:
 	queue_redraw()
 
 func attack_range() -> float:
-	return (float(STATS[kind].range) + (level - 1) * 24.0) * (1.12 if game.hero != null and game.hero.position.distance_to(position) < 340.0 else 1.0)
+	var range_bonus := 0.0
+	if kind == "frost" and game.hero != null:
+		range_bonus = 15.0 * int(game.hero.passives.get("tower_frost", 0))
+	return (float(STATS[kind].range) + (level - 1) * 24.0 + range_bonus) * (1.12 if game.hero != null and game.hero.position.distance_to(position) < 340.0 else 1.0)
+
+func attack_interval() -> float:
+	return float(STATS[kind].interval) / game.tower_attack_speed_scale(kind)
 
 func upgrade_price() -> int:
-	return int(float(STATS[kind].cost) * (0.55 + level * 0.25) * game.upgrade_scale())
+	return int(float(STATS[kind].cost) * (0.55 + level * 0.25) * game.upgrade_scale() * game.tower_cost_scale())
 
 func upgrade() -> bool:
 	if level >= MAX_LEVEL or game.gold < upgrade_price(): return false
@@ -67,13 +73,16 @@ func _physics_process(delta: float) -> void:
 
 func fire(target: ArenaEnemy) -> void:
 	var definition: Dictionary = STATS[kind]
-	cooldown = float(definition.interval)
+	cooldown = attack_interval()
 	aim = (target.position - position).normalized()
-	var damage: float = float(definition.damage) * (1.0 + (level - 1) * 0.6) * game.tower_damage_scale()
+	var damage: float = float(definition.damage) * (1.0 + (level - 1) * 0.6) * game.tower_damage_scale() * game.tower_conditional_damage(self)
 	var splash := 0.0
 	var slow := 0.0
-	if kind == "cannon": splash = 68.0
-	if kind == "frost": slow = 2.6
+	if kind == "cannon":
+		damage *= 1.0 + 0.15 * int(game.hero.passives.get("tower_cannon", 0))
+		splash = 68.0 + 8.0 * int(game.hero.passives.get("tower_cannon", 0))
+	if kind == "frost":
+		slow = 2.6 + 0.5 * int(game.hero.passives.get("tower_frost", 0))
 	game.spawn_projectile(position + Vector2(0, -84), target.position, damage, definition.color, splash, slow, 700.0)
 
 func _draw() -> void:

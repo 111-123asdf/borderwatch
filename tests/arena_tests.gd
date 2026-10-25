@@ -52,6 +52,12 @@ func _run() -> void:
 	game.hero.apply_passive("pistol_storm")
 	game.hero.apply_passive("pistol_caliber")
 	check(game.hero.weapon_level == 3, "Four weapon cards unlock weapon tier 3")
+	var tower_speed_before: float = game.tower_attack_speed_scale("bolt")
+	game.hero.apply_passive("tower_bolt")
+	check(game.tower_attack_speed_scale("bolt") > tower_speed_before, "Tower bolt passive speeds towers up")
+	var tower_cost_before: int = game.tower_cost("bolt")
+	game.hero.apply_passive("tower_engineer")
+	check(game.tower_cost("bolt") < tower_cost_before, "Tower engineer passive discounts construction")
 	var camp_pool := ArenaUpgrades.build_pool(game.hero, "camp")
 	check(not ("power" in camp_pool), "Camp pool excludes common upgrades")
 	game.hero.passives["burn"] = 1

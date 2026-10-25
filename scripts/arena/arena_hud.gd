@@ -46,6 +46,7 @@ var tower_title: Label
 var tower_upgrade: Button
 var tower_repair: Button
 var tower_close: Button
+var tower_bonus: Label
 var toast_label: Label
 var toast_time := 0.0
 var phase_hint := ""
@@ -459,7 +460,7 @@ func _build_palette() -> void:
 		var button := Button.new()
 		button.position = Vector2(8 + index * 88, 8)
 		button.size = Vector2(82, 76)
-		button.text = "%s\n%d金" % [data.name, data.cost]
+		button.text = "%s\n%d金" % [data.name, game.tower_cost(kind)]
 		button.add_theme_font_size_override("font_size", 13)
 		button.add_theme_color_override("font_color", CREAM)
 		button.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -584,6 +585,10 @@ func _build_tower_panel() -> void:
 	_style_button(tower_close)
 	tower_close.pressed.connect(game.close_tower_panel)
 	tower_panel.add_child(tower_close)
+	tower_bonus = _label(Rect2(18, 166, 294, 42), 12, Color("9fb9aa"))
+	root.remove_child(tower_bonus)
+	tower_panel.add_child(tower_bonus)
+	tower_bonus.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 func show_tower_panel(tower: ArenaTower) -> void:
 	if tower == null:
@@ -607,9 +612,21 @@ func _update_tower_panel() -> void:
 		tower_upgrade.text = "升级 Lv.%d · %d 金" % [tower.level + 1, tower.upgrade_price()]
 		tower_upgrade.disabled = game.gold < tower.upgrade_price()
 	tower_repair.disabled = tower.health >= tower.max_health or game.gold < 30
+	tower_bonus.text = _tower_bonus_text(tower)
 
-func _update_tower_panel_old() -> void:
-	pass
+func _tower_bonus_text(tower: ArenaTower) -> String:
+	if game.hero == null: return ""
+	var parts: Array[String] = []
+	var speed := int(game.hero.passives.get("tower_bolt", 0))
+	var cannon := int(game.hero.passives.get("tower_cannon", 0))
+	var frost := int(game.hero.passives.get("tower_frost", 0))
+	if speed > 0: parts.append("弩术 ×%d" % speed)
+	if cannon > 0: parts.append("炮术 ×%d" % cannon)
+	if frost > 0: parts.append("霜核 ×%d" % frost)
+	if game.hero.passives.has("tower_network"): parts.append("塔网")
+	if game.hero.passives.has("tower_commander"): parts.append("指挥")
+	if game.hero.passives.has("tower_doctrine"): parts.append("塔防协议")
+	return "加成：" + (" · ".join(PackedStringArray(parts)) if parts.size() > 0 else "无")
 
 func _process(delta: float) -> void:
 	if game == null: return

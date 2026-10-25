@@ -22,8 +22,8 @@ var hero_selected := false
 var game_over := false
 var victory := false
 var gold := START_GOLD
-var core_health := 550.0
-var core_max := 550.0
+var core_health := 600.0
+var core_max := 600.0
 var cycle := 1
 var phase := "rest"
 var phase_clock := 5.0
@@ -268,7 +268,7 @@ func can_place(cell: Vector2i) -> String:
 			if other.x < 0 or other.y < 0 or other.x >= GRID_W or other.y >= GRID_H: continue
 			if _tower_at(other) != null: return "不能挨着其他塔"
 	if towers.size() >= tower_limit(): return "塔位已满"
-	if gold < int(ArenaTower.STATS[build_kind].cost): return "金币不足"
+	if gold < tower_cost(build_kind): return "金币不足"
 	for enemy in enemies:
 		if is_instance_valid(enemy) and enemy.position.distance_to(point) < 46: return "敌人太近"
 	var index := cell_index(cell)
@@ -316,7 +316,7 @@ func place_tower(cell: Vector2i) -> bool:
 		build_reason = reason
 		hud.toast(reason, 2)
 		return false
-	var cost := int(ArenaTower.STATS[build_kind].cost)
+	var cost := tower_cost(build_kind)
 	gold -= cost
 	blocked[cell_index(cell)] = true
 	var tower := ArenaTower.new()
@@ -515,6 +515,33 @@ func tower_damage_scale() -> float:
 		scale += 0.15 * int(hero.passives.get("tower_link", 0))
 		if hero.passives.has("tower_doctrine"):
 			scale += 0.30
+	return scale
+
+func tower_attack_speed_scale(kind := "") -> float:
+	if hero == null or kind != "bolt": return 1.0
+	return 1.0 + 0.10 * int(hero.passives.get("tower_bolt", 0))
+
+func tower_cost_scale() -> float:
+	if hero == null: return 1.0
+	return maxf(0.84, 1.0 - 0.08 * int(hero.passives.get("tower_engineer", 0)))
+
+func tower_cost(kind: String) -> int:
+	if not ArenaTower.STATS.has(kind): return 0
+	return int(round(float(ArenaTower.STATS[kind].cost) * tower_cost_scale()))
+
+func tower_conditional_damage(tower: ArenaTower) -> float:
+	if hero == null or tower == null: return 1.0
+	var scale := 1.0
+	var network := int(hero.passives.get("tower_network", 0))
+	if network > 0:
+		var adjacent := 0
+		for other in towers:
+			if other == tower or not is_instance_valid(other): continue
+			if absi(other.cell.x - tower.cell.x) <= 2 and absi(other.cell.y - tower.cell.y) <= 2:
+				adjacent += 1
+		scale += 0.10 * network * adjacent
+	if hero.passives.has("tower_commander") and tower.position.distance_to(hero.position) <= 240.0:
+		scale += 0.25
 	return scale
 
 func tower_limit() -> int:
