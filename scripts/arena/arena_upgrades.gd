@@ -95,9 +95,10 @@ static func info(key: String, stacks := 0) -> Dictionary:
 static func is_synergy(key: String) -> bool:
 	return DEFS.has(key) and String(DEFS[key].rarity) == "synergy"
 
-static func build_pool(hero, source: String) -> Array[String]:
+static func build_pool(hero, source: String, banished: Array[String] = []) -> Array[String]:
 	var pool: Array[String] = []
 	for key in DEFS:
+		if key in banished: continue
 		var data: Dictionary = DEFS[key]
 		var stacks := int(hero.passives.get(key, 0))
 		if stacks >= int(data.max): continue
@@ -113,8 +114,24 @@ static func build_pool(hero, source: String) -> Array[String]:
 		pool.append(String(key))
 	return pool
 
-static func roll(hero, source: String, count: int, rng: RandomNumberGenerator, guarantee_weapon := false, guarantee_element := false) -> Array[String]:
-	var pool := build_pool(hero, source)
+static func ready_synergies(hero) -> Array[String]:
+	var ready: Array[String] = []
+	for key in DEFS:
+		var data: Dictionary = DEFS[key]
+		if String(data.rarity) != "synergy": continue
+		if hero.passives.has(key): continue
+		var requirements: Array = data.get("requires", [])
+		var met := true
+		for req in requirements:
+			if not hero.passives.has(String(req)):
+				met = false
+				break
+		if met and requirements.size() > 0:
+			ready.append(String(key))
+	return ready
+
+static func roll(hero, source: String, count: int, rng: RandomNumberGenerator, guarantee_weapon := false, guarantee_element := false, banished: Array[String] = []) -> Array[String]:
+	var pool := build_pool(hero, source, banished)
 	var picked: Array[String] = []
 	if guarantee_weapon:
 		var weapon_candidates: Array[String] = []

@@ -74,6 +74,8 @@ var passive_choices: Array[String] = []
 var passive_source := ""
 var pending_level_choices := 0
 var passive_rerolls := 3
+var passive_banishes := 1
+var banished_passives: Array[String] = []
 var dry_weapon_choices := 0
 var dry_element_choices := 0
 var passive_guarantee_weapon := false
@@ -566,7 +568,8 @@ func open_passive_choice(source: String) -> void:
 	passive_source = source
 	passive_guarantee_weapon = dry_weapon_choices >= 2
 	passive_guarantee_element = dry_element_choices >= 2
-	passive_choices = ArenaUpgrades.roll(hero, source, 3, rng, passive_guarantee_weapon, passive_guarantee_element)
+	passive_choices = ArenaUpgrades.roll(hero, source, 3, rng, passive_guarantee_weapon, passive_guarantee_element, banished_passives)
+	_apply_synergy_pity()
 	if passive_choices.is_empty():
 		passive_selecting = false
 		var rewards := maxi(1, pending_level_choices)
@@ -577,12 +580,23 @@ func open_passive_choice(source: String) -> void:
 		running = true
 		hud.toast("被动已全满：转化为 %d 金与生命" % (50 * rewards), 3)
 		return
-	_update_dry_choices(passive_choices)
 	passive_selecting = true
 	running = false
-	hud.show_passive_choice(passive_choices, source, passive_rerolls)
+	hud.show_passive_choice(passive_choices, source, passive_rerolls, passive_banishes)
 
-func _update_dry_choices(choices: Array[String]) -> void:
+func _apply_synergy_pity() -> void:
+	var ready := ArenaUpgrades.ready_synergies(hero)
+	if ready.is_empty(): return
+	for key in passive_choices:
+		if key in ready: return
+	var candidates: Array[String] = []
+	for key in ready:
+		if not (key in banished_passives):
+			candidates.append(key)
+	if candidates.size() > 0 and passive_choices.size() > 0:
+		passive_choices[passive_choices.size() - 1] = candidates[0]
+
+func _update_dry_choices(choices: Array) -> void:
 	var has_weapon := false
 	var has_element := false
 	for key in choices:
@@ -597,7 +611,7 @@ func reroll_passive_choice() -> void:
 	passive_rerolls -= 1
 	var next: Array[String] = []
 	for attempt in range(3):
-		next = ArenaUpgrades.roll(hero, passive_source, 3, rng, passive_guarantee_weapon, passive_guarantee_element)
+		next = ArenaUpgrades.roll(hero, passive_source, 3, rng, passive_guarantee_weapon, passive_guarantee_element, banished_passives)
 		if next != passive_choices:
 			break
 	if next.is_empty():
@@ -605,8 +619,21 @@ func reroll_passive_choice() -> void:
 		hud.toast("没有可刷新的卡了", 2)
 		return
 	passive_choices = next
-	_update_dry_choices(passive_choices)
-	hud.show_passive_choice(passive_choices, passive_source, passive_rerolls)
+	_apply_synergy_pity()
+	hud.show_passive_choice(passive_choices, passive_source, passive_rerolls, passive_banishes)
+
+func banish_passive_choice(key: String) -> void:
+	if not passive_selecting or passive_banishes <= 0 or not passive_choices.has(key): return
+	passive_banishes -= 1
+	banished_passives.append(key)
+	passive_choices.erase(key)
+	for attempt in range(3):
+		var replacement := ArenaUpgrades.roll(hero, passive_source, 1, rng, false, false, banished_passives)
+		if not replacement.is_empty() and not passive_choices.has(replacement[0]):
+			passive_choices.append(replacement[0])
+			break
+	_apply_synergy_pity()
+	hud.show_passive_choice(passive_choices, passive_source, passive_rerolls, passive_banishes)
 
 func choose_passive(key: String) -> void:
 	if not passive_selecting or not passive_choices.has(key): return
@@ -614,6 +641,7 @@ func choose_passive(key: String) -> void:
 		relics.append(key)
 	else:
 		hero.apply_passive(key)
+	_update_dry_choices([key])
 	var was_level := passive_source == "level"
 	passive_selecting = false
 	if was_level and pending_level_choices > 0:

@@ -152,7 +152,17 @@ func _run() -> void:
 		if ArenaUpgrades.DEFS[key].has("weapon"): soft_weapon = true
 		if "元素" in ArenaUpgrades.DEFS[key].tags: soft_element = true
 	check(soft_weapon and soft_element, "Two dry levels trigger weapon and element pity")
+	var banish_key: String = game.passive_choices[0]
+	game.banish_passive_choice(banish_key)
+	check(banish_key in game.banished_passives and not (banish_key in game.passive_choices), "Banish removes one card from the pool")
 	game.choose_passive(game.passive_choices[0])
+	game.hero.passives["burn"] = 1
+	game.hero.passives["chain"] = 1
+	game.open_passive_choice("level")
+	check("stormfire" in game.passive_choices, "Ready synergy is forced into the next choice")
+	game.choose_passive(game.passive_choices[0])
+	game.hero.passives.erase("burn")
+	game.hero.passives.erase("chain")
 	var gold_before_empty: int = game.gold
 	var saved_passives: Dictionary = game.hero.passives.duplicate()
 	for key in ArenaUpgrades.DEFS:

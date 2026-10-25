@@ -34,6 +34,8 @@ var passive_buttons: Array[Button] = []
 var passive_selected := ""
 var passive_confirm: Button
 var passive_reroll: Button
+var passive_banish: Button
+var passive_banish_count := 0
 var build_palette: Panel
 var palette_buttons := {}
 var tower_panel: Panel
@@ -274,14 +276,14 @@ func hide_relic_choice() -> void:
 		relic_panel.visible = false
 	_release_focus()
 
-func show_passive_choice(choices: Array[String], source: String, rerolls: int) -> void:
+func show_passive_choice(choices: Array[String], source: String, rerolls: int, banishes := 0) -> void:
 	if passive_panel != null:
 		passive_panel.queue_free()
 	passive_buttons.clear()
 	passive_selected = ""
 	passive_panel = Panel.new()
-	passive_panel.position = Vector2(-360, -250)
-	passive_panel.size = Vector2(720, 500)
+	passive_panel.position = Vector2(-360, -260)
+	passive_panel.size = Vector2(720, 520)
 	passive_panel.set_anchors_preset(Control.PRESET_CENTER, true)
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color("162b2b")
@@ -300,11 +302,16 @@ func show_passive_choice(choices: Array[String], source: String, rerolls: int) -
 	passive_panel.add_child(subtitle)
 	subtitle.text = "先点一张卡，再点确认；可刷新卡池"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var build_context := _label(Rect2(20, 84, 680, 24), 13, Color("9fb9aa"))
+	root.remove_child(build_context)
+	passive_panel.add_child(build_context)
+	build_context.text = _build_summary_text(false)
+	build_context.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	for index in range(choices.size()):
 		var key: String = choices[index]
 		var data: Dictionary = game.passive_info(key)
 		var button := Button.new()
-		button.position = Vector2(40, 100 + index * 108)
+		button.position = Vector2(40, 116 + index * 108)
 		button.size = Vector2(640, 96)
 		var rarity_text: String = String(data.get("rarity_name", "普通"))
 		var tags_text: String = String(data.get("tags_text", "被动"))
@@ -321,17 +328,27 @@ func show_passive_choice(choices: Array[String], source: String, rerolls: int) -
 		passive_panel.add_child(button)
 		passive_buttons.append(button)
 	passive_reroll = Button.new()
-	passive_reroll.position = Vector2(40, 432)
-	passive_reroll.size = Vector2(190, 44)
+	passive_reroll.position = Vector2(40, 452)
+	passive_reroll.size = Vector2(150, 44)
 	passive_reroll.text = "刷新 ×%d" % rerolls
 	passive_reroll.disabled = rerolls <= 0
 	passive_reroll.add_theme_font_size_override("font_size", 16)
 	_style_button(passive_reroll)
 	passive_reroll.pressed.connect(game.reroll_passive_choice)
 	passive_panel.add_child(passive_reroll)
+	passive_banish_count = banishes
+	passive_banish = Button.new()
+	passive_banish.position = Vector2(200, 452)
+	passive_banish.size = Vector2(150, 44)
+	passive_banish.text = "放逐 ×%d" % banishes
+	passive_banish.disabled = true
+	passive_banish.add_theme_font_size_override("font_size", 16)
+	_style_button(passive_banish)
+	passive_banish.pressed.connect(_banish_selected)
+	passive_panel.add_child(passive_banish)
 	passive_confirm = Button.new()
-	passive_confirm.position = Vector2(250, 432)
-	passive_confirm.size = Vector2(220, 44)
+	passive_confirm.position = Vector2(360, 452)
+	passive_confirm.size = Vector2(210, 44)
 	passive_confirm.text = "先选择一张卡"
 	passive_confirm.disabled = true
 	passive_confirm.add_theme_font_size_override("font_size", 17)
@@ -348,6 +365,19 @@ func _select_passive(key: String) -> void:
 	if passive_confirm != null:
 		passive_confirm.disabled = false
 		passive_confirm.text = "确认选择"
+	if passive_banish != null:
+		passive_banish.disabled = passive_banishes_remaining() <= 0
+
+func passive_banishes_remaining() -> int:
+	return passive_banish_count
+
+func _banish_selected() -> void:
+	if passive_selected == "":
+		return
+	var key := passive_selected
+	passive_selected = ""
+	if game != null:
+		game.banish_passive_choice(key)
 
 func _confirm_passive() -> void:
 	if passive_selected == "":
@@ -392,8 +422,11 @@ func _build_palette() -> void:
 		index += 1
 
 func _update_build_strip() -> void:
+	build_strip.text = _build_summary_text(true)
+
+func _build_summary_text(include_near: bool) -> String:
 	if game == null or game.hero == null:
-		return
+		return ""
 	var counts := {}
 	for key in game.hero.passives:
 		if not ArenaUpgrades.DEFS.has(key):
@@ -413,6 +446,8 @@ func _update_build_strip() -> void:
 		if game.hero.passives.has(key):
 			synergies.append(String(data.name))
 			continue
+		if not include_near:
+			continue
 		var requirements: Array = data.get("requires", [])
 		var owned := 0
 		for req in requirements:
@@ -420,12 +455,12 @@ func _update_build_strip() -> void:
 				owned += 1
 		if owned == requirements.size() - 1 and requirements.size() > 1:
 			near.append("%s %d/%d" % [data.name, owned, requirements.size()])
-	var line := "Build  " + (" · ".join(PackedStringArray(parts)) if parts.size() > 0 else "尚无")
+	var line := "已有  " + (" · ".join(PackedStringArray(parts)) if parts.size() > 0 else "尚无")
 	if synergies.size() > 0:
 		line += "    协同：" + "、".join(PackedStringArray(synergies))
-	if near.size() > 0:
+	if include_near and near.size() > 0:
 		line += "\n接近协同：" + " · ".join(PackedStringArray(near.slice(0, 2)))
-	build_strip.text = line
+	return line
 
 func _update_build_menu() -> void:
 	if not game.build_mode or game.build_cell.x < 0:
