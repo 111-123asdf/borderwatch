@@ -387,6 +387,10 @@ func _trigger_weapon_capstone(direction: Vector2, base_damage: float, color: Col
 		for index in range(6):
 			var angle := TAU * float(index) / 6.0
 			game.spawn_projectile(center(), center() + Vector2.RIGHT.rotated(angle) * 800.0, base_damage * 0.55, color, splash_bonus, slow_bonus, 850.0, 0, execute_bonus, burn_dps, false, 0.35, passives.has("shatter"), 0.0, "hero")
+	if passives.has("bullet_hell") and shots_fired % 6 == 0:
+		for index in range(8):
+			var angle := TAU * float(index) / 8.0
+			game.spawn_projectile(center(), center() + Vector2.RIGHT.rotated(angle) * 800.0, base_damage * 0.45, color, splash_bonus, slow_bonus, 900.0, 1, execute_bonus, burn_dps, false, 0.35, passives.has("shatter"), 0.0, "hero")
 
 func _trigger_on_hit(target: ArenaEnemy, base_damage: float) -> void:
 	if passives.has("chain"):
@@ -430,8 +434,8 @@ func take_damage(amount: float) -> void:
 	var shield_loss := minf(shield, amount)
 	shield -= shield_loss
 	health -= amount - shield_loss
-	shield_regen_delay = 3.0
-	invulnerability = 0.35
+	shield_regen_delay = 4.5
+	invulnerability = 0.22
 	hurt_flash = 0.12
 	if game.audio != null:
 		game.audio.play("hurt", -7.0)

@@ -64,6 +64,8 @@ func element_multiplier(element: String) -> float:
 	return multiplier
 
 func apply_burn(dps: float, duration: float, source := "other") -> void:
+	if game.hero != null and game.hero.passives.has("combustion"):
+		dps *= 1.5
 	burn_dps = maxf(burn_dps, dps * element_multiplier("fire"))
 	burn_time = maxf(burn_time, duration)
 	burn_tick = minf(burn_tick, 0.5)
@@ -300,10 +302,10 @@ func _physics_process(delta: float) -> void:
 		return
 	if game.hero != null and game.hero.position.distance_to(position) < 34.0 and attack_cooldown <= 0.0:
 		attack_cooldown = 1.0
-		var contact := 10.0
-		if kind == "boss": contact = 22.0
-		elif kind == "brute": contact = 18.0
-		elif kind == "charger": contact = 12.0
+		var contact := 14.0
+		if kind == "boss": contact = 28.0
+		elif kind == "brute": contact = 22.0
+		elif kind == "charger": contact = 16.0
 		game.hero.take_damage(contact)
 	queue_redraw()
 

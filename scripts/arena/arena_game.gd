@@ -546,6 +546,8 @@ func tower_damage_scale() -> float:
 func tower_attack_speed_scale(kind := "", tower_position := Vector2.ZERO) -> float:
 	if hero == null: return 1.0
 	var scale := 1.0 + tower_global_speed_bonus()
+	if hero.passives.has("tower_legion"):
+		scale += 0.10
 	if kind == "bolt":
 		scale += 0.10 * int(hero.passives.get("tower_bolt", 0))
 	if hero.passives.has("tower_command") and tower_position.distance_to(hero.position) <= 240.0:
@@ -599,6 +601,8 @@ func tower_support_bonus(tower: ArenaTower) -> float:
 func tower_conditional_damage(tower: ArenaTower) -> float:
 	if hero == null or tower == null: return 1.0
 	var scale := 1.0 + tower_support_bonus(tower) + tower_global_damage_bonus()
+	if hero.passives.has("tower_legion"):
+		scale += 0.15
 	var adjacent := 0
 	for other in towers:
 		if other == tower or not is_instance_valid(other): continue

@@ -326,7 +326,8 @@ func _run() -> void:
 	fire_target.queue_free()
 	var build_check: Dictionary = game.build_report()
 	check(build_check.has("grade") and build_check.has("boss_affinity") and build_check.has("warnings"), "Boss build report has grade, affinity and warnings")
-	check(ArenaUpgrades.DEFS.size() >= 87, "Expanded card pool is available")
+	check(ArenaUpgrades.DEFS.size() >= 92, "Expanded card pool is available")
+	check(ArenaUpgrades.DEFS.has("bullet_hell") and ArenaUpgrades.DEFS.has("tower_legion") and ArenaUpgrades.DEFS.has("combustion"), "Ballistic, tower and fire capstones are registered")
 	game.hero.passives["burn"] = 2
 	check(ArenaUpgrades.archetype_stacks(game.hero, "fire") >= 2 and ArenaUpgrades.archetype_tier(game.hero, "fire") >= 1, "Fire archetype reaches branch tier")
 	game.hero.passives.erase("burn")

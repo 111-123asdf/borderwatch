@@ -25,9 +25,10 @@ const STAGE_WEIGHTS := [
 	{"common": 18.0, "rare": 38.0, "epic": 30.0, "synergy": 58.0},
 ]
 const ARCHETYPES := {
-	"fire": {"name": "火焰", "keys": ["burn", "wildfire", "thermal_shock", "pyroclasm", "inferno"], "branch": ["wildfire", "thermal_shock"], "capstone": "inferno"},
+	"fire": {"name": "火焰", "keys": ["burn", "wildfire", "thermal_shock", "pyroclasm", "inferno", "combustion"], "branch": ["wildfire", "combustion"], "capstone": "inferno"},
 	"frost": {"name": "冰霜", "keys": ["frost", "nova", "permafrost", "deepfreeze", "shatter", "absolute_zero"], "branch": ["permafrost", "deepfreeze"], "capstone": "absolute_zero"},
 	"lightning": {"name": "雷电", "keys": ["chain", "storm", "conductive", "stormfire", "thunder_god"], "branch": ["storm", "conductive"], "capstone": "thunder_god"},
+	"ballistic": {"name": "弹道", "keys": ["multishot", "pierce", "crit", "bullet_hell"], "branch": [], "capstone": "bullet_hell"},
 }
 
 const DEFS := {
@@ -114,6 +115,9 @@ const DEFS := {
 	"permafrost": {"name": "永冻", "desc": "霜环范围与减速大幅提高", "rarity": "synergy", "tags": ["协同", "元素"], "max": 1, "requires": ["nova", "frost"], "pool": "both"},
 	"thermal_shock": {"name": "热震", "desc": "同时燃烧且减速的敌人被命中时爆炸", "rarity": "synergy", "tags": ["协同", "元素"], "max": 1, "requires": ["burn", "frost"], "pool": "both"},
 	"inferno": {"name": "焚城", "desc": "燃烧敌人死亡时爆炸并把火传给周围", "rarity": "epic", "tags": ["元素", "弹道"], "max": 1, "requires": ["burn", "wildfire"], "pool": "both"},
+	"combustion": {"name": "爆燃", "desc": "燃烧伤害 +50%", "rarity": "rare", "tags": ["元素"], "max": 1, "requires": ["burn"], "pool": "both"},
+	"bullet_hell": {"name": "弹幕地狱", "desc": "每第 6 发追加一圈 8 发弹幕", "rarity": "epic", "tags": ["弹道"], "max": 1, "requires": ["multishot", "pierce"], "pool": "both"},
+	"tower_legion": {"name": "塔群协议", "desc": "所有塔伤害 +15%，攻速 +10%", "rarity": "epic", "tags": ["塔防"], "max": 1, "requires": ["tower_network", "tower_commander"], "pool": "both"},
 	"wildfire": {"name": "野火", "desc": "燃烧敌人死亡时把火传给附近敌人", "rarity": "rare", "tags": ["元素"], "max": 1, "requires": ["burn"], "pool": "both"},
 	"deepfreeze": {"name": "深寒", "desc": "霜附叠加 2 层即冻结，冻结延长 0.5 秒", "rarity": "rare", "tags": ["元素"], "max": 1, "requires": ["frost"], "pool": "both"},
 	"conductive": {"name": "导电", "desc": "连锁/雷暴命中燃烧或减速目标时伤害 +40%", "rarity": "epic", "tags": ["元素"], "max": 1, "requires": ["chain", "storm"], "pool": "both"},
@@ -234,6 +238,7 @@ static func eligible_branches(hero, pool: Array[String] = []) -> Array[String]:
 	var branches: Array[String] = []
 	for tag in ARCHETYPES:
 		if archetype_stacks(hero, String(tag)) < 2: continue
+		if ARCHETYPES[tag].branch.is_empty(): continue
 		var owned := false
 		for branch in ARCHETYPES[tag].branch:
 			if hero.passives.has(String(branch)): owned = true
@@ -276,6 +281,7 @@ static func roll(hero, source: String, count: int, rng: RandomNumberGenerator, g
 		var branch_candidates := eligible_branches(hero, pool)
 		for tag in ARCHETYPES:
 			if archetype_stacks(hero, String(tag)) < 2: continue
+			if ARCHETYPES[tag].branch.is_empty(): continue
 			var owned := false
 			for branch in ARCHETYPES[tag].branch:
 				if hero.passives.has(String(branch)): owned = true
@@ -304,6 +310,7 @@ static func roll(hero, source: String, count: int, rng: RandomNumberGenerator, g
 		pool.erase(chosen)
 	for tag in ARCHETYPES:
 		if archetype_stacks(hero, String(tag)) < 2: continue
+		if ARCHETYPES[tag].branch.is_empty(): continue
 		var branch_owned := false
 		for branch in ARCHETYPES[tag].branch:
 			if hero.passives.has(String(branch)): branch_owned = true

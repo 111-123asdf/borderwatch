@@ -120,7 +120,7 @@ radius = SPAWN_RADIUS + 高斯(0, sigma_radius)
 
 ## 验证
 
-- `tools/verify_arena.ps1`：88 项检查
+- `tools/verify_arena.ps1`：89 项检查
 - 20 塔 + 120 怪压力探针：300 帧平均 **6.0ms/帧**（headless，参考值）
 - 4 塔 + 英雄不输出：**可胜但很不稳定**（两次分别 6 / 12 次漏怪，核心 616 / 490）
 - 5 塔：胜，核心 700，0 漏怪
