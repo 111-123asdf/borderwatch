@@ -282,7 +282,8 @@ func _physics_process(delta: float) -> void:
 			var shot_damage := 9.0 if kind == "shooter" else (14.0 if kind == "boss" else 10.0)
 			var count := 3 if kind == "shooter" else (5 if kind == "boss" else 3)
 			if elite: count += 1
-			game.enemy_shot_arc(position + Vector2(0, -24), game.hero.center(), shot_damage, 230.0 if kind != "bomber" else 190.0, count, 0.28)
+			var lead_target: Vector2 = game.hero.center() + game.hero.velocity * 0.18
+			game.enemy_shot_arc(position + Vector2(0, -24), lead_target, shot_damage, 230.0 if kind != "bomber" else 190.0, count, 0.28)
 	if kind == "boss":
 		if core_distance < 300.0 and boss_core_cooldown <= 0.0:
 			boss_core_cooldown = 1.0
