@@ -34,6 +34,7 @@ var slow_time := 0.0
 var attack_cooldown := 0.0
 var ranged_cooldown := 0.0
 var boss_core_cooldown := 0.0
+var boss_burst_cooldown := 1.5
 var visual: ActorVisual
 var hit_flash := 0.0
 var knockback := Vector2.ZERO
@@ -206,6 +207,7 @@ func _physics_process(delta: float) -> void:
 	attack_cooldown = maxf(0.0, attack_cooldown - delta)
 	ranged_cooldown = maxf(0.0, ranged_cooldown - delta)
 	boss_core_cooldown = maxf(0.0, boss_core_cooldown - delta)
+	boss_burst_cooldown = maxf(0.0, boss_burst_cooldown - delta)
 	support_cooldown = maxf(0.0, support_cooldown - delta)
 	if attack_windup > 0.0:
 		attack_windup = maxf(0.0, attack_windup - delta)
@@ -263,6 +265,9 @@ func _physics_process(delta: float) -> void:
 			boss_phase = 2
 			game.boss_summon(position)
 			game.boss_phase_shift(position, boss_phase)
+		if boss_burst_cooldown <= 0.0 and game.hero != null and position.distance_to(game.hero.position) < 650.0:
+			boss_burst_cooldown = 3.6
+			game.enemy_shot_radial(position + Vector2(0, -24), 9.0, 180.0, 12)
 	var direction: Vector2 = game.flow_at(position)
 	if kind in ["charger", "hound"] and game.hero != null and position.distance_to(game.hero.position) < 500.0:
 		direction = (game.hero.position - position).normalized()

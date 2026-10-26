@@ -177,6 +177,15 @@ func apply_passive(key: String) -> void:
 		"predator":
 			predator_bonus += 0.25
 			damage_mult += 0.05
+		"knight_champion":
+			shield_damage_bonus += 0.20
+			damage_reduction = minf(0.6, damage_reduction + 0.05)
+		"ranger_phantom":
+			dash_cd_mult = maxf(0.4, dash_cd_mult * 0.80)
+			dash_trail = true
+		"mage_archon":
+			barrier_damage_bonus += 0.20
+			barrier_duration_bonus += 0.5
 		"pierce": pierce_bonus += 1
 		"blast": splash_bonus += 30.0
 		"frost": slow_bonus += 1.0

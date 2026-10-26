@@ -401,6 +401,9 @@ func show_passive_choice(choices: Array[String], source: String, rerolls: int, b
 		var preview_text: String = String(data.get("preview", ""))
 		if preview_text != "":
 			button.text += "\n预览：" + preview_text
+		var active_text: String = String(data.get("active_text", ""))
+		if active_text != "":
+			button.text += "\n状态：" + active_text
 		button.add_theme_font_size_override("font_size", 15)
 		button.add_theme_color_override("font_color", data.get("rarity_color", CREAM))
 		_style_button(button)

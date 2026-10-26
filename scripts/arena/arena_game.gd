@@ -655,7 +655,28 @@ func passive_info(key: String) -> Dictionary:
 			info["archetype_name"] = ArenaUpgrades.ARCHETYPES[tag].name
 			info["archetype_tier"] = ArenaUpgrades.archetype_tier(hero, String(tag))
 			break
+	var active_text := card_active_text(key)
+	if active_text != "":
+		info = info.duplicate()
+		info["active_text"] = active_text
 	return info
+
+func card_active_text(key: String) -> String:
+	if hero == null: return ""
+	match key:
+		"last_stand":
+			return "当前已触发" if hero.health < hero.max_health * 0.4 else "当前未触发"
+		"tower_arsenal":
+			return "当前 %d 种塔" % distinct_tower_kinds()
+		"predator":
+			for enemy in enemies:
+				if is_instance_valid(enemy) and (enemy.elite or enemy.kind == "boss"): return "当前有精英/Boss"
+			return "当前无精英/Boss"
+		"knight_champion":
+			return "当前护盾 %d" % int(hero.shield)
+		"mage_archon":
+			return "当前结界 %.1fs" % hero.barrier_time
+	return ""
 
 func tower_card_preview(key: String) -> String:
 	if hero == null or not key.begins_with("tower_"): return ""
@@ -1094,6 +1115,8 @@ func enemy_died(enemy: ArenaEnemy) -> void:
 			for other in enemies.duplicate():
 				if is_instance_valid(other) and not other.dead and other != enemy and other.position.distance_to(enemy.position) < 150.0:
 					other.apply_burn(hero.burn_dps * 0.8, 3.0, "hero")
+		if hero.passives.has("firestorm") and enemy.burn_time > 0.0:
+			damage_radius(enemy.position, 155.0, 70.0, "hero")
 		if hero.passives.has("wildfire") and enemy.burn_time > 0.0:
 			for other in enemies.duplicate():
 				if is_instance_valid(other) and not other.dead and other != enemy and other.position.distance_to(enemy.position) < 120.0:
@@ -1283,6 +1306,11 @@ func enemy_shot_arc(origin: Vector2, target: Vector2, damage: float, speed: floa
 		var t := 0.0 if count <= 1 else float(index) / float(count - 1)
 		var angle := lerpf(-spread, spread, t)
 		enemy_shot(origin, origin + direction.rotated(angle) * 800.0, damage, speed)
+
+func enemy_shot_radial(origin: Vector2, damage: float, speed: float, count: int) -> void:
+	for index in range(count):
+		var angle := TAU * float(index) / float(count)
+		enemy_shot(origin, origin + Vector2.RIGHT.rotated(angle) * 800.0, damage, speed)
 
 func enemy_shot(origin: Vector2, target: Vector2, damage: float, speed := 190.0) -> ArenaProjectile:
 	var projectile := ArenaProjectile.new()
