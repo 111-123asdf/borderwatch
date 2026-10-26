@@ -42,6 +42,7 @@ func _run() -> void:
 	var level_pool := ArenaUpgrades.build_pool(game.hero, "level")
 	check("pistol_akimbo" in level_pool and not ("bow_hunter" in level_pool), "Weapon-specific upgrades filter by weapon")
 	check("knight_bulwark" in level_pool and not ("ranger_tempo" in level_pool), "Class-specific upgrades filter by hero")
+	check(not ("tower_link" in level_pool), "Tower-only cards are not offered before any tower is built")
 	check(ArenaUpgrades.weight_for("power", game.hero, 1) > ArenaUpgrades.weight_for("storm", game.hero, 1), "Early pool favors common cards")
 	check(ArenaUpgrades.weight_for("storm", game.hero, 6) > ArenaUpgrades.weight_for("power", game.hero, 6), "Late pool favors epic cards")
 	check(game.level_cycles == 8, "First level is configured for eight cycles")
@@ -325,7 +326,10 @@ func _run() -> void:
 	fire_target.queue_free()
 	var build_check: Dictionary = game.build_report()
 	check(build_check.has("grade") and build_check.has("boss_affinity") and build_check.has("warnings"), "Boss build report has grade, affinity and warnings")
-	check(ArenaUpgrades.DEFS.size() >= 86, "Expanded card pool is available")
+	check(ArenaUpgrades.DEFS.size() >= 87, "Expanded card pool is available")
+	game.hero.passives["burn"] = 2
+	check(ArenaUpgrades.archetype_stacks(game.hero, "fire") >= 2 and ArenaUpgrades.archetype_tier(game.hero, "fire") >= 1, "Fire archetype reaches branch tier")
+	game.hero.passives.erase("burn")
 	var greed_before: float = game.hero.gold_mult
 	game.hero.apply_passive("greed")
 	check(game.hero.gold_mult > greed_before, "Greed card increases gold gain")

@@ -24,6 +24,11 @@ const STAGE_WEIGHTS := [
 	{"common": 48.0, "rare": 38.0, "epic": 10.0, "synergy": 28.0},
 	{"common": 18.0, "rare": 38.0, "epic": 30.0, "synergy": 58.0},
 ]
+const ARCHETYPES := {
+	"fire": {"name": "火焰", "keys": ["burn", "wildfire", "thermal_shock", "pyroclasm", "inferno"], "branch": ["wildfire", "thermal_shock"], "capstone": "inferno"},
+	"frost": {"name": "冰霜", "keys": ["frost", "nova", "permafrost", "deepfreeze", "shatter"], "branch": ["permafrost", "deepfreeze"], "capstone": ""},
+	"lightning": {"name": "雷电", "keys": ["chain", "storm", "conductive", "stormfire"], "branch": ["storm", "conductive"], "capstone": ""},
+}
 
 const DEFS := {
 	"power": {"name": "过载", "desc": "武器伤害 +12%", "rarity": "common", "tags": ["弹道"], "max": 5, "pool": "both"},
@@ -31,9 +36,9 @@ const DEFS := {
 	"crit": {"name": "致命", "desc": "暴击率 +12%", "rarity": "rare", "tags": ["弹道"], "max": 3, "pool": "both"},
 	"berserk": {"name": "狂战", "desc": "伤害 +15%，受到伤害 +8%", "rarity": "rare", "tags": ["弹道", "生存"], "max": 2, "pool": "both"},
 	"glass_cannon": {"name": "玻璃大炮", "desc": "伤害 +30%，最大生命 -20", "rarity": "epic", "tags": ["弹道"], "max": 1, "pool": "both"},
-	"last_stand": {"name": "背水一战", "desc": "生命低于 40% 时伤害 +30%", "rarity": "rare", "tags": ["生存", "弹道"], "max": 2, "pool": "both"},
+	"last_stand": {"name": "背水一战", "desc": "伤害 +5%，生命低于 40% 时再 +30%", "rarity": "rare", "tags": ["生存", "弹道"], "max": 2, "pool": "both"},
 	"tower_arsenal": {"name": "塔武合一", "desc": "每种不同塔使英雄伤害 +6%", "rarity": "rare", "tags": ["塔防", "弹道"], "max": 2, "pool": "both"},
-	"predator": {"name": "猎杀本能", "desc": "对精英和 Boss 伤害 +25%", "rarity": "rare", "tags": ["弹道"], "max": 2, "pool": "both"},
+	"predator": {"name": "猎杀本能", "desc": "伤害 +5%，对精英和 Boss 再 +25%", "rarity": "rare", "tags": ["弹道"], "max": 2, "pool": "both"},
 	"pierce": {"name": "穿透", "desc": "弹道额外穿透 +1", "rarity": "common", "tags": ["弹道"], "max": 4, "pool": "both"},
 	"blast": {"name": "爆裂", "desc": "命中附加 25 范围伤害", "rarity": "rare", "tags": ["弹道"], "max": 3, "pool": "both"},
 	"multishot": {"name": "分裂", "desc": "额外弹道 +1", "rarity": "rare", "tags": ["弹道"], "max": 3, "pool": "both"},
@@ -108,6 +113,7 @@ const DEFS := {
 	"chainfrost": {"name": "霜链", "desc": "连锁命中附加霜冻", "rarity": "synergy", "tags": ["协同", "元素"], "max": 1, "requires": ["chain", "frost"], "pool": "both"},
 	"permafrost": {"name": "永冻", "desc": "霜环范围与减速大幅提高", "rarity": "synergy", "tags": ["协同", "元素"], "max": 1, "requires": ["nova", "frost"], "pool": "both"},
 	"thermal_shock": {"name": "热震", "desc": "同时燃烧且减速的敌人被命中时爆炸", "rarity": "synergy", "tags": ["协同", "元素"], "max": 1, "requires": ["burn", "frost"], "pool": "both"},
+	"inferno": {"name": "焚城", "desc": "燃烧敌人死亡时爆炸并把火传给周围", "rarity": "epic", "tags": ["元素", "弹道"], "max": 1, "requires": ["burn", "wildfire"], "pool": "both"},
 	"wildfire": {"name": "野火", "desc": "燃烧敌人死亡时把火传给附近敌人", "rarity": "rare", "tags": ["元素"], "max": 1, "requires": ["burn"], "pool": "both"},
 	"deepfreeze": {"name": "深寒", "desc": "霜附叠加 2 层即冻结，冻结延长 0.5 秒", "rarity": "rare", "tags": ["元素"], "max": 1, "requires": ["frost"], "pool": "both"},
 	"conductive": {"name": "导电", "desc": "连锁/雷暴命中燃烧或减速目标时伤害 +40%", "rarity": "epic", "tags": ["元素"], "max": 1, "requires": ["chain", "storm"], "pool": "both"},
@@ -136,6 +142,19 @@ static func info(key: String, stacks := 0) -> Dictionary:
 static func is_synergy(key: String) -> bool:
 	return DEFS.has(key) and String(DEFS[key].rarity) == "synergy"
 
+static func has_towers(hero) -> bool:
+	if hero == null: return false
+	var game = hero.get("game")
+	if game == null: return false
+	return game.towers != null and game.towers.size() > 0
+
+static func card_available(key: String, hero) -> bool:
+	if not DEFS.has(key): return false
+	var data: Dictionary = DEFS[key]
+	if "塔防" in data.tags and not has_towers(hero):
+		return false
+	return true
+
 static func build_pool(hero, source: String, banished: Array[String] = []) -> Array[String]:
 	var pool: Array[String] = []
 	for key in DEFS:
@@ -143,6 +162,7 @@ static func build_pool(hero, source: String, banished: Array[String] = []) -> Ar
 		var data: Dictionary = DEFS[key]
 		var stacks := int(hero.passives.get(key, 0))
 		if stacks >= int(data.max): continue
+		if not card_available(String(key), hero): continue
 		if data.has("weapon") and not hero.has_weapon_equipped(String(data.weapon)): continue
 		if data.has("hero_class") and not hero.has_class_tag(String(data.hero_class)): continue
 		if source == "camp" and String(data.rarity) == "common": continue
@@ -192,6 +212,20 @@ static func weight_for(key: String, hero, cycle := 1) -> float:
 		weight *= 1.3
 	return weight
 
+static func archetype_stacks(hero, tag: String) -> int:
+	if not ARCHETYPES.has(tag): return 0
+	var count := 0
+	for key in ARCHETYPES[tag].keys:
+		count += int(hero.passives.get(String(key), 0))
+	return count
+
+static func archetype_tier(hero, tag: String) -> int:
+	var count := archetype_stacks(hero, tag)
+	if count >= 5: return 3
+	if count >= 3: return 2
+	if count >= 2: return 1
+	return 0
+
 static func roll(hero, source: String, count: int, rng: RandomNumberGenerator, guarantee_weapon := false, guarantee_element := false, banished: Array[String] = [], cycle := 1) -> Array[String]:
 	var pool := build_pool(hero, source, banished)
 	var picked: Array[String] = []
@@ -213,6 +247,28 @@ static func roll(hero, source: String, count: int, rng: RandomNumberGenerator, g
 			var element_pick: String = element_candidates[rng.randi_range(0, element_candidates.size() - 1)]
 			picked.append(element_pick)
 			pool.erase(element_pick)
+	if picked.size() < count:
+		for tag in ARCHETYPES:
+			if archetype_stacks(hero, String(tag)) < 2: continue
+			var branch_owned := false
+			for branch in ARCHETYPES[tag].branch:
+				if hero.passives.has(String(branch)): branch_owned = true
+			if branch_owned: continue
+			for branch in ARCHETYPES[tag].branch:
+				var branch_key := String(branch)
+				if not pool.has(branch_key): continue
+				picked.append(branch_key)
+				pool.erase(branch_key)
+				break
+			if picked.size() >= count: break
+	if picked.size() < count:
+		for tag in ARCHETYPES:
+			if archetype_tier(hero, String(tag)) < 2: continue
+			var capstone := String(ARCHETYPES[tag].get("capstone", ""))
+			if capstone == "" or hero.passives.has(capstone) or not pool.has(capstone): continue
+			picked.append(capstone)
+			pool.erase(capstone)
+			break
 	while picked.size() < count and pool.size() > 0:
 		var total := 0.0
 		for key in pool:

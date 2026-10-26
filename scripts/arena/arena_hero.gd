@@ -93,7 +93,7 @@ func configure(key: String) -> void:
 	health = max_health
 	max_shield = float(data.shield)
 	shield = max_shield
-	shield_regen = float(data.regen)
+	shield_regen = float(data.regen) * 0.55
 	shield_regen_delay = 0.0
 	speed = float(data.speed) * 1.20
 	if key == "ranger":
@@ -168,10 +168,14 @@ func apply_passive(key: String) -> void:
 			damage_mult += 0.30
 			max_health = maxf(60.0, max_health - 20.0)
 			health = minf(health, max_health)
-		"last_stand": last_stand_bonus += 0.15
+		"last_stand":
+			last_stand_bonus += 0.15
+			damage_mult += 0.05
 		"greed": gold_mult += 0.25
 		"tower_arsenal": tower_arsenal_bonus += 0.06
-		"predator": predator_bonus += 0.25
+		"predator":
+			predator_bonus += 0.25
+			damage_mult += 0.05
 		"pierce": pierce_bonus += 1
 		"blast": splash_bonus += 30.0
 		"frost": slow_bonus += 1.0

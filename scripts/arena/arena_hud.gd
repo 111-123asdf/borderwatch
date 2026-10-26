@@ -392,6 +392,8 @@ func show_passive_choice(choices: Array[String], source: String, rerolls: int, b
 		var title_text: String = String(data.name)
 		if String(data.get("rarity", "")) == "synergy":
 			title_text = "★ " + title_text
+		if data.has("archetype_name"):
+			title_text += "  [%s %d]" % [String(data.archetype_name), int(data.get("archetype_tier", 0))]
 		button.text = "%s · %s   [%s]   %s\n%s" % [title_text, tags_text, rarity_text, stack_text, data.desc]
 		var requires_text: String = String(data.get("requires_text", ""))
 		if requires_text != "":
