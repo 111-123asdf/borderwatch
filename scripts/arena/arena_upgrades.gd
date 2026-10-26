@@ -25,7 +25,7 @@ const STAGE_WEIGHTS := [
 	{"common": 18.0, "rare": 38.0, "epic": 30.0, "synergy": 58.0},
 ]
 const ARCHETYPES := {
-	"fire": {"name": "火焰", "keys": ["burn", "wildfire", "thermal_shock", "pyroclasm", "inferno", "combustion"], "branch": ["wildfire", "combustion"], "capstone": "inferno"},
+	"fire": {"name": "火焰", "keys": ["burn", "wildfire", "thermal_shock", "pyroclasm", "inferno", "combustion", "firestorm"], "branch": ["wildfire", "combustion"], "capstone": "inferno"},
 	"frost": {"name": "冰霜", "keys": ["frost", "nova", "permafrost", "deepfreeze", "shatter", "absolute_zero"], "branch": ["permafrost", "deepfreeze"], "capstone": "absolute_zero"},
 	"lightning": {"name": "雷电", "keys": ["chain", "storm", "conductive", "stormfire", "thunder_god"], "branch": ["storm", "conductive"], "capstone": "thunder_god"},
 	"ballistic": {"name": "弹道", "keys": ["multishot", "pierce", "crit", "bullet_hell"], "branch": [], "capstone": "bullet_hell"},
