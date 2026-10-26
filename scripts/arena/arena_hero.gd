@@ -72,6 +72,7 @@ var weapon_tier_speed := 0.0
 var last_stand_bonus := 0.0
 var tower_arsenal_bonus := 0.0
 var predator_bonus := 0.0
+var branch_pity := {}
 
 func _ready() -> void:
 	collision_layer = 2

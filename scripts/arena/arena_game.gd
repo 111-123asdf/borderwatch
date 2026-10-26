@@ -1358,6 +1358,9 @@ func storm_strike(target: ArenaEnemy, damage: float, source := "hero") -> void:
 	if hero != null and hero.passives.has("conductive") and (target.burn_time > 0.0 or target.slow_time > 0.0 or target.freeze_time > 0.0):
 		lightning_damage *= 1.4
 	target.take_damage(lightning_damage * target.element_multiplier("lightning"), source)
+	if hero != null and hero.passives.has("thunder_god"):
+		target.take_damage(lightning_damage * 0.55 * target.element_multiplier("lightning"), source)
+		target.freeze_time = maxf(target.freeze_time, 0.55)
 	shake(4.0)
 
 func hit_feedback(point: Vector2, amount: float, critical := false, direction := Vector2.ZERO, enemy: ArenaEnemy = null, kill := false) -> void:

@@ -26,8 +26,8 @@ const STAGE_WEIGHTS := [
 ]
 const ARCHETYPES := {
 	"fire": {"name": "火焰", "keys": ["burn", "wildfire", "thermal_shock", "pyroclasm", "inferno"], "branch": ["wildfire", "thermal_shock"], "capstone": "inferno"},
-	"frost": {"name": "冰霜", "keys": ["frost", "nova", "permafrost", "deepfreeze", "shatter"], "branch": ["permafrost", "deepfreeze"], "capstone": ""},
-	"lightning": {"name": "雷电", "keys": ["chain", "storm", "conductive", "stormfire"], "branch": ["storm", "conductive"], "capstone": ""},
+	"frost": {"name": "冰霜", "keys": ["frost", "nova", "permafrost", "deepfreeze", "shatter", "absolute_zero"], "branch": ["permafrost", "deepfreeze"], "capstone": "absolute_zero"},
+	"lightning": {"name": "雷电", "keys": ["chain", "storm", "conductive", "stormfire", "thunder_god"], "branch": ["storm", "conductive"], "capstone": "thunder_god"},
 }
 
 const DEFS := {
@@ -117,6 +117,8 @@ const DEFS := {
 	"wildfire": {"name": "野火", "desc": "燃烧敌人死亡时把火传给附近敌人", "rarity": "rare", "tags": ["元素"], "max": 1, "requires": ["burn"], "pool": "both"},
 	"deepfreeze": {"name": "深寒", "desc": "霜附叠加 2 层即冻结，冻结延长 0.5 秒", "rarity": "rare", "tags": ["元素"], "max": 1, "requires": ["frost"], "pool": "both"},
 	"conductive": {"name": "导电", "desc": "连锁/雷暴命中燃烧或减速目标时伤害 +40%", "rarity": "epic", "tags": ["元素"], "max": 1, "requires": ["chain", "storm"], "pool": "both"},
+	"absolute_zero": {"name": "绝对零度", "desc": "冻结目标受到的伤害 +30%，冻结延长 0.5 秒", "rarity": "epic", "tags": ["元素"], "max": 1, "requires": ["frost", "deepfreeze"], "pool": "both"},
+	"thunder_god": {"name": "雷神", "desc": "雷暴命中时追加一次雷击并短暂眩晕", "rarity": "epic", "tags": ["元素"], "max": 1, "requires": ["storm", "conductive"], "pool": "both"},
 	"juggernaut": {"name": "不动如山", "desc": "受到的伤害 -20%", "rarity": "synergy", "tags": ["协同", "生存"], "max": 1, "requires": ["vitality", "aegis"], "pool": "both"},
 }
 
@@ -210,6 +212,8 @@ static func weight_for(key: String, hero, cycle := 1) -> float:
 		weight *= 1.6
 	if DEFS[key].has("weapon") and hero.has_weapon_equipped(String(DEFS[key].weapon)):
 		weight *= 1.3
+	if key in eligible_branches(hero):
+		weight *= 3.0
 	return weight
 
 static func archetype_stacks(hero, tag: String) -> int:
@@ -225,6 +229,27 @@ static func archetype_tier(hero, tag: String) -> int:
 	if count >= 3: return 2
 	if count >= 2: return 1
 	return 0
+
+static func eligible_branches(hero, pool: Array[String] = []) -> Array[String]:
+	var branches: Array[String] = []
+	for tag in ARCHETYPES:
+		if archetype_stacks(hero, String(tag)) < 2: continue
+		var owned := false
+		for branch in ARCHETYPES[tag].branch:
+			if hero.passives.has(String(branch)): owned = true
+		if owned: continue
+		for branch in ARCHETYPES[tag].branch:
+			var branch_key := String(branch)
+			if pool.size() > 0 and not pool.has(branch_key): continue
+			if not DEFS.has(branch_key) or not card_available(branch_key, hero): continue
+			var requirements_met := true
+			for req in DEFS[branch_key].get("requires", []):
+				if not hero.passives.has(String(req)):
+					requirements_met = false
+					break
+			if requirements_met:
+				branches.append(branch_key)
+	return branches
 
 static func roll(hero, source: String, count: int, rng: RandomNumberGenerator, guarantee_weapon := false, guarantee_element := false, banished: Array[String] = [], cycle := 1) -> Array[String]:
 	var pool := build_pool(hero, source, banished)
@@ -248,27 +273,21 @@ static func roll(hero, source: String, count: int, rng: RandomNumberGenerator, g
 			picked.append(element_pick)
 			pool.erase(element_pick)
 	if picked.size() < count:
+		var branch_candidates := eligible_branches(hero, pool)
 		for tag in ARCHETYPES:
 			if archetype_stacks(hero, String(tag)) < 2: continue
-			var branch_owned := false
+			var owned := false
 			for branch in ARCHETYPES[tag].branch:
-				if hero.passives.has(String(branch)): branch_owned = true
-			if branch_owned: continue
-			for branch in ARCHETYPES[tag].branch:
-				var branch_key := String(branch)
+				if hero.passives.has(String(branch)): owned = true
+			if owned: continue
+			if int(hero.branch_pity.get(String(tag), 0)) < 2: continue
+			for branch_key in branch_candidates:
 				if not pool.has(branch_key): continue
 				picked.append(branch_key)
 				pool.erase(branch_key)
+				hero.branch_pity[String(tag)] = 0
 				break
 			if picked.size() >= count: break
-	if picked.size() < count:
-		for tag in ARCHETYPES:
-			if archetype_tier(hero, String(tag)) < 2: continue
-			var capstone := String(ARCHETYPES[tag].get("capstone", ""))
-			if capstone == "" or hero.passives.has(capstone) or not pool.has(capstone): continue
-			picked.append(capstone)
-			pool.erase(capstone)
-			break
 	while picked.size() < count and pool.size() > 0:
 		var total := 0.0
 		for key in pool:
@@ -283,4 +302,17 @@ static func roll(hero, source: String, count: int, rng: RandomNumberGenerator, g
 		if chosen == "": chosen = pool.back()
 		picked.append(chosen)
 		pool.erase(chosen)
+	for tag in ARCHETYPES:
+		if archetype_stacks(hero, String(tag)) < 2: continue
+		var branch_owned := false
+		for branch in ARCHETYPES[tag].branch:
+			if hero.passives.has(String(branch)): branch_owned = true
+		if branch_owned:
+			hero.branch_pity[String(tag)] = 0
+			continue
+		var offered := false
+		for key in picked:
+			if key in ARCHETYPES[tag].branch: offered = true
+			if offered: break
+		hero.branch_pity[String(tag)] = 0 if offered else int(hero.branch_pity.get(String(tag), 0)) + 1
 	return picked

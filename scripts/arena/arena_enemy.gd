@@ -87,6 +87,7 @@ func apply_frost(duration: float) -> void:
 	if chill_stacks >= threshold:
 		chill_stacks = 0
 		var extra := 0.5 if game.hero != null and game.hero.passives.has("deepfreeze") else 0.0
+		extra += 0.5 if game.hero != null and game.hero.passives.has("absolute_zero") else 0.0
 		freeze_time = maxf(freeze_time, 1.0 + extra)
 
 func _ready() -> void:
@@ -312,6 +313,8 @@ func take_damage(amount: float, source := "other") -> void:
 		amount *= 0.8
 	if kind == "boss" and source == "tower":
 		amount *= 0.65
+	if freeze_time > 0.0 and game.hero != null and game.hero.passives.has("absolute_zero"):
+		amount *= 1.3
 	last_source = source
 	game.record_damage(amount, source)
 	health -= amount
