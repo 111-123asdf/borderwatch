@@ -35,6 +35,9 @@ var attack_cooldown := 0.0
 var ranged_cooldown := 0.0
 var boss_core_cooldown := 0.0
 var boss_burst_cooldown := 1.5
+var sniper_charge := 0.0
+var sniper_direction := Vector2.LEFT
+var spinner_cooldown := 1.0
 var visual: ActorVisual
 var hit_flash := 0.0
 var knockback := Vector2.ZERO
@@ -129,6 +132,24 @@ func _ready() -> void:
 		factor = 0.92
 		speed = 74.0
 		radius = 26.0
+	elif kind == "sniper":
+		family = "archer"
+		color = "Blue"
+		factor = 0.9
+		speed = 58.0
+		radius = 20.0
+	elif kind == "grenadier":
+		family = "barrel"
+		color = "Purple"
+		factor = 0.98
+		speed = 54.0
+		radius = 26.0
+	elif kind == "spinner":
+		family = "barrel"
+		color = "Red"
+		factor = 0.9
+		speed = 66.0
+		radius = 24.0
 	elif kind == "bomber":
 		family = "barrel"
 		color = "Purple"
@@ -267,6 +288,23 @@ func _physics_process(delta: float) -> void:
 	if kind == "shaman" and support_cooldown <= 0.0:
 		support_cooldown = 2.4
 		game.shaman_support(position)
+	if kind == "sniper":
+		if sniper_charge > 0.0:
+			sniper_charge = maxf(0.0, sniper_charge - delta)
+			if sniper_charge <= 0.0:
+				game.enemy_shot(position + Vector2(0, -24), position + Vector2(0, -24) + sniper_direction * 900.0, 18.0, 900.0)
+		elif ranged_cooldown <= 0.0 and game.hero != null and position.distance_to(game.hero.position) < 680.0:
+			sniper_charge = 0.72
+			sniper_direction = (game.hero.center() + game.hero.velocity * 0.14 - position).normalized()
+			ranged_cooldown = 3.0
+	if kind == "grenadier" and game.hero != null and ranged_cooldown <= 0.0 and position.distance_to(game.hero.position) < 520.0:
+		ranged_cooldown = 3.2
+		game.enemy_grenade(game.hero.center(), 96.0, 20.0, 0.9)
+	if kind == "spinner":
+		spinner_cooldown = maxf(0.0, spinner_cooldown - delta)
+		if spinner_cooldown <= 0.0 and game.hero != null and position.distance_to(game.hero.position) < 460.0:
+			spinner_cooldown = 2.8
+			game.enemy_shot_radial(position + Vector2(0, -24), 8.0, 150.0, 8)
 	if kind == "boss":
 		if health < max_health * 0.66 and boss_phase == 0:
 			boss_phase = 1
@@ -379,6 +417,10 @@ func _draw() -> void:
 		draw_line(Vector2.ZERO, game.hero.position - position, Color(1.0, 0.72, 0.35, 0.45), 1.5, true)
 	if attack_windup > 0.0:
 		draw_arc(Vector2.ZERO, radius + 20, 0, TAU * clampf(1.0 - attack_windup / 0.45, 0.0, 1.0), 24, Color(1.0, 0.35, 0.25, 0.9), 3, true)
+	if kind == "sniper" and sniper_charge > 0.0:
+		var charge_alpha := sniper_charge / 0.72
+		draw_line(Vector2(0, -24), Vector2(0, -24) + sniper_direction * 700.0, Color(1.0, 0.2, 0.15, 0.25 + charge_alpha * 0.5), 2, true)
+		draw_arc(Vector2.ZERO, radius + 12, 0, TAU * (1.0 - charge_alpha), 24, Color(1.0, 0.45, 0.25, 0.9), 3, true)
 	if kind == "shielded":
 		draw_arc(Vector2.ZERO, 30, 0, TAU, 24, Color(0.65, 0.9, 1.0, 0.45), 3, true)
 	elif kind == "armored":

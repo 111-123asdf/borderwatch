@@ -70,6 +70,7 @@ var shake_direction := Vector2.ZERO
 var hitstop := 0.0
 var hitstop_lock := 0.0
 var sparks: Array[Dictionary] = []
+var danger_zones: Array[Dictionary] = []
 var bolts: Array[Dictionary] = []
 var rings: Array[Dictionary] = []
 var floaters: Array[Dictionary] = []
@@ -891,6 +892,9 @@ func spawn_cluster() -> void:
 		if kind == "shaman": health *= 1.8
 		if kind == "mortar": health *= 2.0
 		if kind == "splitter": health *= 1.8
+		if kind == "sniper": health *= 1.4
+		if kind == "grenadier": health *= 1.7
+		if kind == "spinner": health *= 1.5
 		if kind != "boss": health *= 1.08
 		var elite := cycle >= 2 and rng.randf() < 0.20
 		if elite: health *= 3.0
@@ -937,11 +941,14 @@ func _roll_enemy_kind() -> String:
 	if cycle >= 3 and rng.randf() < 0.10: kind = "bomber"
 	if cycle >= 3 and rng.randf() < 0.16: kind = "barrel"
 	if cycle >= 3 and rng.randf() < 0.07: kind = "shaman"
+	if cycle >= 3 and rng.randf() < 0.08: kind = "sniper"
 	if cycle >= 4 and rng.randf() < 0.08: kind = "sapper"
 	if cycle >= 4 and rng.randf() < 0.12: kind = "brute"
 	if cycle >= 4 and rng.randf() < 0.15: kind = "shielded"
 	if cycle >= 4 and rng.randf() < 0.07: kind = "mortar"
 	if cycle >= 4 and rng.randf() < 0.08: kind = "splitter"
+	if cycle >= 4 and rng.randf() < 0.07: kind = "grenadier"
+	if cycle >= 4 and rng.randf() < 0.07: kind = "spinner"
 	if cycle >= 5 and rng.randf() < 0.15: kind = "armored"
 	return kind
 
@@ -1036,8 +1043,8 @@ func boss_summon(point: Vector2) -> void:
 
 func _weakness_for(kind: String) -> String:
 	match kind:
-		"armored", "shielded", "mortar": return "lightning"
-		"brute", "shaman", "splitter": return "fire"
+		"armored", "shielded", "mortar", "sniper", "spinner": return "lightning"
+		"brute", "shaman", "splitter", "grenadier": return "fire"
 		"bomber", "sapper", "charger", "hound": return "frost"
 		"shooter": return "lightning"
 		"boss": return "frost"
@@ -1312,6 +1319,15 @@ func enemy_shot_radial(origin: Vector2, damage: float, speed: float, count: int)
 		var angle := TAU * float(index) / float(count)
 		enemy_shot(origin, origin + Vector2.RIGHT.rotated(angle) * 800.0, damage, speed)
 
+func enemy_grenade(point: Vector2, radius: float, damage: float, delay: float) -> void:
+	danger_zones.append({
+		"point": point,
+		"radius": radius,
+		"damage": damage,
+		"life": delay,
+		"max_life": delay,
+	})
+
 func enemy_shot(origin: Vector2, target: Vector2, damage: float, speed := 190.0) -> ArenaProjectile:
 	var projectile := ArenaProjectile.new()
 	projectile.game = self
@@ -1533,6 +1549,14 @@ func _process(delta: float) -> void:
 		spark.point += spark.velocity * delta
 		spark.velocity *= 0.92
 	sparks = sparks.filter(func(item): return item.life > 0.0)
+	var armed_zones: Array[Dictionary] = []
+	for zone in danger_zones:
+		zone["life"] = float(zone.life) - delta
+		if float(zone.life) <= 0.0:
+			armed_zones.append(zone)
+	danger_zones = danger_zones.filter(func(item): return float(item.life) > 0.0)
+	for zone in armed_zones:
+		enemy_explosion(zone.point, float(zone.radius), float(zone.damage), float(zone.damage) * 0.6)
 	for bolt in bolts: bolt.life -= delta
 	bolts = bolts.filter(func(item): return item.life > 0.0)
 	for ring in rings: ring.life -= delta
@@ -1638,6 +1662,11 @@ func _draw() -> void:
 		var alpha: float = clampf(warning.life / 1.2, 0.0, 1.0)
 		draw_arc(warning.point, warning.radius * (1.25 - alpha * 0.25), 0, TAU, 40, Color(1.0, 0.55, 0.32, alpha * 0.8), 3, true)
 		draw_circle(warning.point, 8, Color(1.0, 0.62, 0.35, alpha * 0.7))
+	for zone in danger_zones:
+		var left: float = clampf(float(zone.life) / maxf(0.01, float(zone.max_life)), 0.0, 1.0)
+		draw_circle(zone.point, float(zone.radius), Color(1.0, 0.15, 0.10, 0.10 + (1.0 - left) * 0.12))
+		draw_arc(zone.point, float(zone.radius), 0, TAU, 48, Color(1.0, 0.3, 0.15, 0.75), 3, true)
+		draw_arc(zone.point, float(zone.radius) * (0.15 + 0.85 * left), 0, TAU, 40, Color(1.0, 0.45, 0.2, 0.9), 2, true)
 	if build_mode:
 		for x in range(0, GRID_W + 1):
 			draw_line(Vector2(x * CELL, 0), Vector2(x * CELL, ARENA_SIZE.y), Color(0.7, 0.85, 0.8, 0.06), 1)
