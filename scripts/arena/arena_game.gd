@@ -513,7 +513,7 @@ func start_spawn() -> void:
 	expire_normal_drops()
 	phase = "spawn"
 	phase_clock = 30.0
-	spawn_budget = 28 + 7 * (cycle - 1)
+	spawn_budget = 32 + 9 * (cycle - 1)
 	spawn_interval = 30.0 / maxf(1.0, ceilf(float(spawn_budget) / 4.0))
 	spawn_timer = 0.0
 	if cycle >= level_cycles and not boss_spawned:
@@ -879,7 +879,7 @@ func spawn_cluster() -> void:
 		var jitter := Vector2(rng.randfn(0.0, 42.0), rng.randfn(0.0, 42.0))
 		var point := _nearest_spawn_point(base + jitter)
 		var kind := _roll_enemy_kind()
-		var health := 38.0 + cycle * 10.0
+		var health := 44.0 + cycle * 13.0
 		if kind == "barrel": health *= 1.6
 		if kind == "sapper": health *= 2.2
 		if kind == "charger": health *= 0.75
@@ -892,7 +892,7 @@ func spawn_cluster() -> void:
 		if kind == "mortar": health *= 2.0
 		if kind == "splitter": health *= 1.8
 		if kind != "boss": health *= 1.08
-		var elite := cycle >= 2 and rng.randf() < 0.15
+		var elite := cycle >= 2 and rng.randf() < 0.20
 		if elite: health *= 3.0
 		pending_spawns.append({
 			"point": point,

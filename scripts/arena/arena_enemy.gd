@@ -223,7 +223,7 @@ func _physics_process(delta: float) -> void:
 			game.rings.append({"point": windup_tower.position, "radius": 34.0, "life": 0.25})
 			if windup_tower.health <= 0.0: game.tower_destroyed(windup_tower)
 			windup_tower = null
-	if kind in ["sapper", "bomber", "mortar"]:
+	if kind in ["sapper", "bomber", "mortar", "brute"]:
 		var tower: ArenaTower = locked_tower
 		if tower == null or not is_instance_valid(tower) or position.distance_to(tower.position) > 520.0:
 			tower = game.nearest_tower(position, 620.0 if kind == "mortar" else 380.0)
@@ -253,6 +253,17 @@ func _physics_process(delta: float) -> void:
 			queue_redraw()
 			return
 		locked_tower = null
+	if kind in ["armored", "shielded"]:
+		var heavy_tower: ArenaTower = game.nearest_tower(position, 260.0)
+		if heavy_tower != null:
+			var heavy_direction := (heavy_tower.position - position).normalized()
+			position += heavy_direction * speed * delta
+			if position.distance_to(heavy_tower.position) < 48.0:
+				heavy_tower.health -= 24.0 * delta
+				if heavy_tower.health <= 0.0: game.tower_destroyed(heavy_tower)
+			visual.advance(delta, heavy_direction * speed, heavy_direction)
+			queue_redraw()
+			return
 	if kind == "shaman" and support_cooldown <= 0.0:
 		support_cooldown = 2.4
 		game.shaman_support(position)
@@ -292,6 +303,12 @@ func _physics_process(delta: float) -> void:
 			if elite: count += 1
 			var lead_target: Vector2 = game.hero.center() + game.hero.velocity * 0.18
 			game.enemy_shot_arc(position + Vector2(0, -24), lead_target, shot_damage, 230.0 if kind != "bomber" else 190.0, count, 0.28)
+			if kind == "shooter":
+				var shooter_tower: ArenaTower = game.nearest_tower(position, 400.0)
+				if shooter_tower != null:
+					shooter_tower.health -= 10.0
+					game.hit_feedback(shooter_tower.position, 10.0)
+					if shooter_tower.health <= 0.0: game.tower_destroyed(shooter_tower)
 	if kind == "boss":
 		if core_distance < 300.0 and boss_core_cooldown <= 0.0:
 			boss_core_cooldown = 1.0
