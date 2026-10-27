@@ -32,7 +32,13 @@ func _run() -> void:
 			if game.completed_waves < 2: game.start_wave()
 	paused = false
 	var report := {"scenario": "aura_support_no_hero_attacks", "cores": cores, "gold": game.gold, "towers": game.towers.size(), "kills": game.stats.tower_kills, "elapsed": game.elapsed}
+	DirAccess.make_dir_recursive_absolute("res://test-results")
 	var file := FileAccess.open("res://test-results/defense_balance.json", FileAccess.WRITE)
+	if file == null:
+		push_error("无法写入 test-results/defense_balance.json")
+		game.queue_free()
+		quit(1)
+		return
 	file.store_string(JSON.stringify(report, "\t"))
 	print(JSON.stringify(report))
 	var success: bool = cores.size() >= 2 and cores[0] >= 220 and cores[1] >= 200 and game.stats.tower_kills > 20

@@ -21,8 +21,8 @@ func _draw() -> void:
 		draw_circle(offset + tower.position * factor, 2.5, Rules.TOWERS[tower.kind].color)
 	for camp_index in range(3):
 		var previous: Vector2 = Rules.CORE
-		for node_index in range(3):
-			var node: Vector2 = Rules.EXPLORATION_ROUTES[camp_index][node_index]
+		for node_index in range(Rules.CAMP_NODES):
+			var node: Vector2 = Rules.CAMPS[camp_index] if Rules.CAMP_NODES <= 1 else Rules.EXPLORATION_ROUTES[camp_index][node_index]
 			draw_line(offset + previous * factor, offset + node * factor, Color("637c71"), 2, true)
 			var tint := Color("91d3ae") if game.camps[camp_index].progress > node_index else Color("d6b772")
 			if game.completed_waves < Rules.CAMP_UNLOCK[camp_index]: tint = Color("4b5b60")
@@ -31,7 +31,7 @@ func _draw() -> void:
 		var point: Vector2 = offset + Rules.CAMPS[camp_index] * factor
 		var color := Color("eec67b") if not game.camps[camp_index].chest_claimed else Color("6d8b87")
 		draw_rect(Rect2(point - Vector2.ONE * 4, Vector2.ONE * 8), color, false, 2)
-		var text := "%s · %d/3" % [Rules.CAMP_NAMES[camp_index], game.camps[camp_index].progress]
+		var text := "%s · %d/%d" % [Rules.CAMP_NAMES[camp_index], mini(game.camps[camp_index].progress, Rules.CAMP_NODES), Rules.CAMP_NODES]
 		var caption := point + Vector2(-105, 25)
 		draw_string(get_theme_default_font(), caption, text, HORIZONTAL_ALIGNMENT_LEFT, 210, 16, Color("e4d6af"))
 		if game.completed_waves < Rules.CAMP_UNLOCK[camp_index]:

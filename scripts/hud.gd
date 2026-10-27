@@ -226,7 +226,7 @@ func _process(delta: float) -> void:
 	else: early_button.text = "下一波 %d秒  ·  F提前" % ceili(game.wave_clock)
 	skill_status.text = "%s\n%s · Space" % [Rules.HEROES[hero.class_id].skill, ("就绪" if hero.skill_cooldown <= 0 else "%.1fs" % hero.skill_cooldown)]
 	skill_button.disabled = not game.running or hero.skill_cooldown > 0 or hero.respawn_time > 0
-	dash_label.text = "%s +%d\n%s · Tab 仓库" % [Rules.weapon(hero.weapon_id).name, hero.weapon_level, "零耗能" if Rules.weapon(hero.weapon_id).energy == 0 else "每击 %d能量" % Rules.weapon(hero.weapon_id).energy]
+	dash_label.text = "%s +%d\n%s · Tab 成长" % [Rules.weapon(hero.weapon_id).name, hero.weapon_level, "零耗能" if Rules.weapon(hero.weapon_id).energy == 0 else "每击 %d能量" % Rules.weapon(hero.weapon_id).energy]
 	var next_camp := -1
 	for index in range(3):
 		if not game.camps[index].chest_claimed and game.completed_waves >= Rules.CAMP_UNLOCK[index]:
@@ -237,7 +237,7 @@ func _process(delta: float) -> void:
 		var offset: Vector2 = game.exploration_target(next_camp) - hero.position
 		var arrows := ["→", "↘", "↓", "↙", "←", "↖", "↑", "↗"]
 		var arrow: String = arrows[posmod(roundi(offset.angle() / (PI / 4)), 8)]
-		compass.text = "%s %s %d/3 · %dm" % [arrow, Rules.CAMP_NAMES[next_camp], mini(3, game.camps[next_camp].progress + 1), int(offset.length() / 32)]
+		compass.text = "%s %s %d/%d · %dm" % [arrow, Rules.CAMP_NAMES[next_camp], mini(Rules.CAMP_NODES, game.camps[next_camp].progress + 1), Rules.CAMP_NODES, int(offset.length() / 32)]
 	hint.text = ""
 	if hero.respawn_time > 0: hint.text = "重新集结 %d秒" % ceili(hero.respawn_time)
 	elif hero.recall_time > 0: hint.text = "回营中…"
@@ -365,9 +365,9 @@ func show_title() -> void:
 func show_tutorial(page := 0) -> void:
 	tutorial_page = clampi(page, 0, 3)
 	var panels := [
-		"【移动与战斗】\nWASD / 方向键移动；右键地面、点选或拖动英雄指定目的地。\n左键 / 按住左键：自动攻击射程内最近、可见的敌人，鼠标不用瞄准。\nSpace / C：英雄专属技能，每人只有一个。\nE 交互 · R 回营 · Tab 仓库 · M 地图 · F 开波 · Esc 设置",
+		"【移动与战斗】\nWASD / 方向键移动；右键地面、点选或拖动英雄指定目的地。\n左键 / 按住左键：自动攻击射程内最近、可见的敌人，鼠标不用瞄准。\nSpace / C：英雄专属技能，每人只有一个。\nE 交互 · R 回营 · Tab 成长 · M 地图 · F 开波 · Esc 设置",
 		"【防线】\n点击路边圆形空地建塔。开局只有 4 个塔位和弩塔。\n肃清苔石林地：+2 塔位并解锁重炮；肃清回响石庭：+2 塔位。\n英雄 340 范围内是指挥光环：塔 +30% 伤害、+10% 射程；英雄离开，塔会变弱。\n铁甲：英雄打不动、自动索敌会跳过，必须交给塔。\n塔位不够时先出门探索，不要只靠英雄。",
-		"【探索与回防】\n每个营地有 3 个节点，走近触发遭遇；清完 3 个才能开宝箱、救伙伴。\n宝箱旁按 E 开箱；开过的宝箱旁再按 E 可回营（25 秒冷却，附近有敌人不可用）。\n首波 90 秒后自动开始，之后两波之间 55 秒，HUD 会显示回防时间。\n核心掉血不会自行恢复：漏一只怪就是一笔账。",
+		"【探索与回防】\n每个营地只有 1 个节点，走近触发遭遇；打完即可开宝箱、救伙伴。\n宝箱旁按 E 开箱；开过的宝箱旁再按 E 可回营（25 秒冷却，附近有敌人不可用）。\n首波 90 秒后自动开始，之后两波之间 55 秒，HUD 会显示回防时间。\n核心掉血不会自行恢复：漏一只怪就是一笔账。",
 		"【Boss 与成长】\n第 6 波焚林统领血很厚，塔与英雄要一起压；它到核心就输。\n营地带回一条路线：清完营地二选一，选定即锁定，升级只加生命。\n武器也只在营地获得，拿到即装备，这一局不能换回。\n按 Esc 可随时打开操作与设置。",
 	]
 	var panel := _open("tutorial", Vector2(900, 560), "新手引导  %d / 4" % (tutorial_page + 1))
@@ -400,7 +400,7 @@ func show_wave_confirmation() -> void:
 
 func show_pause() -> void:
 	var panel := _open("pause", Vector2(700, 590), "营地手册 / 设置")
-	_label(panel, "WASD 移动 · 左键 / 按住左键攻击，自动锁定最近敌人\n鼠标不用瞄准；自动索敌不会替你追怪\nSpace / C 是同一个英雄技能，不是人人都有闪避\n右键地面移动，或点击 / 拖动英雄指定目的地\n点击空地建塔；点击塔升级 / 出售\nE 宝匣 / 伙伴 · Tab 成长与仓库 · R 引导回营 · M地图\nF 开波：首波90秒后自动开始，后续清场55秒准备，无提前金币\n\n武器掉落自动入库；零耗能武器可持续攻击。\n高耗能武器有更强机制；能量自动恢复，营地恢复更快。\n救出工匠 / 导师后，在营地花金币强化。\n近战与月轮可消弹，结界可挡弹；红圈仍需走位。", Rect2(32, 81, 640, 310), 17, MUTED)
+	_label(panel, "WASD 移动 · 左键 / 按住左键攻击，自动锁定最近敌人\n鼠标不用瞄准；自动索敌不会替你追怪\nSpace / C 是同一个英雄技能，不是人人都有闪避\n右键地面移动，或点击 / 拖动英雄指定目的地\n点击空地建塔；点击塔升级 / 出售\nE 宝匣 / 伙伴 · Tab 成长 · R 引导回营 · M地图\nF 开波：首波90秒后自动开始，后续清场55秒准备，无提前金币\n\n武器只在营地宝匣获得，拿到即替换当前武器；零耗能武器可持续攻击。\n高耗能武器有更强机制；能量自动恢复，脱战后护盾也会回复。\n清完营地二选一成长路线，选定即锁定；升级只加生命。\n近战与月轮可消弹，结界可挡弹；红圈仍需走位。", Rect2(32, 81, 640, 310), 17, MUTED)
 	var audio := CheckButton.new()
 	audio.text = "音效"
 	audio.position = Vector2(32, 411)
@@ -460,8 +460,8 @@ func show_inventory() -> void:
 	_label(panel, "%s · 主动 Lv.%d" % [Rules.HEROES[hero.class_id].skill, hero.skill_level], Rect2(30, 344, 430, 33), 21)
 	_label(panel, Rules.HEROES[hero.class_id].text, Rect2(30, 385, 425, 67), 16, MUTED)
 	_label(panel, "武器只在营地获得：拿到哪把，这一局就得用哪把。", Rect2(30, 470, 430, 60), 16, MUTED)
-	_label(panel, "已获得的被动", Rect2(500, 88, 440, 28), 20, GOLD)
-	if game.relics.is_empty(): _label(panel, "击杀获取经验，升级时暂停三选一。", Rect2(500, 135, 430, 60), 18, MUTED)
+	_label(panel, "已选路线", Rect2(500, 88, 440, 28), 20, GOLD)
+	if game.relics.is_empty(): _label(panel, "击杀获取经验，升级只提高生命上限。", Rect2(500, 135, 430, 60), 18, MUTED)
 	for index in range(game.relics.size()):
 		var key: String = game.relics[index]
 		var column: int = index % 6
@@ -518,7 +518,7 @@ func show_map() -> void:
 	map.position = Vector2(28, 90)
 	map.size = Vector2(794, 357)
 	panel.add_child(map)
-	_label(panel, "左侧两路来敌 → 核心  ·  东北救工匠 → 东南救导师 → 深处寻秘藏", Rect2(30, 466, 790, 53), 17, MUTED)
+	_label(panel, "两路来敌 → 核心  ·  正东苔石林地 → 东南回响石庭 → 更东沉星深殿", Rect2(30, 466, 790, 53), 17, MUTED)
 	_button(panel, "返回 · M", Rect2(325, 521, 200, 45), close_modal)
 
 func show_result(victory: bool) -> void:

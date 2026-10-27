@@ -87,9 +87,9 @@ func _draw() -> void:
 
 func _draw_landmarks() -> void:
 	for region in range(3):
-		for node_index in range(3):
+		for node_index in range(Rules.CAMP_NODES):
 			if game.completed_waves < Rules.CAMP_UNLOCK[region]: continue
-			var point: Vector2 = Rules.EXPLORATION_ROUTES[region][node_index]
+			var point: Vector2 = Rules.CAMPS[region] if Rules.CAMP_NODES <= 1 else Rules.EXPLORATION_ROUTES[region][node_index]
 			var cleared: bool = game.camps[region].progress > node_index
 			var current: bool = game.camps[region].progress == node_index
 			var color := Color("91ceaf") if cleared else (Color("f0d48c") if current else Color("9faaa1"))
