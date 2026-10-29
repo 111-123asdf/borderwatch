@@ -11,7 +11,7 @@ CC0文本：https://creativecommons.org/publicdomain/zero/1.0/legalcode
 用户提供的商业游戏截图与视频只作机制研究，不进入发行包。
 木箱与残墙掩体图集：同日通过OpenAI图像生成工具创作，用于替换临时几何块；与英雄图集均保存在工程内。
 声音：本项目程序合成的短音效，无外部录音素材。系统字体由运行机器提供，不分发Windows字体文件。
-
+英雄手持武器来自OpenGameArt素材496 pixel art icons for medieval/fantasy RPG，采用CC0 1.0开放。
 引擎：Godot Engine 4.7.2，MIT License。
 Copyright (c) 2014-present Godot Engine contributors.
 Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.

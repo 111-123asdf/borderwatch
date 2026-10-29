@@ -1,13 +1,39 @@
 extends Node2D
 
+## 英雄手持武器贴图。图里枪口朝「斜左上 45°」，弓的箭口朝「斜左下 45°」，
+## 而这里约定武器沿局部 +X 指向，所以 degrees 是补正角：
+## 左上 225° 要 +135° 才回到 +X，左下 135° 要 -135°。
+## pivot 是握把在图中的像素坐标，scale 相对原图；文件缺失时自动回退到几何画法。
+const SPRITE_ART := {
+	"pistol": {"path": "res://assets/weapons/gun.png", "pivot": Vector2(18, 23), "scale": 1.0, "degrees": 45.0},
+	"bow": {"path": "res://assets/weapons/bow.png", "pivot": Vector2(7, 13), "scale": 1.0, "degrees": -135.0},
+	"scatter": {"path": "res://assets/weapons/staff.png", "pivot": Vector2(23, 25), "scale": 1.0, "degrees": 135.0},
+}
+static var texture_cache: Dictionary = {}
+
 var visual: ActorVisual
 var standalone_key := ""
 
+static func art_of(key: String) -> Dictionary:
+	var art: Dictionary = SPRITE_ART.get(key, {})
+	return art
+
+static func angle_offset(key: String) -> float:
+	return deg_to_rad(float(art_of(key).get("degrees", 0.0)))
+
+static func sprite_texture(path: String) -> Texture2D:
+	if not texture_cache.has(path):
+		texture_cache[path] = load(path) if ResourceLoader.exists(path) else null
+	return texture_cache[path]
+
 func _draw() -> void:
 	if not standalone_key.is_empty():
+		draw_set_transform(Vector2.ZERO, angle_offset(standalone_key))
 		_draw_weapon(standalone_key, 0, 1)
+		draw_set_transform(Vector2.ZERO)
 		return
 	if visual == null or visual.death_phase >= 0: return
+	var key := visual.held_weapon
 	var direction := visual.action_direction if visual.action_phase > 0 else visual.direction
 	var progress := 1 - visual.action_phase / visual.action_duration if visual.action_phase > 0 else 1.0
 	var recoil := sin(progress / 0.45 * PI) * 8 if progress < 0.45 else exp(-(progress - 0.45) * 12) * -5
@@ -21,16 +47,29 @@ func _draw() -> void:
 	draw_circle(hand, 4.5, Color("edcc99"))
 	draw_line(shoulder + Vector2(0, 5), second, cloth.darkened(0.3), 7, false)
 	draw_circle(second, 4, Color("edcc99"))
-	var angle := direction.angle()
-	if visual.held_weapon in ["halberd", "sword"] and visual.action_phase > 0: angle += lerpf(-1.3, 1.2, progress)
-	draw_set_transform(hand, angle)
-	_draw_weapon(visual.held_weapon, recoil, progress)
+	var aim_angle := direction.angle()
+	var angle := aim_angle + angle_offset(key)
+	if key in ["halberd", "sword"] and visual.action_phase > 0: angle += lerpf(-1.3, 1.2, progress)
+	## 朝左时以握把为轴上下镜像，避免贴图倒置；几何画法保持原样。
+	var mirror := -1.0 if not art_of(key).is_empty() and cos(aim_angle) < -0.05 else 1.0
+	draw_set_transform(hand, angle, Vector2(1, mirror))
+	_draw_weapon(key, recoil, progress)
 	if visual.dual_active:
-		draw_set_transform(second + direction.orthogonal() * 15, angle - 0.05)
-		_draw_weapon(visual.held_weapon, recoil * 0.8, progress)
+		draw_set_transform(second + direction.orthogonal() * 15, angle - 0.05, Vector2(1, mirror))
+		_draw_weapon(key, recoil * 0.8, progress)
 	draw_set_transform(Vector2.ZERO)
 
 func _draw_weapon(key: String, recoil: float, progress: float) -> void:
+	var art := art_of(key)
+	if not art.is_empty():
+		var texture := sprite_texture(art.path)
+		if texture != null:
+			var factor := float(art.scale)
+			var pivot: Vector2 = art.pivot
+			var rect := Rect2(-pivot * factor, texture.get_size() * factor)
+			rect.position.x -= recoil * 0.6
+			draw_texture_rect(texture, rect, false)
+			return
 	var color: Color = Rules.weapon(key).color
 	match key:
 		"bow", "storm":
