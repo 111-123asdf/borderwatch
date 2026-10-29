@@ -14,7 +14,10 @@ function Invoke-CheckedGodot([string[]]$GodotArguments, [string]$LogName) {
     }
     $logPath = Join-Path $projectRoot ('test-results\' + $LogName)
     $output | Set-Content -LiteralPath $logPath -Encoding utf8
-    $problem = $output | Where-Object { $_ -match 'SCRIPT ERROR:|Parse Error|^ERROR:|FAIL:' }
+    $problem = $output | Where-Object {
+        $_ -match 'SCRIPT ERROR:|Parse Error|^ERROR:|FAIL:' -and
+        $_ -notmatch 'ERROR: Failed to read the root certificate store\.'
+    }
     if ($code -ne 0 -or $problem) {
         $output | Write-Output
         throw "Godot check failed: $LogName"
@@ -24,7 +27,7 @@ function Invoke-CheckedGodot([string[]]$GodotArguments, [string]$LogName) {
 Invoke-CheckedGodot @('--headless', '--editor', '--path', $projectRoot, '--import', '--quit') 'import.log'
 Invoke-CheckedGodot @('--headless', '--path', $projectRoot, '--script', 'res://tests/game_tests.gd') 'rules.log'
 Invoke-CheckedGodot @('--headless', '--path', $projectRoot, '--script', 'res://tests/combat_tests.gd') 'combat.log'
-foreach ($hero in @('knight', 'ranger', 'mage')) {
+foreach ($hero in @('knight', 'ranger', 'mage', 'engineer', 'vanguard')) {
     Invoke-CheckedGodot @('--headless', '--path', $projectRoot, '--fixed-fps', '60', '--script', 'res://tests/playthrough.gd', '--', "--hero=$hero") "playthrough-$hero.log"
 }
 Invoke-CheckedGodot @('--headless', '--path', $projectRoot, '--fixed-fps', '60', '--script', 'res://tests/defense_balance.gd') 'defense_balance.log'

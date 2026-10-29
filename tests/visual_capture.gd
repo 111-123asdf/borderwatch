@@ -14,7 +14,15 @@ func _run() -> void:
 	root.add_child(game)
 	await process_frame
 	await create_timer(0.4, true).timeout
+	await capture("main-menu")
+	game.hud.show_title()
+	await create_timer(0.2, true).timeout
 	await capture("heroes")
+	game.progression.grant_experience("knight", 80)
+	game.hud.show_progression()
+	await create_timer(0.2, true).timeout
+	await capture("progression")
+	game.hud.show_title()
 	game.hud.tutorial_seen = false
 	game.start_run()
 	game.sound.enabled = false

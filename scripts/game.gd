@@ -50,10 +50,16 @@ var drag_start := Vector2.ZERO
 var dragging := false
 var navigation := AStarGrid2D.new()
 var stats := {"kills": 0, "hero_kills": 0, "tower_kills": 0, "built": 0, "skills": 0, "levels": 0}
+var progression: HeroProgression
+var profile_reward := 0
+var profile_levels_gained := 0
+var profile_rewarded := false
 
 func _ready() -> void:
 	get_window().title = "边境守望 · 核心切片预览"
 	_configure_input()
+	var use_profile := DisplayServer.get_name() != "headless" and "--no-profile" not in OS.get_cmdline_user_args()
+	progression = HeroProgression.new(use_profile)
 	world = ForestWorld.new()
 	world.game = self
 	add_child(world)
@@ -105,7 +111,7 @@ func _ready() -> void:
 		start_run()
 
 func _configure_input() -> void:
-	var actions := {"left": [KEY_A, KEY_LEFT], "right": [KEY_D, KEY_RIGHT], "up": [KEY_W, KEY_UP], "down": [KEY_S, KEY_DOWN], "interact": [KEY_E], "recall": [KEY_R], "skill": [KEY_C, KEY_SPACE], "pause": [KEY_ESCAPE], "early": [KEY_F], "inventory": [KEY_TAB], "map": [KEY_M]}
+	var actions := {"left": [KEY_A, KEY_LEFT], "right": [KEY_D, KEY_RIGHT], "up": [KEY_W, KEY_UP], "down": [KEY_S, KEY_DOWN], "interact": [KEY_E], "recall": [KEY_R], "skill": [KEY_C, KEY_SPACE], "weapon_switch": [KEY_Q], "weapon_1": [KEY_1], "weapon_2": [KEY_2], "pause": [KEY_ESCAPE], "early": [KEY_F], "inventory": [KEY_TAB], "map": [KEY_M]}
 	for action in actions:
 		if not InputMap.has_action(action): InputMap.add_action(action)
 		for key in actions[action]:
@@ -192,7 +198,10 @@ func _process(delta: float) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not running: return
-	if event.is_action_pressed("interact"): interact()
+	if event.is_action_pressed("weapon_switch"): hero.switch_weapon()
+	elif event.is_action_pressed("weapon_1"): hero.switch_weapon(0)
+	elif event.is_action_pressed("weapon_2"): hero.switch_weapon(1)
+	elif event.is_action_pressed("interact"): interact()
 	elif event.is_action_pressed("recall"): hero.recall()
 	elif event.is_action_pressed("early"): early_wave()
 	elif event is InputEventMouseButton:
@@ -325,9 +334,9 @@ func interact() -> void:
 			hero.health = minf(hero.max_health, hero.health + 45)
 			hero.shield = hero.max_shield
 			var weapon_key: String = ["scatter", "sniper", "boomerang"][index]
-			hero.equip_weapon(weapon_key, index + 1)
+			hero.acquire_weapon(weapon_key, index + 1)
 			pending_rewards += 1
-			toast("秘藏 · %s +%d 已装备 · 一条路线待选" % [Rules.weapon(weapon_key).name, index + 1], 5)
+			toast("秘藏 · %s +%d 放入双武器栏并装备 · Q可切换" % [Rules.weapon(weapon_key).name, index + 1], 5)
 			sound.play("reward")
 			return
 	for index in range(3):
@@ -609,12 +618,21 @@ func enemy_escaped(enemy: Enemy) -> void:
 
 func gain_experience(amount: int) -> void:
 	experience += amount
+	var levels_gained := 0
 	while experience >= experience_target:
 		experience -= experience_target
 		experience_target += 7
 		level += 1
+		levels_gained += 1
 		stats.levels += 1
-		hero.max_health += 2.0
+		hero.max_health += 4.0
+		hero.max_shield += 2.0
+		hero.max_energy += 3.0
+		hero.health = minf(hero.max_health, hero.health + 4.0)
+		hero.shield = minf(hero.max_shield, hero.shield + 2.0)
+		hero.energy = minf(hero.max_energy, hero.energy + 3.0)
+	if levels_gained > 0:
+		toast("英雄升至 Lv.%d · 生命+4 护盾+2 能量+3 伤害+3%%" % level, 3)
 	if pending_rewards > 0 and hud.modal_kind.is_empty(): open_reward()
 
 func open_reward(_title := "") -> void:
@@ -725,6 +743,10 @@ func navigation_path(start: Vector2, end: Vector2) -> PackedVector2Array:
 func finish(victory: bool) -> void:
 	if not running: return
 	running = false
+	if not profile_rewarded:
+		profile_reward = 20 + completed_waves * 12 + stats.hero_kills + (40 if victory else 0)
+		profile_levels_gained = progression.grant_experience(hero.class_id, profile_reward)
+		profile_rewarded = true
 	hud.show_result(victory)
 
 func shake(amount: float) -> void:

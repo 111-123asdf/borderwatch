@@ -65,7 +65,7 @@ func _run() -> void:
 	check(not route.is_empty() and Array(route).all(func(point): return not cover.has_point(point)), "Movement routes around physical cover")
 	await reset_field()
 	check(not InputMap.has_action("dash"), "There is no universal dash action")
-	check(Rules.HEROES.size() == 3 and Rules.weapon_keys().size() == 11, "Three heroes and eleven weapon mechanisms are available")
+	check(Rules.HEROES.size() == 5 and Rules.weapon_keys().size() == 11, "Five heroes and eleven weapon mechanisms are available")
 	for key in Rules.HEROES:
 		hero.configure(key)
 		hero.invulnerability = 0
@@ -76,12 +76,17 @@ func _run() -> void:
 		check(is_equal_approx(hero.skill_cooldown, Rules.HEROES[key].cooldown), key + " uses its stated cooldown")
 		if key == "ranger":
 			check(hero.dash_time > 0 and hero.invulnerability > 0 and hero.dash_direction.x < 0, "Only ranger rolls with movement direction and invulnerability")
+		elif key == "vanguard":
+			check(hero.dash_time == 0 and hero.invulnerability > 0, "Vanguard pulse grants brief protection without becoming a roll")
 		else:
 			check(hero.dash_time == 0 and hero.invulnerability == 0, key + " cannot dash or gain generic invulnerability")
 		hero.visual.animated_frames.clear()
 		for step in range(20): hero.visual.advance(0.05, Vector2.RIGHT * 250, Vector2.RIGHT)
-		var row: int = 0 if key == "knight" else (1 if key == "ranger" else 2)
+		var row: int = 1 if Rules.HEROES[key].color == "Yellow" else (2 if Rules.HEROES[key].color == "Purple" else 0)
 		check(hero.visual.animated_frames.size() >= 6 and hero.visual.animated_frames.all(func(frame): return frame / 6 == row), key + " runs through its own atlas row")
+	hero.equip_weapon("sniper", 2)
+	hero.configure("mage")
+	check(hero.weapon_id == "sniper" and hero.weapon_level == 2, "Changing hero never changes the equipped weapon")
 	hero.configure("knight")
 	hero.equip_weapon("sniper", 1)
 	hero.energy = 100
@@ -114,6 +119,15 @@ func _run() -> void:
 	check(bullet.is_queued_for_deletion() and hero.energy == 24 and hero.shield == shield_before, "Mage barrier converts nearby enemy bullets into energy")
 	game._resolve_hazard({"point": hero.center(), "radius": 60, "damage": 20})
 	check(hero.shield == shield_before - 20, "Mage barrier does not negate ground hazards")
+	hero.configure("engineer")
+	hero.energy = 0
+	hero.shield = 0
+	check(hero.use_skill() and hero.energy == 40 and hero.shield == 28 and hero.skill_time > 0, "Engineer overcharge restores resources and starts its attack-speed window")
+	hero.configure("vanguard")
+	hero.invulnerability = 0
+	var pulse_target: Enemy = game.spawn_enemy("torch", -1, -1, hero.position + Vector2(100, 0), 999)
+	var pulse_bullet: Projectile = game.enemy_bullet(hero.center() + Vector2(50, 0), Vector2.LEFT, 10, 180)
+	check(hero.use_skill() and pulse_target.health < 999 and pulse_target.knockback.length() > 0 and pulse_bullet.is_queued_for_deletion(), "Vanguard nova damages and knocks enemies back while clearing bullets")
 	hero.configure("knight")
 	await shoot("scatter")
 	check(game.projectiles.get_child_count() == 5, "Staff releases a five-way fan")
