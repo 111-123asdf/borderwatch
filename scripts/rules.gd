@@ -56,9 +56,11 @@ const WEAPONS := {
 	"storm": {"name": "雷鸣弩机", "tag": "远程 / 穿透", "damage": 17.0, "interval": 0.16, "color": Color("bbaff3"), "text": "高速穿透弩矢，命中时弹射一名敌人。", "evolution": "+3突破：连锁增加目标。首关强化上限+3。"},
 }
 const HEROES := {
-	"knight": {"name": "曙光骑士", "role": "双持爆发 / 坚实护盾", "health": 120.0, "shield": 70.0, "energy": 100.0, "speed": 265.0, "regen": 3.0, "color": "Blue", "start": "pistol", "skill": "火力双生", "cooldown": 12.0, "duration": 5.0, "text": "5秒内复制当前武器双持，第二把消耗相同能量。没有翻滚；依靠护盾、走位或近战消弹。", "icon": "split"},
-	"ranger": {"name": "林影游侠", "role": "高速走位 / 短冷却翻滚", "health": 85.0, "shield": 45.0, "energy": 110.0, "speed": 305.0, "regen": 3.0, "color": "Yellow", "start": "bow", "skill": "掠影翻滚", "cooldown": 1.8, "duration": 0.22, "text": "沿移动方向翻滚，短暂无敌；停步时沿面向翻滚。只有游侠拥有翻滚技能。", "icon": "haste"},
-	"mage": {"name": "星纹秘术师", "role": "能量续航 / 防御结界", "health": 75.0, "shield": 65.0, "energy": 180.0, "speed": 280.0, "regen": 5.0, "color": "Purple", "start": "scatter", "skill": "星纹结界", "cooldown": 14.0, "duration": 3.5, "text": "展开结界，拦截近身敌弹并转为能量；红圈与近战仍须走位。没有翻滚。", "icon": "shield"},
+	"knight": {"name": "曙光骑士", "role": "双持爆发 / 坚实护盾", "health": 120.0, "shield": 70.0, "energy": 100.0, "speed": 265.0, "regen": 3.0, "color": "Blue", "skill": "火力双生", "cooldown": 12.0, "duration": 5.0, "passive": "壁垒体魄：最高生命与护盾更高。", "text": "5秒内复制当前武器双持，第二把消耗相同能量。", "icon": "split"},
+	"ranger": {"name": "林影游侠", "role": "高速走位 / 短冷却翻滚", "health": 85.0, "shield": 45.0, "energy": 110.0, "speed": 305.0, "regen": 3.0, "color": "Yellow", "skill": "掠影翻滚", "cooldown": 1.8, "duration": 0.22, "passive": "逐风者：基础移动速度最高。", "text": "沿移动方向翻滚并获得短暂无敌；停步时沿面向翻滚。", "icon": "haste"},
+	"mage": {"name": "星纹秘术师", "role": "能量续航 / 防御结界", "health": 75.0, "shield": 65.0, "energy": 180.0, "speed": 280.0, "regen": 5.0, "color": "Purple", "skill": "星纹结界", "cooldown": 14.0, "duration": 3.5, "passive": "星脉：能量上限与自然恢复最高。", "text": "展开结界，拦截近身敌弹并将其转为能量。", "icon": "shield"},
+	"engineer": {"name": "燧石机巧师", "role": "武器强化 / 战场续航", "health": 92.0, "shield": 58.0, "energy": 145.0, "speed": 275.0, "regen": 4.0, "color": "Yellow", "skill": "超载核心", "cooldown": 11.0, "duration": 4.0, "passive": "整备：能量恢复快，适合高耗能武器。", "text": "立即恢复护盾与能量，4秒内所有武器攻击速度提高35%。", "icon": "architect"},
+	"vanguard": {"name": "裂阵先锋", "role": "近身控场 / 破阵冲击", "health": 108.0, "shield": 52.0, "energy": 115.0, "speed": 285.0, "regen": 3.5, "color": "Blue", "skill": "震荡新星", "cooldown": 9.0, "duration": 0.35, "passive": "前线装甲：生命较高，适合贴近敌群。", "text": "震开周围敌人、造成伤害并清除附近敌方弹幕。", "icon": "blast"},
 }
 
 static func weapon(key: String) -> Dictionary:

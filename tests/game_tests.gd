@@ -105,8 +105,13 @@ func _run() -> void:
 	check(game.hero.skill_cooldown > 0 and game.hero.skill_time > 0 and game.hero.dash_time == 0, "Knight active enables dual wield without universal dash")
 	check(not game.hero.use_skill(), "Active respects its cooldown")
 	await fresh()
+	var base_health: float = game.hero.max_health
+	var base_shield: float = game.hero.max_shield
+	var base_energy: float = game.hero.max_energy
 	game.gain_experience(12)
 	check(game.level == 2 and game.pending_rewards == 0 and game.hud.modal_kind.is_empty(), "Combat XP levels up without handing out a passive")
+	check(game.hero.max_health == base_health + 4 and game.hero.max_shield == base_shield + 2 and game.hero.max_energy == base_energy + 3, "Level up adds simple health, shield, and energy stats")
+	check(is_equal_approx(game.hero.damage_scale(), 1.03), "Level up adds three percent hero damage")
 	game.camps[0].cleared = true
 	game.hero.position = Rules.CAMPS[0]
 	game.interact()
@@ -129,7 +134,9 @@ func _run() -> void:
 	game.camps[0].cleared = true
 	game.hero.position = Rules.CAMPS[0]
 	game.interact()
-	check(game.camps[0].chest_claimed and game.hero.weapon_id == "scatter" and game.hero.weapon_level == 1, "Camp treasure equips its weapon directly, with no warehouse")
+	check(game.camps[0].chest_claimed and game.hero.weapon_id == "scatter" and game.hero.weapon_level == 1, "Camp treasure equips its weapon in the dual weapon bar")
+	check(game.hero.weapon_slots.any(func(item): return item.id == "pistol") and game.hero.weapon_slots.any(func(item): return item.id == "scatter"), "Camp treasure keeps the current weapon while replacing the other slot")
+	check(game.hero.switch_weapon() and game.hero.weapon_id == "pistol", "Q-style switching returns to the retained weapon")
 	check(game.gold == camp_gold_before + Rules.CAMP_GOLD[0], "Camp treasure pays its gold exactly once")
 	await fresh()
 	game.hero.position = game.exploration_target(0) + Vector2(-120, 100)
@@ -182,6 +189,11 @@ func _run() -> void:
 	check(game.hero.respawn_time > 0 and game.core_health == 220, "Hero death costs core health and starts respawn")
 	game.hero._physics_process(4.1)
 	check(game.hero.health == game.hero.max_health and game.hero.shield == game.hero.max_shield, "Respawn restores hero health and shield")
+	var profile := HeroProgression.new(false)
+	check(profile.entry("knight").level == 1 and profile.entry("knight").points == 0, "Global hero profile starts at level one without free points")
+	check(profile.grant_experience("knight", 80) == 1 and profile.entry("knight").level == 2 and profile.entry("knight").points == 1, "Global experience grants a persistent level and upgrade point")
+	check(profile.upgrade("knight", "health") and profile.entry("knight").points == 0 and profile.bonuses("knight").health == 6, "Global upgrade point buys the selected permanent stat")
+	check(not profile.upgrade("knight", "invalid"), "Global progression rejects unknown stat upgrades")
 	game.damage_core(999)
 	check(game.hud.modal_kind == "result" and paused and not game.running, "Core destruction creates a stable paused defeat state")
 	paused = false

@@ -37,6 +37,8 @@ var portraits: Texture2D
 var hero_previews: Array[ActorVisual] = []
 var tutorial_seen := false
 var tutorial_page := 0
+var tutorial_return := "main"
+var pause_return := "main"
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -68,7 +70,7 @@ func _ready() -> void:
 		AudioServer.set_bus_volume_linear(0, settings.get_value("audio", "volume", 0.6))
 		tutorial_seen = settings.get_value("ui", "tutorial_seen", false)
 	else: AudioServer.set_bus_volume_linear(0, 0.6)
-	show_title()
+	show_main_menu()
 
 func _style(color := INK, border := Color("496761"), radius := 12) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
@@ -178,7 +180,7 @@ func _build_hud() -> void:
 	skill_button = _button(skills, "", Rect2(7, 7, 196, 62), func(): game.hero.use_skill())
 	_icon(skill_button, Rules.HEROES[game.hero.class_id].icon, Rect2(4, 2, 52, 52))
 	skill_status = _label(skill_button, "", Rect2(65, 7, 125, 48), 15)
-	skill_button.tooltip_text = "Space / C：英雄专属技能。Tab背包，R回营，M地图，Esc设置。"
+	skill_button.tooltip_text = "Space / C：英雄专属技能。Q或1/2切换武器，Tab背包。"
 	dash_label = _label(root, "", Rect2(-295, -70, 275, 48), 15)
 	dash_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT, true)
 	dash_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -211,7 +213,7 @@ func _process(delta: float) -> void:
 	var hero: Hero = game.hero
 	for preview in hero_previews:
 		if is_instance_valid(preview): preview.advance(delta, Vector2(100, 0), Vector2.RIGHT)
-	status.text = "%s  Lv.%d" % [Rules.HEROES[hero.class_id].name, game.level]
+	status.text = "%s  局内Lv.%d" % [Rules.HEROES[hero.class_id].name, game.level]
 	health_bar.value = hero.health / hero.max_health * 100
 	shield_bar.value = hero.shield / hero.max_shield * 100
 	energy_bar.value = hero.energy / hero.max_energy * 100
@@ -226,7 +228,9 @@ func _process(delta: float) -> void:
 	else: early_button.text = "下一波 %d秒  ·  F提前" % ceili(game.wave_clock)
 	skill_status.text = "%s\n%s · Space" % [Rules.HEROES[hero.class_id].skill, ("就绪" if hero.skill_cooldown <= 0 else "%.1fs" % hero.skill_cooldown)]
 	skill_button.disabled = not game.running or hero.skill_cooldown > 0 or hero.respawn_time > 0
-	dash_label.text = "%s +%d\n%s · Tab 仓库" % [Rules.weapon(hero.weapon_id).name, hero.weapon_level, "零耗能" if Rules.weapon(hero.weapon_id).energy == 0 else "每击 %d能量" % Rules.weapon(hero.weapon_id).energy]
+	var first: Dictionary = hero.weapon_slots[0]
+	var second: Dictionary = hero.weapon_slots[1]
+	dash_label.text = "1%s%s +%d  2%s%s +%d\nQ 切换 · Tab 武器栏" % ["▶" if hero.active_weapon_slot == 0 else " ", Rules.weapon(first.id).name, first.level, "▶" if hero.active_weapon_slot == 1 else " ", Rules.weapon(second.id).name, second.level]
 	var next_camp := -1
 	for index in range(3):
 		if not game.camps[index].chest_claimed and game.completed_waves >= Rules.CAMP_UNLOCK[index]:
@@ -304,7 +308,7 @@ func _open(kind: String, dimensions: Vector2, title: String) -> Panel:
 	game.running = false
 	game.get_tree().paused = true
 	var shade := ColorRect.new()
-	shade.color = Color(0.025, 0.07, 0.08, 0.76)
+	shade.color = Color(0.025, 0.07, 0.08, 0.92 if kind in ["main", "title", "progression"] else 0.76)
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	modal.add_child(shade)
 	var panel := _panel(modal, Rect2(-dimensions * 0.5, dimensions))
@@ -319,56 +323,108 @@ func close_modal() -> void:
 	game.running = game.started
 	game.block_pointer = true
 
+func show_main_menu() -> void:
+	var panel := _open("main", Vector2(720, 690), "边境守望")
+	_label(panel, "英雄探索 × 自动塔防", Rect2(30, 78, 660, 35), 20, MUTED).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_label(panel, "核心切片 · 全局英雄养成", Rect2(30, 113, 660, 27), 15, Color("b8dcae")).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var start := _button(panel, "开始游戏", Rect2(150, 174, 420, 67), show_title)
+	var growth := _button(panel, "英雄养成", Rect2(150, 257, 420, 67), show_progression)
+	var guide := _button(panel, "玩法引导", Rect2(150, 340, 420, 67), func(): show_tutorial(0))
+	var settings := _button(panel, "设置", Rect2(150, 423, 420, 67), func(): show_pause("main"))
+	var exit_button := _button(panel, "退出游戏", Rect2(150, 506, 420, 57), func(): game.get_tree().quit())
+	for button in [start, growth, guide, settings, exit_button]:
+		button.add_theme_font_size_override("font_size", 21)
+		button.add_theme_stylebox_override("normal", _style(Color("263f3c"), Color("78958a"), 2))
+		button.add_theme_stylebox_override("hover", _style(Color("395a50"), GOLD, 2))
+	_label(panel, "选择英雄、整备成长，然后进入边境林地", Rect2(90, 602, 540, 30), 16, MUTED).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_label(panel, "v0.3.0", Rect2(30, 650, 660, 20), 13, Color("718c84")).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+func show_progression() -> void:
+	var panel := _open("progression", Vector2(1100, 710), "英雄养成 / 全局档案")
+	_button(panel, "返回主菜单", Rect2(890, 24, 180, 42), show_main_menu)
+	_label(panel, "关卡结算获得英雄经验；升级获得1点，可永久强化一项属性。", Rect2(30, 70, 820, 30), 16, MUTED)
+	for index in range(Rules.HEROES.size()):
+		var key: String = Rules.HEROES.keys()[index]
+		var current: Dictionary = game.progression.entry(key)
+		var selected: bool = key == game.hero.class_id
+		var text := "%s%s  全局Lv.%d\n经验 %d/%d  ·  可用点数 %d" % ["▶ " if selected else "", Rules.HEROES[key].name, current.level, current.xp, game.progression.experience_target(key), current.points]
+		var card := _button(panel, text, Rect2(30, 112 + index * 102, 350, 86), func(): game.hero.configure(key); show_progression())
+		card.add_theme_stylebox_override("normal", _style(Color("2d4b45") if selected else Color("1a3235"), GOLD if selected else Color("496761"), 4))
+	var hero_id: String = game.hero.class_id
+	var definition: Dictionary = Rules.HEROES[hero_id]
+	var profile: Dictionary = game.progression.entry(hero_id)
+	var bonus: Dictionary = game.progression.bonuses(hero_id)
+	var preview := ActorVisual.new()
+	preview.position = Vector2(995, 151)
+	preview.setup("player", definition.color, 1.25, true)
+	preview.hero_identity = hero_id
+	preview.held_weapon = game.hero.weapon_id
+	panel.add_child(preview)
+	hero_previews.clear()
+	hero_previews.append(preview)
+	_label(panel, definition.name, Rect2(420, 116, 480, 40), 28, GOLD)
+	_label(panel, "%s\n%s" % [definition.role, definition.passive], Rect2(420, 163, 520, 62), 16, MUTED)
+	_label(panel, "基础：生命%d · 护盾%d · 能量%d\n永久加成：生命+%d · 护盾+%d · 能量+%d · 伤害+%d%%" % [definition.health, definition.shield, definition.energy, bonus.health, bonus.shield, bonus.energy, roundi(float(bonus.damage) * 100)], Rect2(420, 235, 620, 65), 17)
+	_label(panel, "可用升级点  %d" % profile.points, Rect2(420, 315, 500, 34), 22, GOLD)
+	var stat_labels := {"health": "生命训练", "shield": "护盾训练", "energy": "能量训练", "damage": "武器专精"}
+	var stat_values := {"health": "+6生命", "shield": "+4护盾", "energy": "+6能量", "damage": "+4%伤害"}
+	for index in range(HeroProgression.STAT_KEYS.size()):
+		var stat: String = HeroProgression.STAT_KEYS[index]
+		var rank: int = int(profile[stat])
+		_label(panel, "%s  %d/%d\n每级%s" % [stat_labels[stat], rank, HeroProgression.STAT_CAP, stat_values[stat]], Rect2(420, 370 + index * 70, 350, 55), 17)
+		var upgrade := _button(panel, "强化 · 1点", Rect2(805, 374 + index * 70, 210, 47), func(): _upgrade_global_stat(stat))
+		upgrade.disabled = int(profile.points) <= 0 or rank >= HeroProgression.STAT_CAP
+	_label(panel, "全局成长对所有关卡生效；局内升级会在本局结束后重置。", Rect2(420, 657, 620, 28), 15, Color("b8dcae"))
+
+func _upgrade_global_stat(stat: String) -> void:
+	if game.progression.upgrade(game.hero.class_id, stat):
+		game.hero.configure(game.hero.class_id)
+	show_progression()
+
 func show_title() -> void:
 	for child in skill_button.get_children():
 		if child is TextureRect:
 			skill_button.remove_child(child)
 			child.queue_free()
 	_icon(skill_button, Rules.HEROES[game.hero.class_id].icon, Rect2(4, 2, 52, 52))
-	var panel := _open("title", Vector2(1070, 670), "边境守望 / 选择英雄")
+	var panel := _open("title", Vector2(1120, 740), "关卡准备 / 边境林地")
 	hero_previews.clear()
-	_label(panel, "0.3  ·  自动索敌，左键攻击；每位英雄只有一个主动技能", Rect2(30, 77, 1000, 28), 17, MUTED)
-	for index in range(3):
+	_label(panel, "英雄与武器已解耦 · 所有英雄共享双武器栏：手枪 + 长剑，局内可替换与切换", Rect2(30, 72, 1060, 28), 17, MUTED)
+	for index in range(Rules.HEROES.size()):
 		var key: String = Rules.HEROES.keys()[index]
 		var definition: Dictionary = Rules.HEROES[key]
-		var card := _button(panel, "", Rect2(25 + index * 345, 122, 330, 432), func(): game.hero.configure(key); show_title())
+		var profile: Dictionary = game.progression.entry(key)
+		var bonus: Dictionary = game.progression.bonuses(key)
+		var column := index % 3
+		var row := index / 3
+		var card := _button(panel, "", Rect2(25 + column * 360, 110 + row * 245, 350, 230), func(): game.hero.configure(key); show_title())
 		card.add_theme_stylebox_override("normal", _style(Color("25423f") if game.hero.class_id == key else Color("1a3235"), GOLD if game.hero.class_id == key else Color("496761")))
-		if portraits != null:
-			var portrait := TextureRect.new()
-			var section := AtlasTexture.new()
-			section.atlas = portraits
-			section.region = Rect2(index * portraits.get_width() / 3.0, 0, portraits.get_width() / 3.0, portraits.get_height())
-			portrait.texture = section
-			portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			portrait.position = Vector2(20, 8)
-			portrait.size = Vector2(218, 178)
-			portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			card.add_child(portrait)
 		var preview := ActorVisual.new()
-		preview.position = Vector2(277, 172)
+		preview.position = Vector2(302, 55)
 		preview.setup("player", definition.color, 1.0, true)
 		preview.hero_identity = key
-		preview.held_weapon = definition.start
+		preview.held_weapon = game.hero.weapon_id
 		card.add_child(preview)
 		hero_previews.append(preview)
-		_label(card, definition.name + ("  ✓" if game.hero.class_id == key else ""), Rect2(21, 195, 290, 34), 24, GOLD if game.hero.class_id == key else CREAM)
-		_label(card, definition.role, Rect2(21, 235, 290, 26), 15, MUTED)
-		_label(card, "生命%d  护盾%d  能量%d\n移速%d · %s" % [definition.health, definition.shield, definition.energy, definition.speed, Rules.weapon(definition.start).name], Rect2(21, 272, 290, 50), 16)
-		_label(card, "%s · %.1f秒CD" % [definition.skill, definition.cooldown], Rect2(21, 331, 290, 27), 19, GOLD)
-		_label(card, definition.text, Rect2(21, 369, 290, 58), 14, MUTED)
-	_button(panel, "操作与设置", Rect2(26, 589, 150, 45), show_pause)
-	_button(panel, "新手引导", Rect2(186, 589, 150, 45), func(): show_tutorial(0))
-	_button(panel, "以%s出发" % Rules.HEROES[game.hero.class_id].name, Rect2(690, 583, 350, 56), func(): game.start_run())
-	_label(panel, "首波 90 秒后自动开始 · 可提前确认", Rect2(352, 595, 320, 29), 16, MUTED)
+		_label(card, definition.name + ("  ✓" if game.hero.class_id == key else ""), Rect2(18, 13, 275, 31), 22, GOLD if game.hero.class_id == key else CREAM)
+		_label(card, "%s · 全局Lv.%d" % [definition.role, profile.level], Rect2(18, 48, 270, 24), 14, MUTED)
+		_label(card, "生命%d  护盾%d  能量%d  伤害+%d%%" % [definition.health + bonus.health, definition.shield + bonus.shield, definition.energy + bonus.energy, roundi(float(bonus.damage) * 100)], Rect2(18, 78, 314, 25), 14)
+		_label(card, "%s · %.1f秒CD" % [definition.skill, definition.cooldown], Rect2(18, 109, 314, 26), 18, GOLD)
+		_label(card, definition.text, Rect2(18, 140, 314, 39), 14, MUTED)
+		_label(card, definition.passive, Rect2(18, 186, 314, 28), 13, Color("b8dcae"))
+	_button(panel, "返回主菜单", Rect2(26, 659, 150, 45), show_main_menu)
+	_button(panel, "新手引导", Rect2(186, 659, 150, 45), func(): show_tutorial(0))
+	_button(panel, "以%s出发" % Rules.HEROES[game.hero.class_id].name, Rect2(740, 653, 350, 56), func(): game.start_run())
+	_label(panel, "首波 90 秒后自动开始 · 可提前确认", Rect2(380, 666, 330, 29), 16, MUTED)
 
 func show_tutorial(page := 0) -> void:
+	if page == 0 and modal_kind != "tutorial": tutorial_return = modal_kind
 	tutorial_page = clampi(page, 0, 3)
 	var panels := [
-		"【移动与战斗】\nWASD / 方向键移动；右键地面、点选或拖动英雄指定目的地。\n左键 / 按住左键：自动攻击射程内最近、可见的敌人，鼠标不用瞄准。\nSpace / C：英雄专属技能，每人只有一个。\nE 交互 · R 回营 · Tab 仓库 · M 地图 · F 开波 · Esc 设置",
+		"【移动与战斗】\nWASD / 方向键移动；右键地面、点选或拖动英雄指定目的地。\n左键 / 按住左键：自动攻击射程内最近、可见的敌人，鼠标不用瞄准。\nSpace / C：英雄主动技能；Q切换双武器，数字1/2直接选槽位。\nE 交互 · R 回营 · Tab 武器与成长 · M 地图 · F 开波 · Esc 设置",
 		"【防线】\n点击路边圆形空地建塔。开局只有 4 个塔位和弩塔。\n肃清苔石林地：+2 塔位并解锁重炮；肃清回响石庭：+2 塔位。\n英雄 340 范围内是指挥光环：塔 +30% 伤害、+10% 射程；英雄离开，塔会变弱。\n铁甲：英雄打不动、自动索敌会跳过，必须交给塔。\n塔位不够时先出门探索，不要只靠英雄。",
 		"【探索与回防】\n每个营地有 3 个节点，走近触发遭遇；清完 3 个才能开宝箱、救伙伴。\n宝箱旁按 E 开箱；开过的宝箱旁再按 E 可回营（25 秒冷却，附近有敌人不可用）。\n首波 90 秒后自动开始，之后两波之间 55 秒，HUD 会显示回防时间。\n核心掉血不会自行恢复：漏一只怪就是一笔账。",
-		"【Boss 与成长】\n第 6 波焚林统领血很厚，塔与英雄要一起压；它到核心就输。\n营地带回一条路线：清完营地二选一，选定即锁定，升级只加生命。\n武器也只在营地获得，拿到即装备，这一局不能换回。\n按 Esc 可随时打开操作与设置。",
+		"【Boss 与成长】\n第 6 波焚林统领血很厚，塔与英雄要一起压；它到核心就输。\n局内升级增加生命、护盾、能量和伤害，本局结束后重置。\n结算获得全局英雄经验；回到主菜单的英雄养成页可分配永久升级点。\n宝匣武器进入双武器栏，不再绑定英雄。",
 	]
 	var panel := _open("tutorial", Vector2(900, 560), "新手引导  %d / 4" % (tutorial_page + 1))
 	_label(panel, panels[tutorial_page], Rect2(34, 82, 832, 380), 18, CREAM)
@@ -390,7 +446,8 @@ func _finish_tutorial() -> void:
 		game.toast("WASD 移动 · 左键自动攻击 · 点击空地建塔 · 塔在英雄附近更强", 5)
 	else:
 		close_modal()
-		show_title()
+		if tutorial_return == "title": show_title()
+		else: show_main_menu()
 
 func show_wave_confirmation() -> void:
 	var panel := _open("confirm", Vector2(490, 270), "准备迎战？")
@@ -398,9 +455,10 @@ func show_wave_confirmation() -> void:
 	_button(panel, "再准备一下", Rect2(30, 186, 195, 49), close_modal)
 	_button(panel, "开始第一波", Rect2(245, 186, 215, 49), func(): close_modal(); game.start_wave())
 
-func show_pause() -> void:
+func show_pause(return_to := "") -> void:
+	if not return_to.is_empty(): pause_return = return_to
 	var panel := _open("pause", Vector2(700, 590), "营地手册 / 设置")
-	_label(panel, "WASD 移动 · 左键 / 按住左键攻击，自动锁定最近敌人\n鼠标不用瞄准；自动索敌不会替你追怪\nSpace / C 是同一个英雄技能，不是人人都有闪避\n右键地面移动，或点击 / 拖动英雄指定目的地\n点击空地建塔；点击塔升级 / 出售\nE 宝匣 / 伙伴 · Tab 成长与仓库 · R 引导回营 · M地图\nF 开波：首波90秒后自动开始，后续清场55秒准备，无提前金币\n\n武器掉落自动入库；零耗能武器可持续攻击。\n高耗能武器有更强机制；能量自动恢复，营地恢复更快。\n救出工匠 / 导师后，在营地花金币强化。\n近战与月轮可消弹，结界可挡弹；红圈仍需走位。", Rect2(32, 81, 640, 310), 17, MUTED)
+	_label(panel, "WASD 移动 · 左键 / 按住左键攻击，自动锁定最近敌人\n鼠标不用瞄准；自动索敌不会替你追怪\nSpace / C 使用英雄主动技能\nQ切换双武器；数字1/2直接选择；Tab查看武器与成长\n右键地面移动，或点击 / 拖动英雄指定目的地\n点击空地建塔；点击塔升级 / 出售\nE 宝匣 / 捷径 · R 引导回营 · M地图\nF 开波：首波90秒后自动开始，后续清场55秒准备\n\n宝匣武器替换副槽，当前武器会保留下来。\n升级增加生命、护盾、能量与英雄伤害。\n近战与月轮可消弹，结界可挡弹；红圈仍需走位。", Rect2(32, 81, 640, 310), 17, MUTED)
 	var audio := CheckButton.new()
 	audio.text = "音效"
 	audio.position = Vector2(32, 411)
@@ -424,7 +482,8 @@ func show_pause() -> void:
 	_button(panel, "新手引导", Rect2(470, 507, 180, 50), func(): show_tutorial(0))
 	_button(panel, "返回", Rect2(250, 507, 200, 50), func():
 		if game.started: close_modal()
-		else: show_title())
+		elif pause_return == "title": show_title()
+		else: show_main_menu())
 
 func _save_settings() -> void:
 	var settings := ConfigFile.new()
@@ -450,18 +509,23 @@ func show_reward(title: String, choices: Array) -> void:
 		reward_buttons.append(card)
 
 func show_inventory() -> void:
-	var panel := _open("inventory", Vector2(990, 650), "英雄成长")
+	var panel := _open("inventory", Vector2(990, 650), "双武器与英雄成长")
 	_button(panel, "关闭 · Tab", Rect2(787, 24, 173, 42), close_modal)
 	var hero: Hero = game.hero
-	var weapon := Rules.weapon(hero.weapon_id)
-	_label(panel, "%s  Lv.%d\n生命 %d/%d · 护盾 %d/%d\n能量 %d/%d · 经验 %d/%d" % [Rules.HEROES[hero.class_id].name, game.level, hero.health, hero.max_health, hero.shield, hero.max_shield, hero.energy, hero.max_energy, game.experience, game.experience_target], Rect2(30, 88, 430, 95), 18)
-	_label(panel, "%s +%d" % [weapon.name, hero.weapon_level], Rect2(30, 198, 450, 36), 24, GOLD)
-	_label(panel, weapon.text, Rect2(30, 244, 425, 88), 17, MUTED)
-	_label(panel, "%s · 主动 Lv.%d" % [Rules.HEROES[hero.class_id].skill, hero.skill_level], Rect2(30, 344, 430, 33), 21)
-	_label(panel, Rules.HEROES[hero.class_id].text, Rect2(30, 385, 425, 67), 16, MUTED)
-	_label(panel, "武器只在营地获得：拿到哪把，这一局就得用哪把。", Rect2(30, 470, 430, 60), 16, MUTED)
+	_label(panel, "%s  局内Lv.%d\n生命 %d/%d · 护盾 %d/%d\n能量 %d/%d · 局内经验 %d/%d" % [Rules.HEROES[hero.class_id].name, game.level, hero.health, hero.max_health, hero.shield, hero.max_shield, hero.energy, hero.max_energy, game.experience, game.experience_target], Rect2(30, 88, 430, 95), 18)
+	_label(panel, "武器栏 · Q切换 / 1、2直接选择", Rect2(30, 190, 430, 28), 18, GOLD)
+	for slot in range(hero.weapon_slots.size()):
+		var item: Dictionary = hero.weapon_slots[slot]
+		var weapon := Rules.weapon(item.id)
+		var active := slot == hero.active_weapon_slot
+		var button := _button(panel, "%s槽位 %d · %s +%d\n%s" % ["▶ " if active else "", slot + 1, weapon.name, item.level, weapon.tag], Rect2(30, 226 + slot * 92, 430, 78), func(): hero.switch_weapon(slot); show_inventory())
+		button.add_theme_stylebox_override("normal", _style(Color("2c4d45") if active else Color("1b3435"), GOLD if active else Color("496761")))
+	_label(panel, "%s · 主动 Lv.%d" % [Rules.HEROES[hero.class_id].skill, hero.skill_level], Rect2(30, 423, 430, 31), 20)
+	_label(panel, Rules.HEROES[hero.class_id].text, Rect2(30, 458, 425, 48), 15, MUTED)
+	_label(panel, Rules.HEROES[hero.class_id].passive, Rect2(30, 514, 425, 35), 15, Color("b8dcae"))
+	_label(panel, "每级：生命+4 · 护盾+2 · 能量+3 · 伤害+3%", Rect2(30, 558, 440, 30), 15, GOLD)
 	_label(panel, "已获得的被动", Rect2(500, 88, 440, 28), 20, GOLD)
-	if game.relics.is_empty(): _label(panel, "击杀获取经验，升级时暂停三选一。", Rect2(500, 135, 430, 60), 18, MUTED)
+	if game.relics.is_empty(): _label(panel, "击杀获取经验；营地秘藏提供路线二选一。", Rect2(500, 135, 430, 60), 18, MUTED)
 	for index in range(game.relics.size()):
 		var key: String = game.relics[index]
 		var column: int = index % 6
@@ -522,10 +586,12 @@ func show_map() -> void:
 	_button(panel, "返回 · M", Rect2(325, 521, 200, 45), close_modal)
 
 func show_result(victory: bool) -> void:
-	var panel := _open("result", Vector2(610, 430), "林地守住了" if victory else "核心失守")
-	_label(panel, "第 %d / 6 波 · 英雄 Lv.%d\n击败 %d 敌人 · 防御塔击败 %d\n探索 %d / 3 处 · 最终武器 %s" % [game.wave, game.level, game.stats.kills, game.stats.tower_kills, game.claimed_count(), Rules.weapon(game.hero.weapon_id).name], Rect2(34, 98, 540, 150), 21)
-	_label(panel, "每次成长与武器选择，都能改变下一次防线。", Rect2(34, 267, 540, 43), 17, MUTED)
-	_button(panel, "再试一次", Rect2(180, 339, 250, 52), func(): game.get_tree().paused = false; game.get_tree().reload_current_scene())
+	var panel := _open("result", Vector2(650, 510), "林地守住了" if victory else "核心失守")
+	var profile: Dictionary = game.progression.entry(game.hero.class_id)
+	_label(panel, "第 %d / 6 波 · 局内Lv.%d\n击败 %d 敌人 · 防御塔击败 %d\n探索 %d / 3 处 · 最终武器 %s" % [game.wave, game.level, game.stats.kills, game.stats.tower_kills, game.claimed_count(), Rules.weapon(game.hero.weapon_id).name], Rect2(34, 91, 582, 132), 20)
+	_label(panel, "全局经验  +%d%s\n%s  全局Lv.%d · 经验 %d/%d · 可用点数 %d" % [game.profile_reward, " · 升级！" if game.profile_levels_gained > 0 else "", Rules.HEROES[game.hero.class_id].name, profile.level, profile.xp, game.progression.experience_target(game.hero.class_id), profile.points], Rect2(34, 239, 582, 84), 19, GOLD)
+	_label(panel, "回到英雄养成页分配升级点，永久强化下一次出战。", Rect2(34, 337, 582, 43), 17, MUTED)
+	_button(panel, "返回主菜单", Rect2(190, 421, 270, 54), func(): game.get_tree().paused = false; game.get_tree().reload_current_scene())
 
 func toast(message: String, duration: float) -> void:
 	toast_label.text = message

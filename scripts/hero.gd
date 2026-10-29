@@ -13,6 +13,11 @@ var energy := 100.0
 var since_damage := 10.0
 var weapon_id := "pistol"
 var weapon_level := 1
+var weapon_slots: Array[Dictionary] = [
+	{"id": "pistol", "level": 1},
+	{"id": "sword", "level": 1},
+]
+var active_weapon_slot := 0
 var shot_cooldown := 0.0
 var dash_cooldown := 0.0
 var skill_cooldown := 0.0
@@ -60,9 +65,11 @@ func configure(key: String) -> void:
 	if not Rules.HEROES.has(key): return
 	class_id = key
 	var definition: Dictionary = Rules.HEROES[key]
-	max_health = definition.health
-	max_shield = definition.shield
-	max_energy = definition.energy
+	var global_bonus := {"health": 0.0, "shield": 0.0, "energy": 0.0, "damage": 0.0}
+	if game != null and game.progression != null: global_bonus = game.progression.bonuses(key)
+	max_health = definition.health + float(global_bonus.health)
+	max_shield = definition.shield + float(global_bonus.shield)
+	max_energy = definition.energy + float(global_bonus.energy)
 	health = max_health
 	shield = max_shield
 	energy = max_energy
@@ -70,25 +77,53 @@ func configure(key: String) -> void:
 	skill_cooldown = 0
 	dash_time = 0
 	dash_cooldown = 0
-	equip_weapon(definition.start, 1)
+	_apply_weapon_slot()
 
 func center() -> Vector2:
 	return position + Vector2(0, -27)
 
 func equip_weapon(key: String, upgrade_level: int) -> void:
 	if key not in Rules.weapon_keys(): return
-	weapon_id = key
-	weapon_level = clampi(upgrade_level, 1, 3)
+	weapon_slots[active_weapon_slot] = {"id": key, "level": clampi(upgrade_level, 1, 3)}
+	_apply_weapon_slot()
+
+func acquire_weapon(key: String, upgrade_level: int) -> void:
+	if key not in Rules.weapon_keys(): return
+	for index in range(weapon_slots.size()):
+		if weapon_slots[index].id == key:
+			weapon_slots[index].level = maxi(int(weapon_slots[index].level), clampi(upgrade_level, 1, 3))
+			if index == active_weapon_slot: _apply_weapon_slot()
+			else: switch_weapon(index)
+			return
+	var replacement := 1 - active_weapon_slot
+	weapon_slots[replacement] = {"id": key, "level": clampi(upgrade_level, 1, 3)}
+	switch_weapon(replacement)
+
+func switch_weapon(slot := -1) -> bool:
+	if respawn_time > 0: return false
+	var target := 1 - active_weapon_slot if slot < 0 else clampi(slot, 0, weapon_slots.size() - 1)
+	if target == active_weapon_slot: return false
+	active_weapon_slot = target
+	_apply_weapon_slot()
+	if game != null and game.running:
+		game.toast("切换武器 · %s +%d" % [Rules.weapon(weapon_id).name, weapon_level], 1.5)
+	return true
+
+func _apply_weapon_slot() -> void:
+	weapon_id = String(weapon_slots[active_weapon_slot].id)
+	weapon_level = int(weapon_slots[active_weapon_slot].level)
 	attack_pending = false
 	attack_delay = 0
 	shot_cooldown = 0.16
 	trigger_heat = 0
+	if visual == null: return
 	visual.setup("player", Rules.HEROES[class_id].color, 0.9, true)
-	visual.held_weapon = key
+	visual.held_weapon = weapon_id
 	visual.hero_identity = class_id
 
 func damage_scale() -> float:
-	return game.hero_damage_scale() * (1 + (weapon_level - 1) * 0.22)
+	var global_damage := 0.0 if game.progression == null else float(game.progression.bonuses(class_id).damage)
+	return game.hero_damage_scale() * (1 + global_damage) * (1 + (weapon_level - 1) * 0.22) * (1 + (game.level - 1) * 0.03)
 
 func upgrade_price() -> int:
 	return 40 + weapon_level * 30
@@ -208,6 +243,7 @@ func fire(_ignored_mouse := Vector2.ZERO) -> bool:
 	attack_dual = class_id == "knight" and skill_time > 0 and energy >= cost
 	if attack_dual: energy -= cost
 	var interval: float = definition.interval / (1 + game.rank("haste") * 0.15)
+	if class_id == "engineer" and skill_time > 0: interval /= 1.35
 	if weapon_id == "gatling":
 		trigger_heat = minf(1, trigger_heat + 0.24)
 		interval *= lerpf(3.5, 1, trigger_heat)
@@ -302,6 +338,21 @@ func use_skill() -> bool:
 		recall_time = 0
 		navigation.clear()
 		game.sound.play("dash", 4)
+	elif class_id == "engineer":
+		energy = minf(max_energy, energy + 40)
+		shield = minf(max_shield, shield + 28)
+		game.burst(center(), Color("f6c86f"), 18)
+		game.sound.play("reward", 5)
+	elif class_id == "vanguard":
+		invulnerability = maxf(invulnerability, 0.35)
+		game.sweep_bullets(center(), 230)
+		game.radial_damage(center(), 220, 42.0 * damage_scale(), "hero")
+		for enemy in game.enemies:
+			if is_instance_valid(enemy) and not enemy.dead and enemy.center().distance_to(center()) < 220:
+				enemy.knockback += (enemy.center() - center()).normalized() * 190
+		game.burst(center(), Color("ffb27a"), 24)
+		game.shake(0.25)
+		game.sound.play("boom", 4)
 	else:
 		game.burst(center(), Color("e9ca8a") if class_id == "knight" else Color("c8b9ff"), 16)
 		game.sound.play("reward", 5)

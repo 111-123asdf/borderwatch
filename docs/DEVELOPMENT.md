@@ -14,7 +14,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\verify_export.ps
 python .\tools\native_smoke.py
 ```
 
-verify冷导入后跑规则、战斗、三英雄完整关卡、支持线夹具和四受限策略。export覆盖builds/windows-core-slice和相应ZIP，需Windows x64模板；verify_export在发行目录显式--path加载EXE内PCK，阻止源码回退。日志在忽略的test-results。native_smoke需要Windows交互桌面，只向自己PID的窗口发输入。
+verify冷导入后跑规则、战斗、五英雄完整关卡、支持线夹具和四受限策略。export覆盖builds/windows-core-slice和相应ZIP，需Windows x64模板；verify_export在发行目录显式--path加载EXE内PCK，阻止源码回退。日志在忽略的test-results。native_smoke需要Windows交互桌面，只向自己PID的窗口发输入。
 
 Linux/macOS自行装同版Standard，主要实测Windows。Linux最小检查先 `godot --headless --editor --path . --import --quit`，再 `godot --headless --path . --script res://tests/game_tests.gd` 和combat_tests。本次不额外申请工作流写权限，自动CI配置留本机待审，尚未上传启用；本地测试不等于CI已通过。
 

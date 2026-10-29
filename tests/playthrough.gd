@@ -55,7 +55,12 @@ func _run() -> void:
 		if enemy != null and game.hero.respawn_time <= 0:
 			var distance: float = game.hero.position.distance_to(enemy.position)
 			game.hero.fire()
-			if game.hero.class_id == "knight" or (game.hero.class_id == "mage" and distance < 400) or (game.hero.class_id == "ranger" and distance < 150): game.hero.use_skill()
+			var should_use_skill: bool = game.hero.class_id == "knight"
+			should_use_skill = should_use_skill or (game.hero.class_id == "mage" and distance < 400)
+			should_use_skill = should_use_skill or (game.hero.class_id == "ranger" and distance < 150)
+			should_use_skill = should_use_skill or (game.hero.class_id == "engineer" and (game.hero.energy < 90 or game.hero.shield < game.hero.max_shield * 0.6))
+			should_use_skill = should_use_skill or (game.hero.class_id == "vanguard" and distance < 220)
+			if should_use_skill: game.hero.use_skill()
 		if game.can_manage() and game.elapsed - last_construction > 2:
 			_build_affordable()
 			last_construction = game.elapsed
