@@ -2,7 +2,7 @@ config_version=5
 
 [application]
 config/name="边境守望"
-run/main_scene="res://scenes/main.tscn"
+run/main_scene="res://scenes/arena.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/description="英雄探索 × 自动塔防 × 肉鸽成长"
 config/version="0.3.0"

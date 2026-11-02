@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot 'godot_path.ps1')
 $enginePath = Resolve-GodotBinary $projectRoot
@@ -14,10 +14,7 @@ function Invoke-CheckedGodot([string[]]$GodotArguments, [string]$LogName) {
     }
     $logPath = Join-Path $projectRoot ('test-results\' + $LogName)
     $output | Set-Content -LiteralPath $logPath -Encoding utf8
-    $problem = $output | Where-Object {
-        $_ -match 'SCRIPT ERROR:|Parse Error|^ERROR:|FAIL:' -and
-        $_ -notmatch 'ERROR: Failed to read the root certificate store\.'
-    }
+    $problem = $output | Where-Object { $_ -match 'SCRIPT ERROR:|Parse Error|^ERROR:|FAIL:' -and $_ -notmatch 'Failed to read the root certificate store' }
     if ($code -ne 0 -or $problem) {
         $output | Write-Output
         throw "Godot check failed: $LogName"
