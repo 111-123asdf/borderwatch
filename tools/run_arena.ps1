@@ -3,10 +3,9 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot 'godot_path.ps1')
 $enginePath = Resolve-GodotBinary $projectRoot
-$userRoot = Join-Path $projectRoot 'test-results\arena-user'
-New-Item -ItemType Directory -Force -Path (Join-Path $userRoot 'Roaming'), (Join-Path $userRoot 'Local') | Out-Null
-$env:APPDATA = Join-Path $userRoot 'Roaming'
-$env:LOCALAPPDATA = Join-Path $userRoot 'Local'
+# Normal play uses the user's normal Godot data directory. Test runners set
+# their own isolated APPDATA; keeping saves under test-results would lose them
+# when test output is cleaned and differs from launching the project directly.
 $previous = $ErrorActionPreference
 $ErrorActionPreference = 'Continue'
 try {

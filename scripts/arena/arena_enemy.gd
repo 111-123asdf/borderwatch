@@ -39,6 +39,7 @@ var sniper_charge := 0.0
 var sniper_direction := Vector2.LEFT
 var spinner_cooldown := 1.0
 var visual: ActorVisual
+var visual_attack_clock := 0.0
 var hit_flash := 0.0
 var knockback := Vector2.ZERO
 
@@ -187,6 +188,7 @@ func _ready() -> void:
 		radius = 40.0
 		speed = 36.0
 	visual.setup(family, color, factor)
+	if kind in ["brute", "hound", "shaman", "boss"]: visual.use_enemy_preview(kind)
 	if elite:
 		radius *= 1.3
 		speed *= 0.90
@@ -204,6 +206,7 @@ func _physics_process(delta: float) -> void:
 	if game.hitstop > 0.0:
 		queue_redraw()
 		return
+	visual_attack_clock = maxf(0.0, visual_attack_clock - delta)
 	if knockback.length_squared() > 1.0:
 		position += knockback * delta
 		knockback = knockback.move_toward(Vector2.ZERO, 520.0 * delta)
@@ -252,15 +255,19 @@ func _physics_process(delta: float) -> void:
 		if tower != null:
 			var tower_direction := (tower.position - position).normalized()
 			var tower_distance := position.distance_to(tower.position)
+			var visual_motion := tower_direction * speed
 			if kind == "mortar":
 				if tower_distance > 240.0:
 					position += tower_direction * speed * delta
-				elif attack_windup <= 0.0 and ranged_cooldown <= 0.0:
-					ranged_cooldown = 2.2
-					attack_windup = 0.45
-					windup_tower = tower
-					windup_explode = false
+				else:
+					visual_motion = Vector2.ZERO
+					if attack_windup <= 0.0 and ranged_cooldown <= 0.0:
+						ranged_cooldown = 2.2
+						attack_windup = 0.45
+						windup_tower = tower
+						windup_explode = false
 			elif kind == "bomber" and tower_distance < 58.0:
+				visual_motion = Vector2.ZERO
 				if attack_windup <= 0.0:
 					attack_windup = 0.45
 					windup_tower = tower
@@ -268,9 +275,12 @@ func _physics_process(delta: float) -> void:
 			else:
 				position += tower_direction * speed * delta
 				if tower_distance < 48.0:
+					if kind == "brute" and visual_attack_clock <= 0.0:
+						visual_attack_clock = 0.8
+						visual.attack(tower_direction, 0.55)
 					tower.health -= (34.0 if kind == "brute" else 30.0) * delta
 					if tower.health <= 0.0: game.tower_destroyed(tower)
-			visual.advance(delta, tower_direction * speed, tower_direction)
+			visual.advance(delta, visual_motion, tower_direction)
 			queue_redraw()
 			return
 		locked_tower = null
@@ -292,6 +302,7 @@ func _physics_process(delta: float) -> void:
 		if sniper_charge > 0.0:
 			sniper_charge = maxf(0.0, sniper_charge - delta)
 			if sniper_charge <= 0.0:
+				visual.attack(sniper_direction, 0.42)
 				game.enemy_shot(position + Vector2(0, -24), position + Vector2(0, -24) + sniper_direction * 900.0, 18.0, 900.0)
 		elif ranged_cooldown <= 0.0 and game.hero != null and position.distance_to(game.hero.position) < 680.0:
 			sniper_charge = 0.72
@@ -330,7 +341,7 @@ func _physics_process(delta: float) -> void:
 	var boss_holding := kind == "boss" and core_distance < 300.0
 	if not boss_holding:
 		position += direction * speed * slow_factor * delta
-	var visual_motion := Vector2.ZERO if boss_holding else direction * speed
+	var visual_motion := Vector2.ZERO if boss_holding else direction * speed * slow_factor
 	visual.advance(delta, visual_motion, direction)
 	if kind in ["shooter", "boss", "bomber"] and game.hero != null:
 		var shot_range := 430.0 if kind == "shooter" else (520.0 if kind == "boss" else 480.0)
@@ -340,6 +351,7 @@ func _physics_process(delta: float) -> void:
 			var count := 3 if kind == "shooter" else (5 if kind == "boss" else 3)
 			if elite: count += 1
 			var lead_target: Vector2 = game.hero.center() + game.hero.velocity * 0.18
+			if kind == "shooter": visual.attack(lead_target - position, 0.42)
 			game.enemy_shot_arc(position + Vector2(0, -24), lead_target, shot_damage, 230.0 if kind != "bomber" else 190.0, count, 0.28)
 			if kind == "shooter":
 				var shooter_tower: ArenaTower = game.nearest_tower(position, 400.0)
@@ -366,6 +378,8 @@ func _physics_process(delta: float) -> void:
 		if kind == "boss": contact = 28.0
 		elif kind == "brute": contact = 22.0
 		elif kind == "charger": contact = 16.0
+		# The source Torch Aseprite uses six 100 ms attack frames.
+		if visual.family == "torch" or kind == "brute": visual.attack(game.hero.position - position, 0.6)
 		game.hero.take_damage(contact)
 	queue_redraw()
 
@@ -390,7 +404,7 @@ func take_damage(amount: float, source := "other") -> void:
 func _draw() -> void:
 	if dead: return
 	var width := 42.0 if kind != "boss" else 76.0
-	var top := -44.0 if kind != "boss" else -70.0
+	var top := -44.0 if kind != "boss" else -182.0
 	if health < max_health:
 		draw_rect(Rect2(-width * 0.5, top, width, 5), Color("251f21"))
 		draw_rect(Rect2(-width * 0.5, top, width * health / max_health, 5), Color("df8267"))

@@ -1,5 +1,7 @@
 extends Node2D
 
+const WeaponCatalog = preload("res://scripts/arena/arena_weapon_catalog.gd")
+
 # Experimental arena survival prototype: ring spawns, free tower placement,
 # blocking flow-field pathing, pickups, build mode and one-life death.
 # This scene is intentionally separate from scenes/main.tscn.
@@ -20,6 +22,7 @@ var started := false
 var hero_selected := false
 var game_over := false
 var victory := false
+var defeat_reason := ""
 var gold := START_GOLD
 var core_health := 750.0
 var core_max := 750.0
@@ -46,6 +49,9 @@ var spawn_cells: Array[Vector2i] = []
 var spawn_warnings: Array[Dictionary] = []
 var pending_spawns: Array[Dictionary] = []
 var obstacles: Array[Rect2] = []
+var landscape_texture: Texture2D
+var obstacle_texture: Texture2D
+var clearing_texture: Texture2D
 var towers: Array[ArenaTower] = []
 var enemies: Array[ArenaEnemy] = []
 var drops: Array[ArenaDrop] = []
@@ -54,6 +60,8 @@ var hud: ArenaHUD
 var audio: ArenaAudio
 var camera: Camera2D
 var build_mode := false
+var build_site_selected := false
+var suppress_primary_until_release := false
 var build_kind := "bolt"
 var default_target_mode := "nearest"
 var build_cell := Vector2i(-1, -1)
@@ -92,6 +100,9 @@ var passive_guarantee_weapon := false
 var passive_guarantee_element := false
 var stats := {"kills": 0, "hero_kills": 0, "tower_kills": 0, "built": 0, "cycles": 0}
 var damage_stats := {"hero": 0.0, "tower": 0.0, "other": 0.0}
+var progression: ArenaProgression
+var progression_reward := 0
+var progression_error := ""
 var debug := {
 	"leaks": 0,
 	"leak_damage": 0.0,
@@ -106,11 +117,16 @@ var debug := {
 }
 
 func _ready() -> void:
+	# Sort world entities by their ground positions; HUD remains on its CanvasLayer.
+	y_sort_enabled = true
 	rng.randomize()
+	var use_profile := DisplayServer.get_name() != "headless" and "--no-profile" not in OS.get_cmdline_user_args()
+	progression = ArenaProgression.new(ArenaProgression.SAVE_PATH, use_profile)
 	_configure_input()
 	for index in range(GRID_W * GRID_H):
 		blocked.append(false)
 	_setup_obstacles()
+	_setup_landscape()
 	_setup_spawn_points()
 	_add_castle()
 	_rebuild_flow()
@@ -140,7 +156,6 @@ func start_with_hero(key: String) -> void:
 	started = true
 	hud.hide_hero_select()
 	start_rest(20.0)
-	_set_phase_text("第一轮准备：先建 2 座塔，英雄去林线捡宝匣。")
 
 func _configure_input() -> void:
 	var actions := {
@@ -173,6 +188,12 @@ func _setup_obstacles() -> void:
 		obstacles.append(Rect2(point - Vector2(46, 46), Vector2(92, 92)))
 		block_cell_rect(point, 84.0)
 
+func _setup_landscape() -> void:
+	# One illustrative floor sample; this does not alter gameplay collision.
+	landscape_texture = load("res://assets/original/frontier_battlefield_concept.png")
+	obstacle_texture = Art.texture("Deco/06.png")
+	clearing_texture = load("res://assets/original/beacon_clearing.png")
+
 func _setup_spawn_points() -> void:
 	for index in range(REGION_COUNT):
 		var angle := TAU * index / float(REGION_COUNT)
@@ -182,14 +203,24 @@ func _setup_spawn_points() -> void:
 		spawn_cells.append(world_to_cell(point))
 
 func _add_castle() -> void:
-	var castle: Sprite2D = Art.sprite("Factions/Knights/Buildings/Castle/Castle_Blue.png")
-	castle.scale = Vector2.ONE * 0.62
-	castle.position = CORE + Vector2(0, -70)
-	add_child(castle)
+	# Sort the beacon at its ground anchor, not at the raised sprite centre.
+	var anchor := Node2D.new()
+	anchor.name = "CoreVisualAnchor"
+	anchor.position = CORE
+	add_child(anchor)
+	var castle := Sprite2D.new()
+	castle.texture = load("res://assets/original/frontier_beacon_core.png")
+	castle.scale = Vector2.ONE * 215.0 / float(castle.texture.get_width())
+	castle.position = Vector2(0, -85)
+	anchor.add_child(castle)
 
 # ── grid / flow ──────────────────────────────────────────────
 func world_to_cell(point: Vector2) -> Vector2i:
 	return Vector2i(clampi(int(floor(point.x / CELL)), 0, GRID_W - 1), clampi(int(floor(point.y / CELL)), 0, GRID_H - 1))
+
+func build_cell_from_world(point: Vector2) -> Vector2i:
+	# Building must reject clicks outside the map instead of snapping them to its edge.
+	return Vector2i(int(floor(point.x / CELL)), int(floor(point.y / CELL)))
 
 func cell_center(cell: Vector2i) -> Vector2:
 	return Vector2(cell.x * CELL + CELL * 0.5, cell.y * CELL + CELL * 0.5)
@@ -268,7 +299,7 @@ func _blocked_spawn_names() -> Array[String]:
 	return names
 
 # ── build ────────────────────────────────────────────────────
-func can_place(cell: Vector2i) -> String:
+func can_place(cell: Vector2i, check_cost := true) -> String:
 	if cell.x < 0 or cell.y < 0 or cell.x >= GRID_W or cell.y >= GRID_H: return "超出地图"
 	if not ArenaTower.STATS.has(build_kind): return "请选择塔"
 	var point := cell_center(cell)
@@ -281,7 +312,7 @@ func can_place(cell: Vector2i) -> String:
 			var other := cell + Vector2i(ox, oy)
 			if other.x < 0 or other.y < 0 or other.x >= GRID_W or other.y >= GRID_H: continue
 			if _tower_at(other) != null: return "不能挨着其他塔"
-	if gold < tower_cost(build_kind): return "金币不足"
+	if check_cost and gold < tower_cost(build_kind): return "金币不足"
 	for enemy in enemies:
 		if is_instance_valid(enemy) and enemy.position.distance_to(point) < 46: return "敌人太近"
 	var index := cell_index(cell)
@@ -405,64 +436,86 @@ func repair_nearest() -> void:
 	hud.toast("塔已修复", 2)
 
 func try_build_at_mouse() -> void:
-	confirm_build()
+	select_build_site(build_cell_from_world(get_global_mouse_position()))
 
 func set_build_kind(kind: String) -> void:
 	if ArenaTower.STATS.has(kind):
 		build_kind = kind
-		build_reason = ""
+		_set_build_cell(build_cell)
+
+func _set_build_cell(cell: Vector2i) -> void:
+	build_cell = cell
+	build_site_ok = _build_site_ok(cell)
+	build_reason = can_place(cell, build_site_selected)
+	build_valid = build_reason == ""
+
+func select_build_site(cell: Vector2i) -> bool:
+	if not build_mode or not running or game_over or get_tree().paused: return false
+	build_site_selected = false
+	_set_build_cell(cell)
+	if not build_valid:
+		hud.toast(build_reason, 2)
+		return false
+	build_site_selected = true
+	_set_build_cell(cell)
+	return true
+
+func choose_build_kind(kind: String) -> void:
+	if not build_mode or not build_site_selected or not running or game_over or get_tree().paused or not ArenaTower.STATS.has(kind): return
+	set_build_kind(kind)
+	confirm_build()
+
+func cancel_build_mode() -> void:
+	if not build_mode: return
+	build_mode = false
+	build_site_selected = false
+	suppress_primary_until_release = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
+	selected_tower = null
+	if hud != null:
+		hud.build_palette.visible = false
+		hud.show_tower_panel(null)
+	Engine.time_scale = sim_speed
 
 func toggle_build_mode() -> void:
-	if game_over or not running: return
+	if game_over or not running or get_tree().paused: return
 	get_viewport().gui_release_focus()
 	if build_mode:
-		build_mode = false
-		selected_tower = null
-		hud.show_tower_panel(null)
-		Engine.time_scale = sim_speed
+		cancel_build_mode()
 		return
 	if phase != "rest" and focus <= 0.0:
 		hud.toast("专注不足，先等休息段", 2)
 		return
 	build_mode = true
+	build_site_selected = false
 	selected_tower = null
 	hud.show_tower_panel(null)
-	build_cell = _nearest_build_cell(world_to_cell(get_global_mouse_position()))
-	build_site_ok = true
-	build_reason = can_place(build_cell)
-	build_valid = build_reason == ""
+	_set_build_cell(build_cell_from_world(get_global_mouse_position()))
 
 func build_from_menu(kind: String) -> void:
 	number_build(kind)
 
 func number_build(kind: String) -> void:
-	if not ArenaTower.STATS.has(kind): return
+	if not ArenaTower.STATS.has(kind) or not running or game_over or get_tree().paused: return
 	if not build_mode:
 		toggle_build_mode()
 		if not build_mode: return
-	set_build_kind(kind)
+	if build_site_selected:
+		choose_build_kind(kind)
+	else:
+		set_build_kind(kind)
 
 func cycle_build_kind(step: int) -> void:
-	if not build_mode: return
+	if not build_mode or not running or game_over or get_tree().paused: return
 	var index := ArenaTower.TOWER_ORDER.find(build_kind)
 	if index < 0: index = 0
 	var next := (index + step + ArenaTower.TOWER_ORDER.size()) % ArenaTower.TOWER_ORDER.size()
 	set_build_kind(ArenaTower.TOWER_ORDER[next])
 
 func confirm_build() -> bool:
-	if not build_mode: return false
-	if build_cell.x < 0:
-		hud.toast("先选一个建造位置", 2)
-		return false
-	var target := build_cell
-	var built := place_tower(target)
-	if not built:
-		var fallback := _nearest_build_cell(target)
-		if fallback != target:
-			built = place_tower(fallback)
+	if not build_mode or not running or game_over or get_tree().paused: return false
+	var built := place_tower(build_cell)
 	if built:
-		build_mode = false
-		Engine.time_scale = sim_speed
+		cancel_build_mode()
 		get_viewport().gui_release_focus()
 	return built
 
@@ -508,8 +561,20 @@ func start_rest(seconds: float) -> void:
 	var cache_point: Vector2 = spawn_points[cache_region] + Vector2(rng.randf_range(-50, 50), rng.randf_range(-50, 50))
 	var camp_name: String = Rules.CAMP_NAMES[mini(camps_cleared, Rules.CAMP_NAMES.size() - 1)]
 	spawn_drop(cache_point, 20, 30, true, true, "", camp_name)
-	_set_phase_text("休息：下一轮热点 %s；%s宝匣在 %s；建塔/修塔/捡宝匣" % [_region_name(hot_region), camp_name, _region_name(cache_region)])
+	_refresh_rest_hint()
 	hud.toast("休息段：热点 %s；%s宝匣在 %s（休息结束消失）" % [_region_name(hot_region), camp_name, _region_name(cache_region)], 3)
+
+func _refresh_rest_hint() -> void:
+	if phase != "rest": return
+	for drop in drops:
+		if not is_instance_valid(drop) or drop.is_queued_for_deletion() or not drop.cache:
+			continue
+		var direction: Vector2 = drop.position - CORE
+		var region := posmod(roundi(direction.angle() * REGION_COUNT / TAU), REGION_COUNT)
+		_set_phase_text("B 建塔 · %s宝匣在%s（金色标记，休息结束消失）" % [drop.camp_name, _region_name(region)])
+		return
+	_set_phase_text("休息准备 · B 建塔")
+
 func start_spawn() -> void:
 	expire_normal_drops()
 	phase = "spawn"
@@ -523,7 +588,7 @@ func start_spawn() -> void:
 	hud.toast("出怪：热点 %s；本轮预算 %d" % [_region_name(hot_region), spawn_budget], 3)
 
 func _region_name(index: int) -> String:
-	var names := ["北", "东北", "东", "东南", "南", "西南", "西", "西北"]
+	var names := ["东", "东南", "南", "西南", "西", "西北", "北", "东北"]
 	return names[index % names.size()]
 
 func hero_damage_scale() -> float:
@@ -632,6 +697,7 @@ func rest_seconds(base: float) -> float:
 
 func open_relic_choice(group: String) -> void:
 	if group == "" or relic_choice_pending: return
+	cancel_build_mode()
 	pending_relic_group = group
 	relic_choice_pending = true
 	running = false
@@ -709,7 +775,7 @@ func tower_card_preview(key: String) -> String:
 			range_after += 8
 			return "全塔射程 +%d → +%d；曜光塔再 +10%%" % [range_before, range_after]
 		"tower_banner":
-			return "战旗光环额外 +5% → +%d%% 塔伤害" % (5 * (stacks + 1))
+			return "战旗光环额外 +5%% → +%d%% 塔伤害" % (5 * (stacks + 1))
 		"tower_mixed":
 			return "当前 %d 种塔：全塔伤害 +%d%% → +%d%%" % [distinct, damage_before, damage_after + 4 * distinct]
 		"tower_network":
@@ -758,6 +824,7 @@ func open_passive_choice(source: String) -> void:
 		hud.toast("被动已全满：转化为 %d 金与生命" % (50 * rewards), 3)
 		return
 	_update_dry_choices(passive_choices)
+	cancel_build_mode()
 	passive_selecting = true
 	running = false
 	hud.show_passive_choice(passive_choices, source, passive_rerolls, passive_banishes)
@@ -964,7 +1031,7 @@ func build_report() -> Dictionary:
 		var stacks := int(hero.passives[key])
 		if key in ["burn", "pyroclasm", "thermal_shock"]:
 			fire += stacks
-		if key in ["frost", "nova", "permafrost", "scatter_frost", "chainfrost"]:
+		if key in ["frost", "nova", "permafrost", "chainfrost"] or (key == "scatter_frost" and hero.has_weapon_equipped("scatter")):
 			frost += stacks
 		if key in ["chain", "storm", "tempest", "stormfire"]:
 			lightning += stacks
@@ -1101,6 +1168,16 @@ func enemy_died(enemy: ArenaEnemy) -> void:
 		spawn_drop(enemy.position, 20, 15, true)
 	else:
 		spawn_drop(enemy.position, 6, 5, false)
+	# A readable, predictable stream of distinct weapons; all heroes share it.
+	# Existing drops waiting on the ground count as pending to prevent duplicates.
+	if stats.kills >= 5 and (int(stats.kills) - 5) % 8 == 0 and hero != null:
+		var pending: Array[String] = []
+		for item in drops:
+			if is_instance_valid(item) and not item.weapon_key.is_empty(): pending.append(item.weapon_key)
+		for key in WeaponCatalog.IDS:
+			if key not in hero.weapon_inventory and key not in pending:
+				spawn_drop(enemy.position + Vector2(30, 0), 0, 0, true, false, key)
+				break
 	if boss_dead and cycle >= level_cycles and enemies.is_empty() and pending_spawns.is_empty():
 		finish(true)
 	if hero != null:
@@ -1162,18 +1239,27 @@ func core_hit(amount: float) -> void:
 	debug.leaks += 1
 	debug.leak_damage += amount
 	core_health = maxf(0.0, core_health - amount)
-	if core_health <= 0: finish(false)
+	if core_health <= 0: finish(false, "core")
 
 func hero_died() -> void:
 	if game_over: return
-	finish(false)
+	finish(false, "hero")
 
-func finish(win: bool) -> void:
+func finish(win: bool, reason := "") -> void:
 	if game_over: return
+	cancel_build_mode()
 	game_over = true
 	victory = win
+	defeat_reason = "" if win else reason
 	running = false
 	Engine.time_scale = 1.0
+	if started and hero != null:
+		var completed_cycles := maxi(0, cycle - 1) + (1 if win else 0)
+		var reward := ArenaProgression.battle_reward(int(stats.kills), completed_cycles, win)
+		progression_reward = progression.grant_experience(hero.class_id, reward)
+		if progression_reward < 0:
+			progression_error = progression.last_error
+			progression_reward = 0
 	hud.show_result(win)
 	_set_phase_text("")
 
@@ -1195,7 +1281,7 @@ func spawn_drop(point: Vector2, xp: int, gold_value: int, big: bool, cache := fa
 	debug.drops_spawned += 1
 	if drops.size() > 150:
 		for index in range(drops.size()):
-			if not drops[index].big:
+			if not drops[index].big and drops[index].weapon_key.is_empty():
 				var oldest: ArenaDrop = drops[index]
 				drops.remove_at(index)
 				oldest.queue_free()
@@ -1203,10 +1289,13 @@ func spawn_drop(point: Vector2, xp: int, gold_value: int, big: bool, cache := fa
 	return drop
 
 func collect_drop(drop: ArenaDrop) -> void:
-	if not is_instance_valid(drop): return
+	if not is_instance_valid(drop) or drop not in drops: return
 	drops.erase(drop)
+	if drop.cache: _refresh_rest_hint()
 	debug.drops_collected += 1
 	if hero != null:
+		if not drop.weapon_key.is_empty():
+			hero.collect_weapon(drop.weapon_key)
 		var gold_value := int(drop.gold_value * kill_gold_scale() * hero.gold_mult)
 		gold += gold_value
 		hero.gold_gained += gold_value
@@ -1220,11 +1309,14 @@ func collect_drop(drop: ArenaDrop) -> void:
 	drop.queue_free()
 
 func expire_normal_drops() -> void:
+	var cache_expired := false
 	for drop in drops.duplicate():
-		if is_instance_valid(drop) and (not drop.big or drop.cache):
+		if is_instance_valid(drop) and drop.weapon_key.is_empty() and (not drop.big or drop.cache):
 			drops.erase(drop)
+			cache_expired = cache_expired or drop.cache
 			debug.drops_expired += 1
 			drop.queue_free()
+	if cache_expired: _refresh_rest_hint()
 
 func tower_target(tower: ArenaTower) -> ArenaEnemy:
 	if tower == null or not is_instance_valid(tower): return null
@@ -1288,6 +1380,7 @@ func nearest_enemy(point: Vector2, radius: float) -> ArenaEnemy:
 
 func spawn_projectile(origin: Vector2, target: Vector2, damage: float, color: Color, splash := 0.0, slow := 0.0, speed := 760.0, pierce := 0, execute_bonus := 0.0, burn_dps := 0.0, critical := false, execute_threshold := 0.35, shatter := false, poison_dps := 0.0, source := "other") -> ArenaProjectile:
 	var projectile := ArenaProjectile.new()
+	projectile.z_index = 1
 	projectile.game = self
 	projectile.position = origin
 	projectile.direction = (target - origin).normalized()
@@ -1330,6 +1423,7 @@ func enemy_grenade(point: Vector2, radius: float, damage: float, delay: float) -
 
 func enemy_shot(origin: Vector2, target: Vector2, damage: float, speed := 190.0) -> ArenaProjectile:
 	var projectile := ArenaProjectile.new()
+	projectile.z_index = 1
 	projectile.game = self
 	projectile.hostile = true
 	projectile.position = origin
@@ -1476,6 +1570,10 @@ func _set_phase_text(text: String) -> void:
 	if hud != null: hud.phase_hint = text
 
 # ── input ──────────────────────────────────────────────────
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+		suppress_primary_until_release = false
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_RIGHT:
@@ -1501,7 +1599,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				if hud.build_palette.visible and hud.build_palette.get_global_rect().has_point(mouse):
 					get_viewport().set_input_as_handled()
 					return
-				confirm_build()
+				var world_pos: Vector2 = get_viewport().get_canvas_transform().affine_inverse() * mouse
+				select_build_site(build_cell_from_world(world_pos))
 				get_viewport().set_input_as_handled()
 				return
 			if selected_tower != null:
@@ -1527,6 +1626,10 @@ func _unhandled_input(event: InputEvent) -> void:
 				number_build("banner")
 			KEY_T:
 				cycle_all_targets()
+			KEY_Q:
+				if running and not game_over and not build_mode and hero != null:
+					hero.cycle_weapon()
+					get_viewport().set_input_as_handled()
 			KEY_ESCAPE:
 				if build_mode:
 					toggle_build_mode()
@@ -1537,6 +1640,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 # ── process ────────────────────────────────────────────────
 func _process(delta: float) -> void:
+	if suppress_primary_until_release and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		suppress_primary_until_release = false
 	if not running: return
 	elapsed += delta
 	hitstop = maxf(0.0, hitstop - delta)
@@ -1573,26 +1678,21 @@ func _process(delta: float) -> void:
 		spawn_enemy(String(pending.kind), pending.point, float(pending.health), bool(pending.elite))
 	for floater in floaters: floater.life -= delta
 	floaters = floaters.filter(func(item): return item.life > 0.0)
-	if build_mode:
+	if build_mode and not build_site_selected:
 		var mouse_screen := get_viewport().get_mouse_position()
 		if hud.build_palette.visible and hud.build_palette.get_global_rect().has_point(mouse_screen):
 			pass
 		else:
-			var raw_cell := world_to_cell(get_global_mouse_position())
-			if _build_site_ok(raw_cell):
-				build_cell = raw_cell
-			elif not _build_site_ok(build_cell):
-				build_cell = _nearest_build_cell(raw_cell)
-			build_site_ok = true
-			build_reason = can_place(build_cell)
-			build_valid = build_reason == ""
+			_set_build_cell(build_cell_from_world(get_global_mouse_position()))
+	elif build_mode:
+		_set_build_cell(build_cell)
 	queue_redraw()
 
 func _update_build_mode(delta: float) -> void:
 	if build_mode and phase != "rest":
 		focus = maxf(0.0, focus - delta / 1.0)
 		if focus <= 0.0:
-			build_mode = false
+			cancel_build_mode()
 	if not build_mode:
 		focus = minf(focus_max, focus + delta * 1.5)
 	Engine.time_scale = 0.45 if build_mode else sim_speed
@@ -1614,6 +1714,17 @@ func _update_camera(delta: float) -> void:
 		camera.offset = shake_direction * randf_range(-shake_amount, shake_amount) + shake_direction.orthogonal() * randf_range(-shake_amount * 0.35, shake_amount * 0.35)
 	else:
 		camera.offset = Vector2(randf_range(-shake_amount, shake_amount), randf_range(-shake_amount, shake_amount))
+	# Clamp the actual camera center, including shake, using the visible world
+	# dimensions at the current zoom rather than a fixed world-space margin.
+	var center := _constrain_camera_center(camera.position + camera.offset, get_viewport_rect().size, camera.zoom)
+	camera.position = center - camera.offset
+
+func _constrain_camera_center(center: Vector2, viewport_size: Vector2, camera_zoom: Vector2) -> Vector2:
+	var half := viewport_size / (camera_zoom * 2.0)
+	return Vector2(
+		ARENA_SIZE.x * 0.5 if half.x * 2.0 >= ARENA_SIZE.x else clampf(center.x, half.x, ARENA_SIZE.x - half.x),
+		ARENA_SIZE.y * 0.5 if half.y * 2.0 >= ARENA_SIZE.y else clampf(center.y, half.y, ARENA_SIZE.y - half.y)
+	)
 
 func shake(amount: float, direction := Vector2.ZERO) -> void:
 	if amount > shake_amount:
@@ -1650,7 +1761,25 @@ func _advance_cycle() -> void:
 
 # ── draw ───────────────────────────────────────────────────
 func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, ARENA_SIZE), Color("2d4a38"))
+	if landscape_texture != null:
+		draw_texture_rect(landscape_texture, Rect2(Vector2.ZERO, ARENA_SIZE), false, Color("c8d2bc"))
+	if clearing_texture != null:
+		draw_texture_rect(clearing_texture, Rect2(CORE - Vector2(240, 240), Vector2(480, 480)), false)
+	for rock in obstacles:
+		if obstacle_texture != null:
+			draw_texture_rect(obstacle_texture, Rect2(rock.get_center() - Vector2(64, 68), Vector2(128, 128)), false)
+	# Only while placing towers, reveal the same occupied cells that placement
+	# and the flow field use.  The ground image contains decorative details,
+	# so its painted rocks should not be mistaken for the gameplay grid.
+	if build_mode:
+		for y in range(GRID_H):
+			for x in range(GRID_W):
+				var cell := Vector2i(x, y)
+				if not blocked[cell_index(cell)]: continue
+				if cell_center(cell).distance_to(CORE) > BUILD_RADIUS + CELL: continue
+				var footprint := Rect2(Vector2(x, y) * CELL + Vector2.ONE * 2.0, Vector2.ONE * (CELL - 4.0))
+				draw_rect(footprint, Color(0.72, 0.36, 0.22, 0.16))
+				draw_rect(footprint, Color(0.9, 0.55, 0.36, 0.25), false, 1.0)
 	draw_rect(Rect2(Vector2.ZERO, ARENA_SIZE), Color("17251e"), false, 10)
 	draw_arc(CORE, BUILD_RADIUS, 0, TAU, 96, Color(0.55, 0.85, 0.7, 0.18), 3, true)
 	draw_arc(CORE, SPAWN_RADIUS, 0, TAU, 96, Color(0.9, 0.65, 0.4, 0.22), 3, true)
@@ -1672,19 +1801,18 @@ func _draw() -> void:
 			draw_line(Vector2(x * CELL, 0), Vector2(x * CELL, ARENA_SIZE.y), Color(0.7, 0.85, 0.8, 0.06), 1)
 		for y in range(0, GRID_H + 1):
 			draw_line(Vector2(0, y * CELL), Vector2(ARENA_SIZE.x, y * CELL), Color(0.7, 0.85, 0.8, 0.06), 1)
-		if build_cell.x >= 0:
-			var rect := Rect2(cell_center(build_cell) - Vector2.ONE * CELL * 0.5, Vector2.ONE * CELL)
-			draw_rect(rect, Color(0.4, 0.95, 0.65, 0.28) if build_valid else Color(0.95, 0.35, 0.3, 0.28))
-			draw_rect(rect, Color(0.4, 0.95, 0.65, 0.8) if build_valid else Color(0.95, 0.35, 0.3, 0.8), false, 2)
-			var tower_color: Color = ArenaTower.STATS[build_kind].color
-			var ghost_center := cell_center(build_cell)
-			var alpha := 0.32 if build_valid else 0.14
-			draw_circle(ghost_center + Vector2(0, 2), 27, Color(tower_color, alpha * 0.55))
-			draw_arc(ghost_center + Vector2(0, 2), 27, 0, TAU, 32, Color(tower_color, alpha * 1.6), 2, true)
-			draw_circle(ghost_center + Vector2(0, -18), 17, Color(tower_color, alpha * 1.2))
-			draw_arc(ghost_center + Vector2(0, -18), 17, 0, TAU, 24, Color(tower_color, alpha * 2.0), 2, true)
-			var range_value := float(ArenaTower.STATS[build_kind].range)
-			draw_arc(cell_center(build_cell), range_value, 0, TAU, 64, Color(0.55, 0.9, 0.75, 0.45), 2, true)
+		var rect := Rect2(cell_center(build_cell) - Vector2.ONE * CELL * 0.5, Vector2.ONE * CELL)
+		draw_rect(rect, Color(0.4, 0.95, 0.65, 0.28) if build_valid else Color(0.95, 0.35, 0.3, 0.28))
+		draw_rect(rect, Color(0.4, 0.95, 0.65, 0.8) if build_valid else Color(0.95, 0.35, 0.3, 0.8), false, 2)
+		var tower_color: Color = ArenaTower.STATS[build_kind].color
+		var ghost_center := cell_center(build_cell)
+		var alpha := 0.32 if build_valid else 0.14
+		draw_circle(ghost_center + Vector2(0, 2), 27, Color(tower_color, alpha * 0.55))
+		draw_arc(ghost_center + Vector2(0, 2), 27, 0, TAU, 32, Color(tower_color, alpha * 1.6), 2, true)
+		draw_circle(ghost_center + Vector2(0, -18), 17, Color(tower_color, alpha * 1.2))
+		draw_arc(ghost_center + Vector2(0, -18), 17, 0, TAU, 24, Color(tower_color, alpha * 2.0), 2, true)
+		var range_value := float(ArenaTower.STATS[build_kind].range)
+		draw_arc(cell_center(build_cell), range_value, 0, TAU, 64, Color(0.55, 0.9, 0.75, 0.45), 2, true)
 		var route_point: Vector2 = spawn_points[hot_region]
 		for step in range(60):
 			var direction: Vector2 = flow_at(route_point)
@@ -1692,9 +1820,6 @@ func _draw() -> void:
 			draw_line(route_point, route_point + direction * 18.0, Color(0.95, 0.55, 0.35, 0.55), 4, true)
 			route_point += direction * 18.0
 			if route_point.distance_to(CORE) < 50.0: break
-	for rock in obstacles:
-		draw_rect(rock, Color("4a4d44"))
-		draw_rect(rock, Color("252b25"), false, 3)
 	for bolt in bolts:
 		draw_line(bolt.start, bolt.end, Color(0.7, 0.95, 1.0, bolt.life / 0.18), 4, true)
 		draw_line(bolt.start, bolt.end, Color.WHITE, 1.5, true)

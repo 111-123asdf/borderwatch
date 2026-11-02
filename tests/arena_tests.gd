@@ -21,6 +21,24 @@ func _run() -> void:
 	check(game.hero != null, "Arena creates a hero")
 	check(game.core_health == game.core_max, "Arena creates a core")
 	check(game.spawn_points.size() == 8, "Arena has eight spawn regions")
+	var compass := {
+		"东": Vector2.RIGHT, "东南": Vector2(1, 1), "南": Vector2.DOWN,
+		"西南": Vector2(-1, 1), "西": Vector2.LEFT, "西北": Vector2(-1, -1),
+		"北": Vector2.UP, "东北": Vector2(1, -1),
+	}
+	for region in range(game.spawn_points.size()):
+		var name: String = game._region_name(region)
+		var expected: Vector2 = compass.get(name, Vector2.ZERO)
+		var actual: Vector2 = game.spawn_points[region] - game.CORE
+		check(expected != Vector2.ZERO and actual.normalized().dot(expected.normalized()) > 0.999, "Region %d direction matches label %s" % [region, name])
+	for viewport_size in [Vector2(1280, 800), Vector2(1920, 1080)]:
+		var zoom := Vector2(0.78, 0.78)
+		var half: Vector2 = viewport_size / (zoom * 2.0)
+		for requested in [Vector2.ZERO, game.ARENA_SIZE]:
+			var constrained: Vector2 = game._constrain_camera_center(requested, viewport_size, zoom)
+			check(constrained.x >= half.x and constrained.y >= half.y and constrained.x <= game.ARENA_SIZE.x - half.x and constrained.y <= game.ARENA_SIZE.y - half.y, "Camera keeps map inside view at %s" % viewport_size)
+	var oversized: Vector2 = game._constrain_camera_center(Vector2.ZERO, Vector2(3840, 2160), Vector2(0.78, 0.78))
+	check(oversized.is_equal_approx(game.ARENA_SIZE * 0.5), "Camera centers the map when it is smaller than the viewport")
 	check(game.flow_at(game.CORE + Vector2(300, 0)).length() > 0.0, "Flow field points toward the core")
 
 	var camp_drop: ArenaDrop
@@ -29,14 +47,22 @@ func _run() -> void:
 			camp_drop = drop
 	check(camp_drop != null, "The first rest spawns a camp chest")
 	if camp_drop != null:
+		var chest_offset: Vector2 = camp_drop.position - game.CORE
+		var chest_region: int = posmod(roundi(chest_offset.angle() * game.REGION_COUNT / TAU), game.REGION_COUNT)
+		check("宝匣" in game.hud.phase_hint and game._region_name(chest_region) in game.hud.phase_hint, "First rest shows the actual chest direction")
 		game.hero.position = camp_drop.position
 		await create_timer(0.25).timeout
 		check(game.camps_cleared == 1, "Collecting a camp chest advances camp progression")
+		check(not ("宝匣" in game.hud.phase_hint), "Collected chest no longer appears in the rest hint")
 		check(game.passive_selecting, "Camp chest opens a powerful passive choice")
 		var passive_key: String = game.passive_choices[0]
 		game.choose_passive(passive_key)
 		check(not game.passive_selecting, "Choosing a camp passive resumes the run")
 		check(game.hero.passives.size() > 0 or "lone" in game.relics or "swarm" in game.relics or "vanguard" in game.relics or "command" in game.relics or "raid" in game.relics or "hold" in game.relics, "Camp passive applies")
+	game.start_rest(20.0)
+	check("宝匣" in game.hud.phase_hint, "A new rest announces its chest")
+	game.expire_normal_drops()
+	check(not ("宝匣" in game.hud.phase_hint), "Expired chest no longer appears in the rest hint")
 
 	var level_before: int = game.hero.level
 	var level_pool := ArenaUpgrades.build_pool(game.hero, "level")
@@ -156,17 +182,84 @@ func _run() -> void:
 	game.build_cell = game._nearest_build_cell(Vector2i(24, 24))
 	game.number_build("bolt")
 	await create_timer(0.1).timeout
+	game._set_build_cell(game._nearest_build_cell(Vector2i(24, 24)))
 	var click_event := InputEventMouseButton.new()
 	click_event.button_index = MOUSE_BUTTON_LEFT
 	click_event.pressed = true
-	click_event.position = Vector2(2, 2)
+	click_event.position = game.get_viewport().get_canvas_transform() * game.cell_center(game.build_cell)
+	var gold_before_site: int = game.gold
 	game._unhandled_input(click_event)
-	check(game.towers.size() == before_manual_click + 1, "Left click confirms tower placement")
+	check(game.build_site_selected and game.towers.size() == before_manual_click and game.gold == gold_before_site, "Clicking a legal site opens tower selection without spending gold")
+	game.hud._update_build_menu()
+	check(game.hud.build_palette.visible and game.hud.build_buttons.size() == 7, "Selected site shows seven tower choices")
+	var menu_rect: Rect2 = game.hud.build_palette.get_global_rect()
+	var screen_rect: Rect2 = game.get_viewport().get_visible_rect()
+	check(screen_rect.encloses(menu_rect), "Tower selection stays inside the viewport")
+	var selected_site: Vector2i = game.build_cell
+	game.build_cell = Vector2i(0, 0)
+	game.hud._update_build_menu()
+	check(screen_rect.encloses(game.hud.build_palette.get_global_rect()), "Tower selection is clamped at the upper-left edge")
+	game.build_cell = Vector2i(game.GRID_W - 1, game.GRID_H - 1)
+	game.hud._update_build_menu()
+	check(screen_rect.encloses(game.hud.build_palette.get_global_rect()), "Tower selection is clamped at the lower-right edge")
+	game.build_cell = selected_site
+	game.hud._update_build_menu()
+	game.hud.build_buttons[0].pressed.emit()
+	check(game.towers.size() == before_manual_click + 1 and not game.build_mode, "Selecting a tower builds at the chosen site")
+	check(game.towers.back().cell == selected_site, "Selecting a tower preserves the exact chosen cell")
 	var before_confirmed = game.towers.size()
 	game.number_build("bolt")
 	check(game.towers.size() == before_confirmed and game.build_mode, "Number key only selects a tower")
+	var gold_before_rejected_click: int = game.gold
+	var rejected_click := InputEventMouseButton.new()
+	rejected_click.button_index = MOUSE_BUTTON_LEFT
+	rejected_click.pressed = true
+	rejected_click.position = game.get_viewport().get_canvas_transform() * game.CORE
+	game._unhandled_input(rejected_click)
+	check(game.build_cell == game.world_to_cell(game.CORE) and not game.build_valid and game.build_reason == "离核心太近", "Invalid click marks the actual cell and explains the rejection")
+	check(game.towers.size() == before_confirmed and game.gold == gold_before_rejected_click and game.build_mode, "Invalid click does not place or charge for a tower elsewhere")
+	var outside_world := Vector2(-game.CELL, game.CORE.y)
+	rejected_click.position = game.get_viewport().get_canvas_transform() * outside_world
+	game._unhandled_input(rejected_click)
+	check(game.build_cell.x == -1 and game.build_reason == "超出地图" and not game.build_valid, "Outside-map click is not clamped to the edge")
+	check(game.towers.size() == before_confirmed and game.gold == gold_before_rejected_click and game.build_mode, "Outside-map click neither builds nor spends gold")
+	game._set_build_cell(game._nearest_build_cell(Vector2i(26, 24)))
 	game.confirm_build()
 	check(game.towers.size() == before_confirmed + 1, "Confirm places the selected tower")
+	game.toggle_build_mode()
+	var cancel_gold: int = game.gold
+	var cancel_tower_count: int = game.towers.size()
+	check(game.select_build_site(game._nearest_build_cell(Vector2i(26, 24))), "A free site can be selected before cancelling")
+	var cancel_event := InputEventMouseButton.new()
+	cancel_event.button_index = MOUSE_BUTTON_RIGHT
+	cancel_event.pressed = true
+	game._unhandled_input(cancel_event)
+	check(not game.build_mode and not game.build_site_selected and game.gold == cancel_gold and game.towers.size() == cancel_tower_count, "Right click cancels without building or charging")
+	game.toggle_build_mode()
+	check(game.select_build_site(game._nearest_build_cell(Vector2i(26, 24))), "A site can be selected before Escape")
+	var escape_event := InputEventKey.new()
+	escape_event.keycode = KEY_ESCAPE
+	escape_event.pressed = true
+	game._unhandled_input(escape_event)
+	check(not game.build_mode and not game.build_site_selected and game.gold == cancel_gold, "Escape cancels the tower selection")
+	game.toggle_build_mode()
+	check(game.select_build_site(game._nearest_build_cell(Vector2i(26, 24))), "A site can be selected before focus expires")
+	var saved_phase: String = game.phase
+	var saved_focus: float = game.focus
+	game.phase = "spawn"
+	game.focus = 0.01
+	game._update_build_mode(0.1)
+	check(not game.build_mode and not game.build_site_selected and game.gold == cancel_gold, "Focus exhaustion closes the selection without charging")
+	game.phase = saved_phase
+	game.focus = saved_focus
+	game.toggle_build_mode()
+	var saved_gold: int = game.gold
+	game.gold = 0
+	check(game.select_build_site(game._nearest_build_cell(Vector2i(26, 24))), "A location can be selected before choosing an affordable tower")
+	game.choose_build_kind("bolt")
+	check(game.build_mode and game.build_site_selected and game.gold == 0 and game.towers.size() == cancel_tower_count, "Unaffordable tower does not spend or build")
+	game.gold = saved_gold
+	game.toggle_build_mode()
 	game.toggle_build_mode()
 	game.number_build("bolt")
 	var wheel_change: String = game.build_kind
@@ -338,6 +431,16 @@ func _run() -> void:
 	fire_target.queue_free()
 	var build_check: Dictionary = game.build_report()
 	check(build_check.has("grade") and build_check.has("boss_affinity") and build_check.has("warnings"), "Boss build report has grade, affinity and warnings")
+	# The Boss counter should use the effects of the currently equipped weapon.
+	var boss_test_passives: Dictionary = game.hero.passives.duplicate(true)
+	var boss_test_weapon: String = game.hero.weapon_key
+	game.hero.passives = {"scatter_frost": 1}
+	game.hero.weapon_key = "pistol"
+	check(game.build_report().elements == 0 and game.build_report().boss_affinity != "frost", "Inactive scatter frost does not affect Boss affinity")
+	game.hero.weapon_key = "scatter"
+	check(game.build_report().elements == 1 and game.build_report().boss_affinity == "frost", "Equipped scatter frost affects Boss affinity")
+	game.hero.weapon_key = boss_test_weapon
+	game.hero.passives = boss_test_passives
 	check(ArenaUpgrades.DEFS.size() >= 96, "Expanded card pool is available")
 	check(ArenaUpgrades.DEFS.has("bullet_hell") and ArenaUpgrades.DEFS.has("tower_legion") and ArenaUpgrades.DEFS.has("combustion"), "Ballistic, tower and fire capstones are registered")
 	check(ArenaUpgrades.DEFS.has("knight_champion") and ArenaUpgrades.DEFS.has("ranger_phantom") and ArenaUpgrades.DEFS.has("mage_archon"), "Class capstones are registered")
@@ -351,6 +454,19 @@ func _run() -> void:
 	game.dry_weapon_choices = 2
 	game.dry_element_choices = 2
 	game.open_passive_choice("level")
+	var icons_present: bool = game.hud.passive_buttons.size() == game.passive_choices.size()
+	for card in game.hud.passive_buttons:
+		var icon := card.get_node_or_null("PassiveIcon") as TextureRect
+		icons_present = icons_present and icon != null and icon.texture != null and not card.tooltip_text.is_empty()
+	check(icons_present, "Each passive choice displays a shared semantic icon and full tooltip")
+	var all_icon_cells_valid := true
+	for key in ArenaUpgrades.DEFS:
+		var icon_index: int = game.hud._passive_icon_cell(key, ArenaUpgrades.info(key))
+		all_icon_cells_valid = all_icon_cells_valid and icon_index >= 0 and icon_index < 12
+	check(all_icon_cells_valid, "Every passive definition maps to an existing icon atlas cell")
+	check(game.hud._passive_icon_cell("tower_bolt", ArenaUpgrades.info("tower_bolt")) != game.hud._passive_icon_cell("tower_cannon", ArenaUpgrades.info("tower_cannon")), "Bolt and cannon passives use distinguishable motifs")
+	game.hud.passive_buttons[0].emit_signal("pressed")
+	check(not game.hud.passive_confirm.disabled, "Selecting an illustrated card enables confirm")
 	var soft_weapon := false
 	var soft_element := false
 	for key in game.passive_choices:
@@ -376,12 +492,47 @@ func _run() -> void:
 	check(not game.passive_selecting and game.gold > gold_before_empty, "Empty upgrade pool converts to gold instead of soft-locking")
 	game.hero.passives = saved_passives
 
+	game.focus = game.focus_max
+	game.toggle_build_mode()
+	check(game.select_build_site(game._nearest_build_cell(Vector2i(26, 24))), "A site is available before the relic modal")
+	game.hud._update_build_menu()
+	var modal_gold: int = game.gold
+	var modal_towers: int = game.towers.size()
+	game.open_relic_choice("defense")
+	game.number_build("bolt")
+	game.choose_build_kind("bolt")
+	check(not game.build_mode and not game.build_site_selected and not game.hud.build_palette.visible and game.gold == modal_gold and game.towers.size() == modal_towers, "Relic selection cancels construction and blocks building")
+	game.choose_relic("lone")
+	game.toggle_build_mode()
+	check(game.select_build_site(game._nearest_build_cell(Vector2i(26, 24))), "A site is available before the passive modal")
+	game.hud._update_build_menu()
+	game.open_passive_choice("level")
+	game.number_build("bolt")
+	game.choose_build_kind("bolt")
+	check(not game.build_mode and not game.build_site_selected and not game.hud.build_palette.visible and game.gold == modal_gold and game.towers.size() == modal_towers, "Passive selection cancels construction and blocks building")
+	game.choose_passive(game.passive_choices[0])
+	game.toggle_build_mode()
+	check(game.select_build_site(game._nearest_build_cell(Vector2i(26, 24))), "A site is available before opening the guide")
+	game.hud._update_build_menu()
+	game.hud._show_ingame_guide()
+	game.number_build("bolt")
+	game.choose_build_kind("bolt")
+	check(paused and not game.build_mode and not game.hud.build_palette.visible and game.gold == modal_gold and game.towers.size() == modal_towers, "Guide cancels construction and blocks building while paused")
+	game.hud._close_guide()
+	game.toggle_build_mode()
+	check(game.select_build_site(game._nearest_build_cell(Vector2i(26, 24))), "A site is available before defeat")
+	game.hud._update_build_menu()
 	game.hero.invulnerability = 0.0
 	game.hero.take_damage(9999.0)
 	check(game.game_over and not game.running, "Hero death ends the run")
 	check(game.hud.result_panel.visible, "Death shows the result panel")
+	game.number_build("bolt")
+	game.choose_build_kind("bolt")
+	check(not game.build_mode and not game.build_site_selected and not game.hud.build_palette.visible and game.gold == modal_gold and game.towers.size() == modal_towers, "Defeat cancels construction and blocks building")
 
 	print("ARENA CHECKS: %d, FAILURES: %d" % [checks, failures.size()])
 	game.queue_free()
 	await process_frame
+	# Let the audio server release playback objects before the test process exits.
+	await create_timer(1.0, true, false, true).timeout
 	quit(0 if failures.is_empty() else 1)

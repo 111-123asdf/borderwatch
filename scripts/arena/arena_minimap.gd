@@ -36,6 +36,16 @@ func _draw() -> void:
 		var color := Color("ffda78") if enemy.elite else Color("ff8064")
 		var dot := 3.0 if enemy.kind == "boss" else (2.0 if enemy.elite else 1.4)
 		draw_circle(origin + enemy.position * scale_factor, dot, color)
+	# Only temporary exploration caches are map objectives. Normal XP, gold and
+	# equipment drops stay off the map so the marker remains easy to notice.
+	for drop in game.drops:
+		if not is_instance_valid(drop) or drop.is_queued_for_deletion() or not drop.cache:
+			continue
+		var cache_point: Vector2 = origin + drop.position * scale_factor
+		draw_rect(Rect2(cache_point - Vector2(6, 5), Vector2(12, 10)), Color("3d3020"))
+		draw_rect(Rect2(cache_point - Vector2(5, 4), Vector2(10, 8)), Color("ffd36e"))
+		draw_line(cache_point + Vector2(-5, 0), cache_point + Vector2(5, 0), Color("81572a"), 1)
+		draw_rect(Rect2(cache_point - Vector2(1, 1), Vector2(2, 3)), Color("fff2bf"))
 	if game.hero != null:
 		var hero_point: Vector2 = origin + game.hero.position * scale_factor
 		draw_circle(hero_point, 4.5, Color("8be8ff"))

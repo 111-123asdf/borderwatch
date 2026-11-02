@@ -1,5 +1,7 @@
 extends Node2D
 
+const WeaponCatalog = preload("res://scripts/arena/arena_weapon_catalog.gd")
+
 var visual: ActorVisual
 var standalone_key := ""
 
@@ -16,8 +18,9 @@ func _draw() -> void:
 	var hand := shoulder + direction * (20 - recoil)
 	var second := shoulder + direction * (8 - recoil) + direction.orthogonal() * 8
 	var cloth := Color("619cb1") if visual.hero_identity == "knight" else (Color("739f7d") if visual.hero_identity == "ranger" else Color("9e80bc"))
-	draw_line(shoulder, hand, Color("263e4e"), 9, false)
-	draw_line(shoulder, hand, cloth, 5, false)
+	var ranger_arm := visual.hero_identity == "ranger"
+	draw_line(shoulder, hand, Color("263e4e"), 6 if ranger_arm else 9, false)
+	draw_line(shoulder, hand, cloth, 3 if ranger_arm else 5, false)
 	draw_circle(hand, 4.5, Color("edcc99"))
 	draw_line(shoulder + Vector2(0, 5), second, cloth.darkened(0.3), 7, false)
 	draw_circle(second, 4, Color("edcc99"))
@@ -31,19 +34,20 @@ func _draw() -> void:
 	draw_set_transform(Vector2.ZERO)
 
 func _draw_weapon(key: String, recoil: float, progress: float) -> void:
-	var color: Color = Rules.weapon(key).color
+	var weapon := WeaponCatalog.get_weapon(key)
+	if not weapon.is_empty():
+		var color: Color = weapon.get("color", Color.WHITE)
+		draw_texture_rect(weapon.hand_texture, weapon.hand_rect, false)
+		if key == "scatter" and progress < 0.45: draw_arc(Vector2(20, 0), 12 + progress * 12, 0, TAU, 16, Color(color, 0.6), 2, true)
+		return
+	var color: Color = Rules.weapon(key).get("color", Color.WHITE)
 	match key:
-		"bow", "storm":
+		"storm":
 			draw_arc(Vector2(-3, 0), 23, -1.15, 1.15, 14, Color("344c4c"), 7, false)
 			draw_arc(Vector2(-3, 0), 23, -1.15, 1.15, 14, Color("d5ac6b") if key == "bow" else Color("a9a4d0"), 4, false)
 			draw_polyline(PackedVector2Array([Vector2(6, -21), Vector2(-7 - recoil, 0), Vector2(6, 21)]), Color("e7dcc2"), 1.5, true)
 			draw_line(Vector2(-12, 0), Vector2(29, 0), color, 3, false)
-		"scatter":
-			draw_line(Vector2(-17, 0), Vector2(15, 0), Color("36434c"), 8, false)
-			draw_line(Vector2(-17, 0), Vector2(15, 0), Color("bd9868"), 4, false)
-			draw_colored_polygon(PackedVector2Array([Vector2(31, 0), Vector2(19, -9), Vector2(10, 0), Vector2(19, 9)]), Color("355771"))
-			draw_colored_polygon(PackedVector2Array([Vector2(28, 0), Vector2(19, -6), Vector2(13, 0), Vector2(19, 6)]), color)
-			if progress < 0.45: draw_arc(Vector2(20, 0), 12 + progress * 12, 0, TAU, 16, Color(color, 0.6), 2, true)
+
 		"sword", "halberd":
 			var reach := 63.0 if key == "halberd" else 39.0
 			draw_line(Vector2(-11, 0), Vector2(reach, 0), Color("344350"), 9, false)

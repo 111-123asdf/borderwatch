@@ -1,10 +1,17 @@
 class_name ArenaHUD
 extends CanvasLayer
 
+const WeaponCatalog = preload("res://scripts/arena/arena_weapon_catalog.gd")
+
 const INK := Color("142c31")
 const CREAM := Color("f2ebd3")
 const MUTED := Color("a8bdb1")
 const GOLD := Color("e7c47b")
+const HERO_PRESENTATION := {
+	"knight": {"role": "双持爆发 / 坚实护盾", "text": "短时间复制当前武器进行攻击；以护盾和走位守住防线。"},
+	"ranger": {"role": "高速走位 / 短冷却翻滚", "text": "沿移动方向翻滚，短暂无敌；停步时沿面向翻滚。"},
+	"mage": {"role": "清除弹幕 / 魔法输出", "text": "释放结界时清除当前敌方弹幕；随后仍要注意走位。"},
+}
 
 var game: Node2D
 var root: Control
@@ -32,6 +39,11 @@ var result_panel: Panel
 var result_label: Label
 var hero_panel: Panel
 var hero_selecting := false
+var entry_menu: Control
+var hero_backdrop: TextureRect
+var level_panel: Panel
+var growth_overlay: Control
+var selected_hero := ""
 var relic_panel: Panel
 var relic_selecting := false
 var passive_panel: Panel
@@ -44,10 +56,8 @@ var passive_banish: Button
 var passive_banish_count := 0
 var build_palette: Panel
 var build_name: Label
-var build_role: Label
-var build_stats: Label
-var build_trait: Label
-var build_hint: Label
+var build_buttons: Array[Button] = []
+var build_prices: Array[Label] = []
 var tower_panel: Panel
 var tower_title: Label
 var tower_stats: Label
@@ -60,6 +70,12 @@ var tower_bonus: Label
 var toast_label: Label
 var toast_time := 0.0
 var phase_hint := ""
+var guide_overlay: ColorRect
+var guide_paused_game := false
+var guide_previous_pause := false
+var weapon_overlay: ColorRect
+var weapon_previous_pause := false
+var help_button: Button
 
 func _ready() -> void:
 	layer = 50
@@ -88,10 +104,10 @@ func _ready() -> void:
 	status = _label(Rect2(18, 16, 420, 28), 20, CREAM)
 	shield_bar = ProgressBar.new()
 	shield_bar.position = Vector2(18, 44)
-	shield_bar.size = Vector2(220, 8)
 	shield_bar.show_percentage = false
 	_style_bar(shield_bar, Color("76c9f0"), Color("1b2c2a"))
 	root.add_child(shield_bar)
+	shield_bar.size = Vector2(220, 8)
 	resources = _label(Rect2(18, 54, 420, 24), 16, GOLD)
 	xp_label = _label(Rect2(18, 78, 420, 24), 15, MUTED)
 	skill_label = _label(Rect2(18, 102, 460, 24), 15, Color("cfe3d4"))
@@ -178,15 +194,24 @@ func _ready() -> void:
 	build_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	focus_bar = ProgressBar.new()
 	focus_bar.position = Vector2(-180, -40)
-	focus_bar.size = Vector2(360, 8)
 	focus_bar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM, true)
 	focus_bar.max_value = 100
 	focus_bar.show_percentage = false
 	_style_bar(focus_bar, Color("e7c47b"), Color("2a2c24"))
 	root.add_child(focus_bar)
+	focus_bar.size = Vector2(360, 8)
 	toast_label = _label(Rect2(-360, -112, 720, 28), 16, CREAM)
 	toast_label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM, true)
 	toast_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	help_button = Button.new()
+	help_button.text = "?"
+	help_button.tooltip_text = "操作手册 · H"
+	help_button.size = Vector2(34, 34)
+	root.add_child(help_button)
+	help_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	help_button.position = root.get_viewport_rect().size - Vector2(50, 50)
+	_style_button(help_button)
+	help_button.pressed.connect(_show_ingame_guide)
 	result_panel = Panel.new()
 	result_panel.position = Vector2(-260, -150)
 	result_panel.size = Vector2(520, 300)
@@ -231,39 +256,459 @@ func show_hero_select() -> void:
 	if hero_panel != null: return
 	hero_selecting = true
 	hero_panel = Panel.new()
-	hero_panel.position = Vector2(-330, -210)
-	hero_panel.size = Vector2(660, 420)
+	hero_panel.position = Vector2(-540, -310)
+	hero_panel.size = Vector2(1080, 620)
 	hero_panel.set_anchors_preset(Control.PRESET_CENTER, true)
 	var panel_style := StyleBoxFlat.new()
-	panel_style.bg_color = Color("162b2b")
+	panel_style.bg_color = Color(0.06, 0.13, 0.13, 0.94)
 	panel_style.border_color = Color("6f8f7c")
 	panel_style.set_border_width_all(2)
 	panel_style.set_corner_radius_all(10)
 	hero_panel.add_theme_stylebox_override("panel", panel_style)
 	root.add_child(hero_panel)
-	var title := _label(Rect2(20, 20, 620, 36), 24, GOLD)
+	var title := _label(Rect2(20, 20, 1040, 36), 26, GOLD)
 	root.remove_child(title)
 	hero_panel.add_child(title)
 	title.text = "选择英雄"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var subtitle := _label(Rect2(20, 58, 620, 24), 14, MUTED)
+	var home_button := Button.new()
+	home_button.position = Vector2(22, 17)
+	home_button.size = Vector2(112, 38)
+	home_button.text = "‹  返回"
+	_style_button(home_button)
+	home_button.pressed.connect(_back_to_entry)
+	hero_panel.add_child(home_button)
+	var subtitle := _label(Rect2(20, 60, 1040, 24), 15, MUTED)
 	root.remove_child(subtitle)
 	hero_panel.add_child(subtitle)
 	subtitle.text = "三名英雄各有主动；营地宝匣会带来强力被动"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var keys := ["knight", "ranger", "mage"]
+	var portraits: Texture2D = load("res://assets/ui/heroes-0.3.png")
 	for index in range(keys.size()):
 		var key: String = keys[index]
 		var data: Dictionary = Rules.HEROES[key]
 		var button := Button.new()
-		button.position = Vector2(60, 100 + index * 92)
-		button.size = Vector2(540, 78)
-		button.text = "%s  ·  %s\n%s" % [data.name, data.role, data.text]
-		button.add_theme_font_size_override("font_size", 15)
-		button.add_theme_color_override("font_color", CREAM)
+		button.position = Vector2(34 + index * 344, 105)
+		button.size = Vector2(324, 456)
+		button.clip_contents = true
 		_style_button(button)
-		button.pressed.connect(game.start_with_hero.bind(key))
+		button.pressed.connect(_show_level_prepare.bind(key))
 		hero_panel.add_child(button)
+		var portrait := TextureRect.new()
+		portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		portrait.texture = _hero_portrait(key, portraits)
+		portrait.position = Vector2(22, 8)
+		portrait.size = Vector2(280, 276)
+		portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		button.add_child(portrait)
+		var name_label := _label(Rect2(12, 291, 300, 34), 23, GOLD)
+		root.remove_child(name_label)
+		button.add_child(name_label)
+		name_label.text = data.name
+		name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		var role_label := _label(Rect2(12, 332, 300, 28), 15, CREAM)
+		root.remove_child(role_label)
+		button.add_child(role_label)
+		role_label.text = HERO_PRESENTATION[key].role
+		role_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		var description := _label(Rect2(22, 371, 280, 75), 14, MUTED)
+		root.remove_child(description)
+		button.add_child(description)
+		description.text = HERO_PRESENTATION[key].text
+		description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		description.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var tip := _label(Rect2(20, 575, 1040, 26), 14, MUTED)
+	root.remove_child(tip)
+	hero_panel.add_child(tip)
+	tip.text = "选择一位英雄，再准备第一关"
+	tip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hero_panel.hide()
+	_show_entry_menu()
+
+func _hero_portrait(key: String, portraits: Texture2D) -> Texture2D:
+	var original_portraits := {
+		"knight": "res://assets/original/knight_portrait_preview.png",
+		"ranger": "res://assets/original/ranger_portrait_preview.png",
+		"mage": "res://assets/original/mage_portrait_preview.png",
+	}
+	if original_portraits.has(key):
+		var texture: Texture2D = load(original_portraits[key])
+		if key == "mage":
+			# Trim transparent side margins so the figure matches the other cards.
+			var cropped := AtlasTexture.new()
+			cropped.atlas = texture
+			cropped.region = Rect2(260, 0, 880, 1145)
+			return cropped
+		return texture
+	var portrait_index := ["knight", "ranger", "mage"].find(key)
+	var region := AtlasTexture.new()
+	region.atlas = portraits
+	region.region = Rect2(portrait_index * portraits.get_width() / 3.0, 0, portraits.get_width() / 3.0, portraits.get_height())
+	return region
+
+func _show_entry_menu() -> void:
+	entry_menu = Control.new()
+	entry_menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	entry_menu.mouse_filter = Control.MOUSE_FILTER_STOP
+	root.add_child(entry_menu)
+	var background := TextureRect.new()
+	background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	background.texture = load("res://assets/original/frontier_beacon_title.png")
+	background.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	background.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	entry_menu.add_child(background)
+	var title := _entry_label("边境守望", Rect2(67, 183, 420, 68), 44, GOLD)
+	title.add_theme_constant_override("outline_size", 7)
+	_entry_label("守住微光，走向森林深处。", Rect2(70, 256, 400, 34), 19, CREAM)
+	_entry_label("边境林地 · 第一关", Rect2(70, 293, 400, 28), 15, MUTED)
+	_entry_button("开始守望", Rect2(63, 350, 350, 68), _enter_hero_select)
+	_entry_button("英雄养成", Rect2(63, 425, 350, 68), _show_entry_growth)
+	_entry_button("如何游玩", Rect2(63, 500, 350, 68), _show_entry_guide)
+	_entry_button("退出游戏", Rect2(63, 575, 350, 68), func(): game.get_tree().quit())
+	_entry_label("开发中 · 第一关", Rect2(70, 731, 400, 20), 13, MUTED)
+
+func _growth_label(parent: Node, message: String, rect: Rect2, font_size: int, color: Color) -> Label:
+	var label := _label(rect, font_size, color)
+	root.remove_child(label)
+	parent.add_child(label)
+	label.text = message
+	return label
+
+func _growth_button(parent: Node, text_value: String, rect: Rect2, action: Callable) -> Button:
+	var button := Button.new()
+	button.position = rect.position
+	button.size = rect.size
+	button.text = text_value
+	_style_button(button)
+	button.pressed.connect(action)
+	parent.add_child(button)
+	return button
+
+func _show_entry_growth(hero_id := "knight") -> void:
+	if not is_instance_valid(entry_menu): return
+	if is_instance_valid(growth_overlay):
+		entry_menu.remove_child(growth_overlay)
+		growth_overlay.queue_free()
+	var shade := ColorRect.new()
+	growth_overlay = shade
+	shade.name = "GrowthOverlay"
+	shade.color = Color(0.02, 0.06, 0.06, 0.82)
+	shade.mouse_filter = Control.MOUSE_FILTER_STOP
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	entry_menu.add_child(shade)
+	var panel := Panel.new()
+	panel.position = Vector2(-430, -275)
+	panel.size = Vector2(860, 550)
+	panel.set_anchors_preset(Control.PRESET_CENTER, true)
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color("112b2b")
+	box.border_color = GOLD
+	box.set_border_width_all(2)
+	box.set_corner_radius_all(10)
+	panel.add_theme_stylebox_override("panel", box)
+	shade.add_child(panel)
+	var title := _growth_label(panel, "英雄养成", Rect2(40, 24, 780, 38), 27, GOLD)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_growth_label(panel, "战斗结算积累经验，每 80 点经验获得 1 个成长点。", Rect2(55, 68, 750, 28), 16, MUTED)
+	var keys := ["knight", "ranger", "mage"]
+	for index in range(keys.size()):
+		var key: String = keys[index]
+		var hero_button := _growth_button(panel, String(Rules.HEROES[key].name), Rect2(45 + index * 260, 108, 250, 48), _show_entry_growth.bind(key))
+		hero_button.name = "GrowthHero_" + key
+		if key == hero_id: hero_button.add_theme_color_override("font_color", GOLD)
+	var portraits: Texture2D = load("res://assets/ui/heroes-0.3.png")
+	var portrait := TextureRect.new()
+	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	portrait.texture = _hero_portrait(hero_id, portraits)
+	portrait.position = Vector2(60, 176)
+	portrait.size = Vector2(210, 230)
+	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(portrait)
+	var current: Dictionary = game.progression.entry(hero_id)
+	var available: int = game.progression.points(hero_id)
+	_growth_label(panel, "%s  ·  可用成长点 %d" % [Rules.HEROES[hero_id].name, available], Rect2(315, 182, 480, 34), 20, GOLD)
+	_growth_label(panel, "累计经验 %d / %d" % [current.xp, ArenaProgression.MAX_XP], Rect2(315, 220, 460, 26), 15, MUTED)
+	_growth_label(panel, "生命训练  %d / %d    每级 +3 生命" % [current.health, ArenaProgression.STAT_CAP], Rect2(315, 267, 340, 30), 16, CREAM)
+	_growth_label(panel, "护盾训练  %d / %d    每级 +2 护盾" % [current.shield, ArenaProgression.STAT_CAP], Rect2(315, 330, 340, 30), 16, CREAM)
+	var health := _growth_button(panel, "强化 · 1 点", Rect2(663, 258, 145, 48), _upgrade_growth.bind(hero_id, "health"))
+	health.name = "GrowthHealth"
+	health.disabled = game.progression.locked or available <= 0 or int(current.health) >= ArenaProgression.STAT_CAP
+	var shield := _growth_button(panel, "强化 · 1 点", Rect2(663, 321, 145, 48), _upgrade_growth.bind(hero_id, "shield"))
+	shield.name = "GrowthShield"
+	shield.disabled = game.progression.locked or available <= 0 or int(current.shield) >= ArenaProgression.STAT_CAP
+	var note := "强化在下一次出发时生效。"
+	if not game.progression.last_error.is_empty(): note = game.progression.last_error
+	elif not game.progression.persistent: note = "当前为测试模式：成长只保存在内存。"
+	_growth_label(panel, note, Rect2(315, 390, 500, 45), 15, MUTED if game.progression.last_error.is_empty() else Color("ffb08a"))
+	var close := _growth_button(panel, "返回", Rect2(320, 463, 220, 52), func(): growth_overlay.queue_free(); growth_overlay = null)
+	close.name = "GrowthClose"
+
+func _upgrade_growth(hero_id: String, stat: String) -> void:
+	game.progression.upgrade(hero_id, stat)
+	_show_entry_growth(hero_id)
+
+func _show_entry_guide() -> void:
+	_open_guide(entry_menu, false)
+
+func _show_ingame_guide() -> void:
+	if not game.started or game.game_over or hero_selecting or relic_selecting or game.passive_selecting or is_instance_valid(weapon_overlay): return
+	_open_guide(root, true)
+
+func _open_guide(parent: Control, pause_game: bool) -> void:
+	if is_instance_valid(guide_overlay): return
+	if pause_game: game.cancel_build_mode()
+	var shade := ColorRect.new()
+	shade.color = Color(0.02, 0.06, 0.06, 0.80)
+	shade.mouse_filter = Control.MOUSE_FILTER_STOP
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	parent.add_child(shade)
+	guide_overlay = shade
+	guide_paused_game = pause_game
+	guide_previous_pause = get_tree().paused
+	if pause_game: get_tree().paused = true
+	var panel := Panel.new()
+	panel.position = Vector2(-410, -245)
+	panel.size = Vector2(820, 490)
+	panel.set_anchors_preset(Control.PRESET_CENTER, true)
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color("112b2b")
+	box.border_color = GOLD
+	box.set_border_width_all(2)
+	box.set_corner_radius_all(10)
+	panel.add_theme_stylebox_override("panel", box)
+	shade.add_child(panel)
+	var title := _label(Rect2(40, 30, 740, 40), 27, GOLD)
+	root.remove_child(title)
+	panel.add_child(title)
+	title.text = "守望手册"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var guide := _label(Rect2(65, 95, 690, 280), 19, CREAM)
+	root.remove_child(guide)
+	panel.add_child(guide)
+	guide.text = "WASD 移动，按住鼠标左键攻击；Space 使用英雄技能。\n\nB 建塔，点击地面选位置，再点图标选塔；右键取消，E 修塔。\n\n击败敌人获得武器，未拾取的武器会自动收入本局武器栏。\n\nQ 快速切换武器；Tab 打开武器栏；H 打开或关闭手册。\n\n休息时探索宝匣，升级时选择被动，守住遗迹核心。"
+	guide.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	var close := Button.new()
+	close.position = Vector2(300, 408)
+	close.size = Vector2(220, 52)
+	close.text = "知道了"
+	_style_button(close)
+	close.pressed.connect(_close_guide)
+	panel.add_child(close)
+
+func _close_guide() -> void:
+	if not is_instance_valid(guide_overlay): return
+	guide_overlay.queue_free()
+	guide_overlay = null
+	if guide_paused_game: get_tree().paused = guide_previous_pause
+	guide_paused_game = false
+	_release_focus()
+
+func _show_weapon_inventory() -> void:
+	if not game.started or not game.running or game.game_over or game.build_mode or hero_selecting or relic_selecting or game.passive_selecting or is_instance_valid(guide_overlay) or is_instance_valid(weapon_overlay): return
+	weapon_previous_pause = get_tree().paused
+	get_tree().paused = true
+	weapon_overlay = ColorRect.new()
+	weapon_overlay.name = "WeaponOverlay"
+	weapon_overlay.color = Color(0.02, 0.06, 0.06, 0.82)
+	weapon_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	weapon_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root.add_child(weapon_overlay)
+	var panel := Panel.new()
+	panel.position = Vector2(-430, -220)
+	panel.size = Vector2(860, 440)
+	panel.set_anchors_preset(Control.PRESET_CENTER, true)
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color("112b2b")
+	box.border_color = GOLD
+	box.set_border_width_all(2)
+	box.set_corner_radius_all(10)
+	panel.add_theme_stylebox_override("panel", box)
+	weapon_overlay.add_child(panel)
+	var title := _growth_label(panel, "本局武器", Rect2(30, 22, 800, 38), 27, GOLD)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var tip := _growth_label(panel, "选择已获得的武器装备；不同英雄都能使用。", Rect2(30, 68, 800, 28), 16, MUTED)
+	tip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	for index in range(WeaponCatalog.IDS.size()):
+		var key: String = WeaponCatalog.IDS[index]
+		var owned: bool = key in game.hero.weapon_inventory
+		var button := _growth_button(panel, "", Rect2(26 + index * 204, 110, 196, 222), func():
+			game.hero.equip_weapon(key)
+			_close_weapon_inventory())
+		button.name = "Weapon_" + key
+		button.disabled = not owned
+		if key == game.hero.weapon_key: button.add_theme_color_override("font_color", GOLD)
+		var icon := TextureRect.new()
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.texture = WeaponCatalog.get_weapon(key).icon
+		icon.position = Vector2(13, 10)
+		icon.size = Vector2(170, 104)
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		button.add_child(icon)
+		var label := _growth_label(button, String(WeaponCatalog.get_weapon(key).name) if owned else "尚未获得", Rect2(8, 126, 180, 30), 16, GOLD if key == game.hero.weapon_key else CREAM)
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		var definition := WeaponCatalog.get_weapon(key)
+		var stats_text := "基础伤害 %d · 间隔 %.2fs" % [int(definition.damage), float(definition.interval)] if owned else "击败敌人获取"
+		var stats_label := _growth_label(button, stats_text, Rect2(8, 156, 180, 24), 12, MUTED)
+		stats_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		var status_text := "已装备" if key == game.hero.weapon_key else ("点击装备" if owned else "")
+		var status_label := _growth_label(button, status_text, Rect2(8, 188, 180, 25), 13, MUTED)
+		status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var close := _growth_button(panel, "返回 · Tab", Rect2(320, 361, 220, 52), _close_weapon_inventory)
+	close.name = "WeaponClose"
+
+func _close_weapon_inventory() -> void:
+	if not is_instance_valid(weapon_overlay): return
+	weapon_overlay.queue_free()
+	weapon_overlay = null
+	get_tree().paused = weapon_previous_pause
+	_release_focus()
+
+func _input(event: InputEvent) -> void:
+	if not event is InputEventKey or not event.pressed or event.echo: return
+	if is_instance_valid(weapon_overlay) and event.keycode in [KEY_TAB, KEY_ESCAPE]:
+		_close_weapon_inventory()
+		get_viewport().set_input_as_handled()
+	elif event.keycode == KEY_TAB and game.started and game.running and not game.game_over and not is_instance_valid(guide_overlay):
+		_show_weapon_inventory()
+		get_viewport().set_input_as_handled()
+	elif is_instance_valid(guide_overlay) and event.keycode in [KEY_H, KEY_ESCAPE]:
+		_close_guide()
+		get_viewport().set_input_as_handled()
+	elif event.keycode == KEY_H and game.started and not game.game_over and not hero_selecting and not relic_selecting and not game.passive_selecting and not is_instance_valid(weapon_overlay):
+		_show_ingame_guide()
+		get_viewport().set_input_as_handled()
+
+func _entry_label(message: String, rect: Rect2, font_size: int, color: Color) -> Label:
+	var label := _label(rect, font_size, color)
+	root.remove_child(label)
+	entry_menu.add_child(label)
+	label.text = message
+	return label
+
+func _entry_button(message: String, rect: Rect2, action: Callable) -> Button:
+	var button := Button.new()
+	button.position = rect.position
+	button.size = rect.size
+	button.text = message
+	button.focus_mode = Control.FOCUS_NONE
+	button.add_theme_font_size_override("font_size", 21)
+	button.add_theme_color_override("font_color", CREAM)
+	button.add_theme_color_override("font_outline_color", Color("25190f"))
+	button.add_theme_constant_override("outline_size", 3)
+	var button_atlas := AtlasTexture.new()
+	button_atlas.atlas = load("res://assets/original/frontier_menu_button.png")
+	button_atlas.region = Rect2(0, 125, 2172, 470)
+	for state in ["normal", "hover", "pressed"]:
+		var box := StyleBoxTexture.new()
+		box.texture = button_atlas
+		box.modulate_color = Color(1.18, 1.13, 0.91) if state == "hover" else (Color(0.77, 0.77, 0.72) if state == "pressed" else Color.WHITE)
+		button.add_theme_stylebox_override(state, box)
+	button.pressed.connect(action)
+	entry_menu.add_child(button)
+	return button
+
+func _enter_hero_select() -> void:
+	if is_instance_valid(entry_menu):
+		entry_menu.queue_free()
+		entry_menu = null
+	hero_backdrop = TextureRect.new()
+	hero_backdrop.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	hero_backdrop.texture = load("res://assets/original/frontier_beacon_title.png")
+	hero_backdrop.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	hero_backdrop.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	hero_backdrop.modulate = Color(0.42, 0.46, 0.43)
+	hero_backdrop.mouse_filter = Control.MOUSE_FILTER_STOP
+	hero_backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root.add_child(hero_backdrop)
+	root.move_child(hero_backdrop, hero_panel.get_index())
+	if is_instance_valid(hero_panel): hero_panel.show()
+	_release_focus()
+
+func _back_to_entry() -> void:
+	if is_instance_valid(hero_panel): hero_panel.hide()
+	if is_instance_valid(hero_backdrop):
+		hero_backdrop.queue_free()
+		hero_backdrop = null
+	if not is_instance_valid(entry_menu): _show_entry_menu()
+	_release_focus()
+
+func _show_level_prepare(key: String) -> void:
+	selected_hero = key
+	if is_instance_valid(hero_panel): hero_panel.hide()
+	if is_instance_valid(level_panel): level_panel.queue_free()
+	level_panel = Panel.new()
+	level_panel.position = Vector2(-380, -235)
+	level_panel.size = Vector2(760, 470)
+	level_panel.set_anchors_preset(Control.PRESET_CENTER, true)
+	var panel_style := StyleBoxFlat.new()
+	panel_style.bg_color = Color(0.06, 0.13, 0.13, 0.96)
+	panel_style.border_color = Color("6f8f7c")
+	panel_style.set_border_width_all(2)
+	panel_style.set_corner_radius_all(10)
+	level_panel.add_theme_stylebox_override("panel", panel_style)
+	root.add_child(level_panel)
+	var title := _label(Rect2(32, 30, 696, 40), 27, GOLD)
+	root.remove_child(title)
+	level_panel.add_child(title)
+	title.text = "第一关 · 边境林地"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var portraits: Texture2D = load("res://assets/ui/heroes-0.3.png")
+	var portrait := TextureRect.new()
+	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	portrait.texture = _hero_portrait(key, portraits)
+	portrait.position = Vector2(50, 85)
+	portrait.size = Vector2(240, 240)
+	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	level_panel.add_child(portrait)
+	var description := _label(Rect2(320, 105, 390, 70), 17, CREAM)
+	root.remove_child(description)
+	level_panel.add_child(description)
+	description.text = "林间的遗迹核心正在呼唤守护者。\n建起防线，探索营地，抵挡来袭的敌人。"
+	description.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	var hero_name := _label(Rect2(320, 198, 390, 32), 20, GOLD)
+	root.remove_child(hero_name)
+	level_panel.add_child(hero_name)
+	hero_name.text = "已选英雄 · %s" % String(Rules.HEROES[key].name)
+	hero_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var hero_role := _label(Rect2(320, 240, 390, 26), 15, MUTED)
+	root.remove_child(hero_role)
+	level_panel.add_child(hero_role)
+	hero_role.text = HERO_PRESENTATION[key].role
+	hero_role.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var back_button := Button.new()
+	back_button.position = Vector2(135, 332)
+	back_button.size = Vector2(220, 58)
+	back_button.text = "返回选英雄"
+	_style_button(back_button)
+	back_button.pressed.connect(_back_to_heroes)
+	level_panel.add_child(back_button)
+	var start_button := Button.new()
+	start_button.position = Vector2(405, 332)
+	start_button.size = Vector2(220, 58)
+	start_button.text = "出发"
+	_style_button(start_button)
+	start_button.add_theme_color_override("font_color", GOLD)
+	start_button.pressed.connect(_start_selected_hero)
+	level_panel.add_child(start_button)
+	_release_focus()
+
+func _back_to_heroes() -> void:
+	if is_instance_valid(level_panel):
+		level_panel.queue_free()
+		level_panel = null
+	if is_instance_valid(hero_panel): hero_panel.show()
+	_release_focus()
+
+func _start_selected_hero() -> void:
+	if selected_hero != "": game.start_with_hero(selected_hero)
 
 func _style_button(button: Button) -> void:
 	button.focus_mode = Control.FOCUS_NONE
@@ -283,6 +728,15 @@ func _style_button(button: Button) -> void:
 
 func hide_hero_select() -> void:
 	hero_selecting = false
+	if is_instance_valid(level_panel):
+		level_panel.queue_free()
+		level_panel = null
+	if is_instance_valid(hero_backdrop):
+		hero_backdrop.queue_free()
+		hero_backdrop = null
+	if is_instance_valid(entry_menu):
+		entry_menu.queue_free()
+		entry_menu = null
 	if hero_panel != null:
 		hero_panel.visible = false
 	_release_focus()
@@ -338,14 +792,40 @@ func hide_relic_choice() -> void:
 		relic_panel.visible = false
 	_release_focus()
 
+func _passive_icon_cell(key: String, data: Dictionary) -> int:
+	# The original atlas has twelve shared visual motifs, not one image per card.
+	# Prefer concrete effects before falling back to the card's broad category.
+	if key in ["tower_bolt", "tower_overclock"]: return 9
+	if key == "tower_cannon": return 11
+	if key in ["tower_frost", "tower_winter"]: return 7
+	if key == "tower_arc": return 3
+	if key == "tower_laser": return 8
+	if key.begins_with("tower_") or key in ["lone", "swarm", "command"]: return 5
+	if key in ["swift", "dash_reset", "ranger_tempo", "ranger_trail", "ranger_evasion", "ranger_phantom", "raid"]: return 4
+	if key in ["lifesteal", "reaper"]: return 10
+	if key in ["vitality", "regeneration"]: return 6
+	if key in ["aegis", "juggernaut", "knight_bulwark", "knight_riposte", "knight_bastion", "knight_champion", "mage_barrier", "mage_reflect", "hold"]: return 7
+	if key in ["burn", "wildfire", "thermal_shock", "pyroclasm", "inferno", "combustion", "firestorm"]: return 2
+	if key in ["chain", "storm", "conductive", "stormfire", "thunder_god", "mage_echo"]: return 3
+	if key in ["frost", "nova", "permafrost", "deepfreeze", "shatter", "absolute_zero", "chainfrost", "scatter_frost"]: return 7
+	if key in ["blast", "deathblast", "scatter_barrage"]: return 11
+	if key in ["rapid", "multishot", "bow_rain", "pistol_storm", "bullet_hell"]: return 1
+	if key in ["pierce", "bow_broadhead", "bow_pierce", "pistol_ricochet"]: return 9
+	if key in ["magnet", "greed", "scholar", "focus", "mage_archon"]: return 8
+	var tags: Array = data.get("tags", [])
+	if "塔防" in tags: return 5
+	if "生存" in tags: return 6
+	if "元素" in tags: return 3
+	return 0
+
 func show_passive_choice(choices: Array[String], source: String, rerolls: int, banishes := 0) -> void:
 	if passive_panel != null:
 		passive_panel.queue_free()
 	passive_buttons.clear()
 	passive_selected = ""
 	passive_panel = Panel.new()
-	passive_panel.position = Vector2(-360, -260)
-	passive_panel.size = Vector2(720, 520)
+	passive_panel.position = Vector2(-360, -305)
+	passive_panel.size = Vector2(720, 610)
 	passive_panel.set_anchors_preset(Control.PRESET_CENTER, true)
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color("162b2b")
@@ -374,15 +854,16 @@ func show_passive_choice(choices: Array[String], source: String, rerolls: int, b
 	build_context.add_theme_font_size_override("normal_font_size", 15)
 	passive_panel.add_child(build_context)
 	build_context.text = "[color=#d6bd7a]当前 Build[/color]    " + _build_summary_bbcode(false)
+	var icon_atlas: Texture2D = load("res://assets/ui/passives.png")
 	for index in range(choices.size()):
 		var key: String = choices[index]
 		var data: Dictionary = game.passive_info(key)
 		var button := Button.new()
-		button.position = Vector2(40, 116 + index * 108)
-		button.size = Vector2(640, 96)
+		button.position = Vector2(40, 116 + index * 136)
+		button.size = Vector2(640, 126)
 		var stripe := ColorRect.new()
 		stripe.position = Vector2(0, 0)
-		stripe.size = Vector2(6, 96)
+		stripe.size = Vector2(6, 126)
 		stripe.color = data.get("rarity_color", CREAM)
 		stripe.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		button.add_child(stripe)
@@ -394,25 +875,55 @@ func show_passive_choice(choices: Array[String], source: String, rerolls: int, b
 			title_text = "★ " + title_text
 		if data.has("archetype_name"):
 			title_text += "  [%s %d]" % [String(data.archetype_name), int(data.get("archetype_tier", 0))]
-		button.text = "%s · %s   [%s]   %s\n%s" % [title_text, tags_text, rarity_text, stack_text, data.desc]
+		var details := String(data.desc)
 		var requires_text: String = String(data.get("requires_text", ""))
 		if requires_text != "":
-			button.text += "\n前置：" + requires_text
+			details += "\n前置：" + requires_text
 		var preview_text: String = String(data.get("preview", ""))
 		if preview_text != "":
-			button.text += "\n预览：" + preview_text
+			details += "\n预览：" + preview_text
 		var active_text: String = String(data.get("active_text", ""))
 		if active_text != "":
-			button.text += "\n状态：" + active_text
-		button.add_theme_font_size_override("font_size", 15)
-		button.add_theme_color_override("font_color", data.get("rarity_color", CREAM))
+			details += "\n状态：" + active_text
 		_style_button(button)
 		button.toggle_mode = false
 		button.pressed.connect(_select_passive.bind(key))
 		passive_panel.add_child(button)
 		passive_buttons.append(button)
+		var icon := TextureRect.new()
+		icon.name = "PassiveIcon"
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		var region := AtlasTexture.new()
+		region.atlas = icon_atlas
+		var cell := Vector2(icon_atlas.get_width() / 4.0, icon_atlas.get_height() / 3.0)
+		var icon_index := _passive_icon_cell(key, data)
+		region.region = Rect2(Vector2(icon_index % 4, int(icon_index / 4)) * cell, cell)
+		icon.texture = region
+		icon.position = Vector2(13, 21)
+		icon.size = Vector2(80, 80)
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		button.add_child(icon)
+		var card_title := Label.new()
+		card_title.text = "%s · %s   [%s]   %s" % [title_text, tags_text, rarity_text, stack_text]
+		card_title.position = Vector2(102, 8)
+		card_title.size = Vector2(526, 25)
+		card_title.add_theme_font_size_override("font_size", 15)
+		card_title.add_theme_color_override("font_color", data.get("rarity_color", CREAM))
+		card_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		button.add_child(card_title)
+		var card_details := Label.new()
+		card_details.text = details
+		card_details.position = Vector2(102, 34)
+		card_details.size = Vector2(526, 85)
+		card_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		card_details.add_theme_font_size_override("font_size", 14)
+		card_details.add_theme_color_override("font_color", CREAM)
+		card_details.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		button.add_child(card_details)
+		button.tooltip_text = card_title.text + "\n" + details
 	passive_reroll = Button.new()
-	passive_reroll.position = Vector2(40, 452)
+	passive_reroll.position = Vector2(40, 546)
 	passive_reroll.size = Vector2(150, 44)
 	passive_reroll.text = "刷新 ×%d" % rerolls
 	passive_reroll.disabled = rerolls <= 0
@@ -422,7 +933,7 @@ func show_passive_choice(choices: Array[String], source: String, rerolls: int, b
 	passive_panel.add_child(passive_reroll)
 	passive_banish_count = banishes
 	passive_banish = Button.new()
-	passive_banish.position = Vector2(200, 452)
+	passive_banish.position = Vector2(200, 546)
 	passive_banish.size = Vector2(150, 44)
 	passive_banish.text = "放逐 ×%d" % banishes
 	passive_banish.disabled = true
@@ -431,7 +942,7 @@ func show_passive_choice(choices: Array[String], source: String, rerolls: int, b
 	passive_banish.pressed.connect(_banish_selected)
 	passive_panel.add_child(passive_banish)
 	passive_confirm = Button.new()
-	passive_confirm.position = Vector2(360, 452)
+	passive_confirm.position = Vector2(360, 546)
 	passive_confirm.size = Vector2(210, 44)
 	passive_confirm.text = "先选择一张卡"
 	passive_confirm.disabled = true
@@ -479,33 +990,85 @@ func hide_passive_choice() -> void:
 
 func _build_palette() -> void:
 	build_palette = Panel.new()
-	build_palette.size = Vector2(390, 154)
+	build_palette.size = Vector2(280, 280)
 	build_palette.visible = false
-	build_palette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	build_palette.mouse_filter = Control.MOUSE_FILTER_STOP
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.06, 0.12, 0.11, 0.94)
-	style.border_color = Color("d6bd7a")
-	style.set_border_width_all(1)
-	style.set_corner_radius_all(9)
+	style.bg_color = Color(0.06, 0.12, 0.11, 0.12)
+	style.set_corner_radius_all(120)
 	build_palette.add_theme_stylebox_override("panel", style)
 	root.add_child(build_palette)
-	build_name = _label(Rect2(14, 10, 362, 28), 19, GOLD)
+	build_palette.gui_input.connect(_build_palette_input)
+	var caption_plate := Panel.new()
+	caption_plate.position = Vector2(83, 112)
+	caption_plate.size = Vector2(114, 56)
+	caption_plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var caption_style := StyleBoxFlat.new()
+	caption_style.bg_color = Color(0.04, 0.10, 0.09, 0.91)
+	caption_style.border_color = Color(0.83, 0.74, 0.48, 0.75)
+	caption_style.set_border_width_all(1)
+	caption_style.set_corner_radius_all(8)
+	caption_plate.add_theme_stylebox_override("panel", caption_style)
+	build_palette.add_child(caption_plate)
+	build_name = _label(Rect2(84, 114, 112, 52), 13, GOLD)
+	build_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	build_name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	build_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	root.remove_child(build_name)
 	build_palette.add_child(build_name)
-	build_role = _label(Rect2(14, 38, 362, 20), 13, Color("ffcf9a"))
-	root.remove_child(build_role)
-	build_palette.add_child(build_role)
-	build_stats = _label(Rect2(14, 60, 362, 22), 13, Color("cfe3d4"))
-	root.remove_child(build_stats)
-	build_palette.add_child(build_stats)
-	build_trait = _label(Rect2(14, 84, 362, 36), 12, Color("9fb9aa"))
-	root.remove_child(build_trait)
-	build_trait.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	build_palette.add_child(build_trait)
-	build_hint = _label(Rect2(14, 126, 362, 20), 11, Color("d6bd7a"))
-	root.remove_child(build_hint)
-	build_hint.text = "滚轮 / 1-7 切换 · 左键放置 · 右键取消"
-	build_palette.add_child(build_hint)
+	var atlas: Texture2D = load("res://assets/ui/passives.png")
+	var cells := [9, 11, 7, 3, 6, 8, 5]
+	for index in range(ArenaTower.TOWER_ORDER.size()):
+		var key: String = ArenaTower.TOWER_ORDER[index]
+		var data: Dictionary = ArenaTower.STATS[key]
+		var button := Button.new()
+		button.name = "Build_%s" % key
+		var angle := -PI / 2.0 + TAU * float(index) / float(ArenaTower.TOWER_ORDER.size())
+		button.position = Vector2(140, 140) + Vector2(cos(angle), sin(angle)) * 103.0 - Vector2(31, 31)
+		button.size = Vector2(62, 62)
+		button.toggle_mode = true
+		button.tooltip_text = "%s · %s\n%s" % [data.name, data.role, data.trait]
+		_style_button(button)
+		var selected := StyleBoxFlat.new()
+		selected.bg_color = Color("31564a")
+		selected.border_color = GOLD
+		selected.set_border_width_all(2)
+		selected.set_corner_radius_all(8)
+		button.add_theme_stylebox_override("pressed", selected)
+		button.pressed.connect(game.choose_build_kind.bind(key))
+		button.gui_input.connect(_build_palette_input)
+		build_palette.add_child(button)
+		build_buttons.append(button)
+		var icon := TextureRect.new()
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		if ArenaTower.VISUAL_PATHS.has(key):
+			icon.texture = load(ArenaTower.VISUAL_PATHS[key])
+		else:
+			var region := AtlasTexture.new()
+			region.atlas = atlas
+			var cell := Vector2(atlas.get_width() / 4.0, atlas.get_height() / 3.0)
+			region.region = Rect2(Vector2(cells[index] % 4, int(cells[index] / 4)) * cell, cell)
+			icon.texture = region
+		icon.position = Vector2(8, 0)
+		icon.size = Vector2(46, 42)
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		button.add_child(icon)
+		var price := _label(Rect2(1, 42, 60, 19), 11, CREAM)
+		root.remove_child(price)
+		button.add_child(price)
+		price.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		build_prices.append(price)
+
+func _build_palette_input(event: InputEvent) -> void:
+	if not game.build_mode or not event is InputEventMouseButton or not event.pressed: return
+	match event.button_index:
+		MOUSE_BUTTON_RIGHT:
+			game.toggle_build_mode()
+			get_viewport().set_input_as_handled()
+		MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN:
+			game.cycle_build_kind(-1 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1)
+			get_viewport().set_input_as_handled()
 
 func _update_build_strip() -> void:
 	build_tags.text = _build_tag_bbcode()
@@ -572,20 +1135,21 @@ func _build_summary_bbcode(include_near: bool) -> String:
 	return _build_tag_bbcode() + "    " + _build_synergy_bbcode(include_near)
 
 func _update_build_menu() -> void:
-	if not game.build_mode or game.build_cell.x < 0:
+	if not game.build_mode or not game.build_site_selected or not game.running or game.game_over or get_tree().paused:
 		build_palette.visible = false
 		return
 	var data: Dictionary = ArenaTower.STATS[game.build_kind]
-	build_name.text = "%s   %d 金" % [data.name, game.tower_cost(game.build_kind)]
-	build_role.text = "%s   基础伤害 %d" % [data.role, int(data.damage)]
-	build_stats.text = "射程 %d · 攻击间隔 %.2fs" % [int(data.range), float(data.interval)]
-	build_trait.text = data.trait
-	var screen: Vector2 = game.get_viewport().get_canvas_transform() * game.cell_center(game.build_cell)
+	build_name.text = "%s\n%d 金" % [data.name, game.tower_cost(game.build_kind)]
+	for index in range(build_buttons.size()):
+		var key: String = ArenaTower.TOWER_ORDER[index]
+		build_buttons[index].set_pressed_no_signal(key == game.build_kind)
+		var cost: int = game.tower_cost(key)
+		build_prices[index].text = "%d · %d金" % [index + 1, cost]
+		build_prices[index].add_theme_color_override("font_color", CREAM if game.gold >= cost else Color("e89785"))
 	var viewport_size: Vector2 = game.get_viewport().get_visible_rect().size
-	var position := screen + Vector2(34, -170)
-	position.x = clampf(position.x, 12, viewport_size.x - build_palette.size.x - 12)
-	position.y = clampf(position.y, 12, viewport_size.y - build_palette.size.y - 12)
-	build_palette.position = position
+	var site_screen: Vector2 = game.get_viewport().get_canvas_transform() * game.cell_center(game.build_cell)
+	var desired := site_screen - build_palette.size * 0.5
+	build_palette.position = Vector2(clampf(desired.x, 0.0, maxf(0.0, viewport_size.x - build_palette.size.x)), clampf(desired.y, 0.0, maxf(0.0, viewport_size.y - build_palette.size.y)))
 	build_palette.visible = true
 
 func _build_tower_panel() -> void:
@@ -712,12 +1276,14 @@ func _process(delta: float) -> void:
 	var show_hud: bool = not hero_selecting and not relic_selecting and not game.passive_selecting
 	for node in [status, resources, xp_label, skill_label, phase_label, hint_label, core_label, build_label]:
 		node.visible = show_hud
-	build_panel.visible = show_hud
+	build_panel.visible = show_hud and not game.hero.passives.is_empty()
+	help_button.visible = show_hud and game.started and not game.game_over
+	build_label.visible = show_hud and (game.build_mode or (game.started and game.elapsed < 8.0))
 	core_bar.visible = show_hud
 	shield_bar.visible = show_hud
 	minimap.visible = show_hud
 	focus_bar.visible = show_hud and game.build_mode
-	build_palette.visible = false
+	if not show_hud: build_palette.visible = false
 	boss_label.visible = show_hud and game.boss != null and is_instance_valid(game.boss) and not game.boss.dead
 	boss_bar.visible = boss_label.visible
 	boss_check_time = maxf(0.0, boss_check_time - delta)
@@ -742,9 +1308,9 @@ func _process(delta: float) -> void:
 	if game.build_mode and game.build_reason != "":
 		hint_label.text = "不能建造：" + game.build_reason
 	if game.build_mode:
-		build_label.text = "B/数字选塔 · 滚轮切塔 · 左键放置 · 右键取消"
+		build_label.text = "点击图标建塔 · 1–7 快捷建塔 · 滚轮切换 · 右键取消" if game.build_site_selected else "点击地面选择位置 · 右键取消"
 	else:
-		build_label.text = "B 建造 · 右键点塔管理 · 左键攻击 · T 全塔目标 · 空格技能 · R 重开"
+		build_label.text = "B 建造 · 左键攻击 · Space 技能 · H 手册"
 	_update_build_menu()
 	_update_tower_panel()
 	if game.boss != null and is_instance_valid(game.boss) and not game.boss.dead:
@@ -758,7 +1324,12 @@ func _process(delta: float) -> void:
 	toast_label.visible = toast_time > 0.0
 	result_panel.visible = game.game_over
 	if game.game_over:
-		result_label.text = ("守住了\n\n" if game.victory else "你倒下了\n\n") + "第 %d 轮 · 击杀 %d · 建塔 %d\n\n按 R 重开" % [game.cycle, game.stats.kills, game.stats.built]
+		var progress_text := "成长经验 +%d" % game.progression_reward
+		if not game.progression_error.is_empty(): progress_text = "成长经验未保存：" + game.progression_error
+		elif not game.progression.persistent: progress_text += "（测试模式，未写入）"
+		elif game.progression_reward > 0: progress_text += " · 已保存"
+		var outcome := "守住了" if game.victory else ("核心失守" if game.defeat_reason == "core" else ("英雄倒下" if game.defeat_reason == "hero" else "防线失守"))
+		result_label.text = outcome + "\n\n第 %d 轮 · 击杀 %d · 建塔 %d\n%s\n\n按 R 重开" % [game.cycle, game.stats.kills, game.stats.built, progress_text]
 
 func show_boss_check(report: Dictionary) -> void:
 	var warnings: Array = report.get("warnings", [])

@@ -11,6 +11,15 @@ const STATS := {
 	"banner": {"name": "战地号令", "cost": 85, "damage": 0.0, "interval": 1.0, "range": 260.0, "color": Color("ff9fb0"), "role": "支援", "trait": "不攻击，光环提高附近塔伤害"},
 }
 const TOWER_ORDER := ["bolt", "cannon", "frost", "arc", "venom", "laser", "banner"]
+const VISUAL_PATHS := {
+	"bolt": "res://assets/original/tower_crossbow_preview.png",
+	"cannon": "res://assets/original/tower_cannon_preview.png",
+	"frost": "res://assets/original/tower_frost_preview.png",
+	"arc": "res://assets/original/tower_arc_preview.png",
+	"venom": "res://assets/original/tower_venom_preview.png",
+	"laser": "res://assets/original/tower_laser_preview.png",
+	"banner": "res://assets/original/tower_banner_preview.png",
+}
 const MAX_LEVEL := 3
 const TARGET_MODES := ["nearest", "strongest", "first"]
 const TARGET_LABELS := {"nearest": "最近", "strongest": "最强", "first": "最前"}
@@ -41,9 +50,16 @@ func _ready() -> void:
 		"cannon", "venom": color = "Purple"
 		"frost", "banner": color = "Yellow"
 		"arc", "laser": color = "Red"
-	body = Art.sprite("Factions/Knights/Buildings/Tower/Tower_%s.png" % color)
-	body.scale = Vector2.ONE * 0.5
-	body.position.y = -48
+	if VISUAL_PATHS.has(kind):
+		# Visual variants share gameplay behavior with the existing tower types.
+		body = Sprite2D.new()
+		body.texture = load(VISUAL_PATHS[kind])
+		body.scale = Vector2.ONE * 108.0 / float(body.texture.get_width())
+		body.position.y = -49
+	else:
+		body = Art.sprite("Factions/Knights/Buildings/Tower/Tower_%s.png" % color)
+		body.scale = Vector2.ONE * 0.5
+		body.position.y = -48
 	add_child(body)
 	health = max_health
 	if kind == "banner":
@@ -128,6 +144,7 @@ func fire(target: ArenaEnemy) -> void:
 	last_attack_mode = {"bolt": "bolt_volley", "cannon": "cannon_shell", "frost": "frost_nova", "arc": "arc_chain", "venom": "venom_cloud", "laser": "laser_beam", "banner": "banner_aura"}.get(kind, kind)
 	cooldown = attack_interval()
 	aim = (target.position - position).normalized()
+	if kind == "bolt": body.flip_h = aim.x > 0
 	muzzle_time = 0.06
 	recoil_time = 0.06
 	if kind == "banner":
@@ -187,7 +204,8 @@ func _draw() -> void:
 	if kind == "banner":
 		draw_arc(Vector2.ZERO, attack_range(), 0, TAU, 48, Color(color, 0.18), 3, true)
 	draw_arc(Vector2(0, 2), 24, 0, TAU, 28, Color(color, 0.55), 2, true)
-	draw_line(Vector2(0, -84), Vector2(0, -84) + aim * 20, Color(color, 0.9), 5, true)
+	if kind != "banner":
+		draw_line(Vector2(0, -84), Vector2(0, -84) + aim * 20, Color(color, 0.9), 5, true)
 	if muzzle_time > 0.0:
 		var muzzle := Vector2(0, -84) + aim * 24
 		draw_circle(muzzle, 5.0, Color(color, muzzle_time / 0.06))
