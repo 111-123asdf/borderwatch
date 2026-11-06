@@ -1,1842 +1,379 @@
+class_name ArenaGame
 extends Node2D
-
-const WeaponCatalog = preload("res://scripts/arena/arena_weapon_catalog.gd")
-
-# Experimental arena survival prototype: ring spawns, free tower placement,
-# blocking flow-field pathing, pickups, build mode and one-life death.
-# This scene is intentionally separate from scenes/main.tscn.
-
-const ARENA_SIZE := Vector2(2600, 2600)
-const CORE := Vector2(1300, 1300)
-const CELL := 64.0
-const GRID_W := 41
-const GRID_H := 41
-const BUILD_RADIUS := 1050.0
-const SPAWN_RADIUS := 1150.0
-const CORE_EXCLUSION := 140.0
-const REGION_COUNT := 8
-const START_GOLD := 260
-
-var running := true
-var started := false
-var hero_selected := false
-var game_over := false
-var victory := false
-var defeat_reason := ""
-var gold := START_GOLD
-var core_health := 750.0
-var core_max := 750.0
-var cycle := 1
-var level_cycles := 8
-var level_name := "林线"
-var phase := "rest"
-var phase_clock := 5.0
-var spawn_budget := 0
-var spawn_timer := 0.0
-var spawn_interval := 2.0
-var spawned_this_phase := 0
-var hot_region := 0
-var boss_spawned := false
-var boss_dead := false
-var boss: ArenaEnemy
-var rng := RandomNumberGenerator.new()
-
-var blocked: Array[bool] = []
-var flow: Array[Vector2] = []
-var reach: PackedInt32Array = PackedInt32Array()
-var spawn_points: Array[Vector2] = []
-var spawn_cells: Array[Vector2i] = []
-var spawn_warnings: Array[Dictionary] = []
-var pending_spawns: Array[Dictionary] = []
-var obstacles: Array[Rect2] = []
-var landscape_texture: Texture2D
-var obstacle_texture: Texture2D
-var clearing_texture: Texture2D
-var towers: Array[ArenaTower] = []
-var enemies: Array[ArenaEnemy] = []
-var drops: Array[ArenaDrop] = []
+const START_GOLD:=280
+var level_id: String="forest"
+var level_definition: Dictionary={}
+var routes: Array[Curve2D]=[]
+var actors: Node2D
+var terrain: Node2D
+var ground: Sprite2D
 var hero: ArenaHero
-var hud: ArenaHUD
+var enemies: Array=[]
+var towers: Array=[]
+var soldiers: Array=[]
+var camps: Array=[]
+var corpses: Array=[]
+var effects: Array=[]
+var delayed: Array=[]
+var numbers: Array=[]
 var audio: ArenaAudio
-var camera: Camera2D
-var build_mode := false
-var build_site_selected := false
-var suppress_primary_until_release := false
-var build_kind := "bolt"
-var default_target_mode := "nearest"
-var build_cell := Vector2i(-1, -1)
-var build_valid := false
-var build_site_ok := false
-var build_reason := ""
-var selected_tower: ArenaTower
-var focus := 10.0
-var focus_max := 10.0
-var sim_speed := 1.0
-var elapsed := 0.0
-var shake_amount := 0.0
-var shake_direction := Vector2.ZERO
-var hitstop := 0.0
-var hitstop_lock := 0.0
-var sparks: Array[Dictionary] = []
-var danger_zones: Array[Dictionary] = []
-var bolts: Array[Dictionary] = []
-var rings: Array[Dictionary] = []
-var floaters: Array[Dictionary] = []
-var camps_cleared := 0
-var camp_weapons := ["sword", "sniper", "boomerang"]
-var relics: Array[String] = []
-var relic_choice_pending := false
-var pending_relic_group := ""
-var passive_selecting := false
-var passive_choices: Array[String] = []
-var passive_source := ""
-var pending_level_choices := 0
-var passive_rerolls := 3
-var passive_banishes := 1
-var banished_passives: Array[String] = []
-var dry_weapon_choices := 0
-var dry_element_choices := 0
-var passive_guarantee_weapon := false
-var passive_guarantee_element := false
-var stats := {"kills": 0, "hero_kills": 0, "tower_kills": 0, "built": 0, "cycles": 0}
-var damage_stats := {"hero": 0.0, "tower": 0.0, "other": 0.0}
+var hud: ArenaHUD
+var blocking: ArenaBlocking
 var progression: ArenaProgression
-var progression_reward := 0
-var progression_error := ""
-var debug := {
-	"leaks": 0,
-	"leak_damage": 0.0,
-	"spawns": 0,
-	"drops_spawned": 0,
-	"drops_collected": 0,
-	"drops_expired": 0,
-	"towers_lost": 0,
-	"build_rejected": 0,
-	"regions": [0, 0, 0, 0, 0, 0, 0, 0],
-	"spawn_patterns": {},
-}
-
+var navigation:=AStarGrid2D.new()
+var rng:=RandomNumberGenerator.new()
+var camera: Camera2D
+var running:=false
+var started:=false
+var game_over:=false
+var victory:=false
+var gold:=START_GOLD
+var core_max:=750.0
+var core_health:=750.0
+var cycle:=1
+var phase: String="rest"
+var phase_clock:=20.0
+var rest_duration:=20.0
+var wave_preview:=false
+var rewarded:=false
+var spawn_queue: Array=[]
+var spawn_clock:=0.0
+var wave_elapsed:=0.0
+var selected_site:=-1
+var targeting_slot:=-1
+var rally_site:=-1
+var suppress_primary:=false
+var choices: Array[String]=[]
+var choice_queue:=0
+var choice_open:=false
+var war_cry_clock:=0.0
+var war_cry_position:=Vector2.ZERO
+var kills:=0
+var built:=0
+var camps_cleared:=0
+var elapsed:=0.0
+var growth_reward:=0
+var damage_stats: Dictionary={"hero":0.0,"tower":0.0,"soldier":0.0}
+var quitting:=false
+var shake:=0.0
 func _ready() -> void:
-	# Sort world entities by their ground positions; HUD remains on its CanvasLayer.
-	y_sort_enabled = true
-	rng.randomize()
-	var use_profile := DisplayServer.get_name() != "headless" and "--no-profile" not in OS.get_cmdline_user_args()
-	progression = ArenaProgression.new(ArenaProgression.SAVE_PATH, use_profile)
-	_configure_input()
-	for index in range(GRID_W * GRID_H):
-		blocked.append(false)
-	_setup_obstacles()
-	_setup_landscape()
-	_setup_spawn_points()
-	_add_castle()
-	_rebuild_flow()
-	hero = ArenaHero.new()
-	hero.game = self
-	hero.position = CORE + Vector2(0, 150)
-	add_child(hero)
-	hero.configure("knight")
-	camera = Camera2D.new()
-	camera.position = CORE
-	camera.zoom = Vector2(0.72, 0.72)
-	add_child(camera)
-	camera.make_current()
-	hud = ArenaHUD.new()
-	hud.game = self
-	add_child(hud)
-	audio = ArenaAudio.new()
-	add_child(audio)
-	running = false
-	hud.show_hero_select()
-
-func start_with_hero(key: String) -> void:
-	if hero_selected: return
-	hero.configure(key)
-	hero_selected = true
-	running = true
-	started = true
-	hud.hide_hero_select()
-	start_rest(20.0)
-
-func _configure_input() -> void:
-	var actions := {
-		"move_left": [KEY_A, KEY_LEFT],
-		"move_right": [KEY_D, KEY_RIGHT],
-		"move_up": [KEY_W, KEY_UP],
-		"move_down": [KEY_S, KEY_DOWN],
-		"skill": [KEY_SPACE],
-		"repair": [KEY_E],
-		"restart": [KEY_R],
-	}
-	for action in actions:
-		if not InputMap.has_action(action): InputMap.add_action(action)
-		for key in actions[action]:
-			var event := InputEventKey.new()
-			event.physical_keycode = key
-			InputMap.action_add_event(action, event)
-	if not InputMap.has_action("shoot"): InputMap.add_action("shoot")
-	var mouse := InputEventMouseButton.new()
-	mouse.button_index = MOUSE_BUTTON_LEFT
-	InputMap.action_add_event("shoot", mouse)
-
-func _setup_obstacles() -> void:
-	var points := [
-		Vector2(760, 900), Vector2(1860, 760), Vector2(2110, 1780),
-		Vector2(820, 1900), Vector2(1490, 560), Vector2(560, 1300),
-		Vector2(2040, 1120), Vector2(1700, 2110), Vector2(1040, 2180),
-	]
-	for point in points:
-		obstacles.append(Rect2(point - Vector2(46, 46), Vector2(92, 92)))
-		block_cell_rect(point, 84.0)
-
-func _setup_landscape() -> void:
-	# One illustrative floor sample; this does not alter gameplay collision.
-	landscape_texture = load("res://assets/original/frontier_battlefield_concept.png")
-	obstacle_texture = Art.texture("Deco/06.png")
-	clearing_texture = load("res://assets/original/beacon_clearing.png")
-
-func _setup_spawn_points() -> void:
-	for index in range(REGION_COUNT):
-		var angle := TAU * index / float(REGION_COUNT)
-		var point: Vector2 = CORE + Vector2.RIGHT.rotated(angle) * SPAWN_RADIUS
-		point = point.clamp(Vector2(80, 80), ARENA_SIZE - Vector2(80, 80))
-		spawn_points.append(point)
-		spawn_cells.append(world_to_cell(point))
-
-func _add_castle() -> void:
-	# Sort the beacon at its ground anchor, not at the raised sprite centre.
-	var anchor := Node2D.new()
-	anchor.name = "CoreVisualAnchor"
-	anchor.position = CORE
-	add_child(anchor)
-	var castle := Sprite2D.new()
-	castle.texture = load("res://assets/original/frontier_beacon_core.png")
-	castle.scale = Vector2.ONE * 215.0 / float(castle.texture.get_width())
-	castle.position = Vector2(0, -85)
-	anchor.add_child(castle)
-
-# ── grid / flow ──────────────────────────────────────────────
-func world_to_cell(point: Vector2) -> Vector2i:
-	return Vector2i(clampi(int(floor(point.x / CELL)), 0, GRID_W - 1), clampi(int(floor(point.y / CELL)), 0, GRID_H - 1))
-
-func build_cell_from_world(point: Vector2) -> Vector2i:
-	# Building must reject clicks outside the map instead of snapping them to its edge.
-	return Vector2i(int(floor(point.x / CELL)), int(floor(point.y / CELL)))
-
-func cell_center(cell: Vector2i) -> Vector2:
-	return Vector2(cell.x * CELL + CELL * 0.5, cell.y * CELL + CELL * 0.5)
-
-func cell_index(cell: Vector2i) -> int:
-	return cell.y * GRID_W + cell.x
-
-func block_cell_rect(point: Vector2, radius: float) -> void:
-	var min_cell := world_to_cell(point - Vector2.ONE * radius)
-	var max_cell := world_to_cell(point + Vector2.ONE * radius)
-	for y in range(min_cell.y, max_cell.y + 1):
-		for x in range(min_cell.x, max_cell.x + 1):
-			blocked[cell_index(Vector2i(x, y))] = true
-
-func _compute_reach() -> PackedInt32Array:
-	var result := PackedInt32Array()
-	result.resize(GRID_W * GRID_H)
-	result.fill(-1)
-	var core_cell := world_to_cell(CORE)
-	var queue: Array[Vector2i] = [core_cell]
-	result[cell_index(core_cell)] = 0
-	var head := 0
-	while head < queue.size():
-		var cell: Vector2i = queue[head]
-		head += 1
-		var distance := result[cell_index(cell)]
-		for offset in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.UP, Vector2i.DOWN, Vector2i(1, 1), Vector2i(-1, 1), Vector2i(1, -1), Vector2i(-1, -1)]:
-			var next: Vector2i = cell + offset
-			if next.x < 0 or next.y < 0 or next.x >= GRID_W or next.y >= GRID_H: continue
-			var index := cell_index(next)
-			if blocked[index] or result[index] >= 0: continue
-			if offset.x != 0 and offset.y != 0:
-				if blocked[cell_index(cell + Vector2i(offset.x, 0))] or blocked[cell_index(cell + Vector2i(0, offset.y))]: continue
-			result[index] = distance + 1
-			queue.append(next)
+	rng.randomize();_input_map()
+	actors=Node2D.new();actors.name="Actors";actors.y_sort_enabled=true;add_child(actors)
+	terrain=Node2D.new();terrain.name="Terrain";add_child(terrain)
+	ground=Sprite2D.new();ground.z_index=-20;ground.position=ArenaLevelCatalog.SIZE*0.5;add_child(ground)
+	camera=Camera2D.new();camera.position=ArenaLevelCatalog.SIZE*0.5;add_child(camera);camera.make_current()
+	var painter:=ArenaEffects.new();painter.game=self;painter.z_index=5;add_child(painter)
+	audio=ArenaAudio.new();add_child(audio);progression=ArenaProgression.new();blocking=ArenaBlocking.new(self)
+	hud=ArenaHUD.new();hud.game=self;add_child(hud)
+	get_tree().auto_accept_quit=false
+	if get_tree().has_meta("restart_hero"):
+		var key: String=get_tree().get_meta("restart_hero");var stage: String=get_tree().get_meta("restart_level","forest")
+		get_tree().remove_meta("restart_hero");get_tree().remove_meta("restart_level");start_run.call_deferred(key,stage)
+	else:hud.show_entry()
+func _input_map() -> void:
+	for name in {"move_left":[KEY_A,KEY_LEFT],"move_right":[KEY_D,KEY_RIGHT],"move_up":[KEY_W,KEY_UP],"move_down":[KEY_S,KEY_DOWN]}:
+		if not InputMap.has_action(name):InputMap.add_action(name)
+		for key in {"move_left":[KEY_A,KEY_LEFT],"move_right":[KEY_D,KEY_RIGHT],"move_up":[KEY_W,KEY_UP],"move_down":[KEY_S,KEY_DOWN]}[name]:
+			var event:=InputEventKey.new();event.physical_keycode=key
+			if not InputMap.action_has_event(name,event):InputMap.action_add_event(name,event)
+	if not InputMap.has_action("shoot"):InputMap.add_action("shoot")
+	var event:=InputEventMouseButton.new();event.button_index=MOUSE_BUTTON_LEFT
+	if not InputMap.action_has_event("shoot",event):InputMap.action_add_event("shoot",event)
+func start_run(hero_id: String,stage: String) -> void:
+	if started or hero_id not in ArenaDefinitions.HERO_IDS or stage not in ArenaLevelCatalog.IDS:return
+	level_id=stage;level_definition=ArenaLevelCatalog.definition(stage);routes.clear()
+	for points in level_definition.routes:routes.append(ArenaLevelCatalog.curve(points))
+	var floor_path: String="res://assets/v06/map_"+level_id+".png"
+	if ResourceLoader.exists(floor_path):
+		ground.texture=load(floor_path);ground.scale=Vector2(1600.0/ground.texture.get_width(),900.0/ground.texture.get_height())
+	for rect in level_definition.blocked:_collision(rect)
+	_collision(Rect2(level_definition.core-Vector2(32,30),Vector2(64,60)))
+	_add_scenery()
+	hero=ArenaHero.new();hero.game=self;hero.position=level_definition.hero_spawn;actors.add_child(hero);hero.configure(hero_id)
+	started=true;running=true
+	for index in range(level_definition.camps.size()):
+		var point: Vector2=level_definition.camps[index]
+		camps.append({"point":point,"remaining":3,"cleared":false})
+		for unit in range(3):
+			var enemy:=ArenaEnemy.new();enemy.game=self;enemy.kind="fox" if unit<2 else "wisp";enemy.is_guard=true;enemy.camp_id=index;enemy.home=point+Vector2.RIGHT.rotated(unit*TAU/3)*35;enemy.position=enemy.home
+			actors.add_child(enemy);enemies.append(enemy)
+	rebuild_navigation();start_rest(20);hud.show_battle();queue_redraw()
+func _collision(rect: Rect2) -> void:
+	var body:=StaticBody2D.new();body.position=rect.get_center();body.collision_layer=1;body.collision_mask=2
+	var collision:=CollisionShape2D.new();var shape:=RectangleShape2D.new();shape.size=rect.size;collision.shape=shape;body.add_child(collision);terrain.add_child(body)
+func prop(index: int,point: Vector2,width: float) -> void:
+	if not ResourceLoader.exists("res://assets/v06/props.png"):return
+	var sheet: Texture2D=load("res://assets/v06/props.png");var image:=AtlasTexture.new();image.atlas=sheet
+	image.region=Rect2(index%4*sheet.get_width()/4.0,index/4*sheet.get_height()/2.0,sheet.get_width()/4.0,sheet.get_height()/2.0)
+	var node:=Sprite2D.new();node.texture=image;node.position=point;node.offset.y=-image.get_height()*ArenaArtAnchors.offset_for("prop_"+str(index));node.scale=Vector2.ONE*width/image.get_width();node.texture_filter=CanvasItem.TEXTURE_FILTER_LINEAR;actors.add_child(node)
+func _add_scenery() -> void:
+	prop(6,level_definition.core,145)
+	for index in range(level_definition.camps.size()):prop(4+index,level_definition.camps[index],115)
+	for rect in level_definition.blocked:
+		if rect in level_definition.get("water_rects",[]):continue
+		if rect.size.y>220:continue
+		prop(0 if rect.size.x<160 else 3,rect.get_center()+Vector2(0,rect.size.y*0.35),rect.size.x+40)
+	for pair in [[Vector2(55,115),0],[Vector2(1505,130),1],[Vector2(1570,800),0],[Vector2(585,830),1],[Vector2(980,830),7]]:prop(pair[1],pair[0],125)
+func rebuild_navigation() -> void:
+	navigation.region=Rect2i(0,0,80,45);navigation.cell_size=Vector2(20,20);navigation.offset=Vector2(10,10)
+	navigation.diagonal_mode=AStarGrid2D.DIAGONAL_MODE_ONLY_IF_NO_OBSTACLES;navigation.update()
+	for y in range(45):
+		for x in range(80):
+			var point:=Vector2(x*20+10,y*20+10);var solid:=not walkable(point)
+			navigation.set_point_solid(Vector2i(x,y),solid)
+func walkable(point: Vector2) -> bool:
+	if point.x<12 or point.y<88 or point.x>1588 or point.y>888:return false
+	for rect in level_definition.get("blocked",[]):
+		if rect.grow(12).has_point(point):return false
+	for tower in towers:
+		if is_instance_valid(tower) and not tower.destroyed and tower.position.distance_to(point)<30:return false
+	if level_definition.has("core") and point.distance_to(level_definition.core)<36:return false
+	return true
+func navigation_path(origin: Vector2,target: Vector2) -> PackedVector2Array:
+	target=target.clamp(Vector2(15,95),Vector2(1585,885))
+	var a:=Vector2i(origin/20);var b:=Vector2i(target/20)
+	if not navigation.is_in_boundsv(a) or not navigation.is_in_boundsv(b):return PackedVector2Array()
+	if navigation.is_point_solid(b):return PackedVector2Array()
+	var result: PackedVector2Array=navigation.get_point_path(a,b,true)
+	if not result.is_empty():result[0]=origin
 	return result
-
-func _rebuild_flow() -> void:
-	reach = _compute_reach()
-	flow.clear()
-	flow.resize(GRID_W * GRID_H)
-	flow.fill(Vector2.ZERO)
-	for y in range(GRID_H):
-		for x in range(GRID_W):
-			var cell := Vector2i(x, y)
-			var index := cell_index(cell)
-			if reach[index] < 0 or reach[index] == 0: continue
-			var best := Vector2.ZERO
-			for offset in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.UP, Vector2i.DOWN, Vector2i(1, 1), Vector2i(-1, 1), Vector2i(1, -1), Vector2i(-1, -1)]:
-				var next: Vector2i = cell + offset
-				if next.x < 0 or next.y < 0 or next.x >= GRID_W or next.y >= GRID_H: continue
-				if reach[cell_index(next)] != reach[index] - 1: continue
-				best = (cell_center(next) - cell_center(cell)).normalized()
-				break
-			flow[index] = best
-
-func flow_at(point: Vector2) -> Vector2:
-	var cell := world_to_cell(point)
-	var index := cell_index(cell)
-	if index < 0 or reach.size() <= index or reach[index] < 0:
-		return (CORE - point).normalized()
-	var direction := flow[index]
-	if direction == Vector2.ZERO:
-		return (CORE - point).normalized()
-	return direction
-
-func _all_spawns_reachable() -> bool:
-	return _blocked_spawn_names().is_empty()
-
-func _blocked_spawn_names() -> Array[String]:
-	var temp := _compute_reach()
-	var names: Array[String] = []
-	for index in range(REGION_COUNT):
-		if temp[cell_index(spawn_cells[index])] < 0:
-			names.append(_region_name(index))
-	return names
-
-# ── build ────────────────────────────────────────────────────
-func can_place(cell: Vector2i, check_cost := true) -> String:
-	if cell.x < 0 or cell.y < 0 or cell.x >= GRID_W or cell.y >= GRID_H: return "超出地图"
-	if not ArenaTower.STATS.has(build_kind): return "请选择塔"
-	var point := cell_center(cell)
-	if point.distance_to(CORE) < CORE_EXCLUSION: return "离核心太近"
-	if point.distance_to(CORE) > BUILD_RADIUS: return "超出建造范围"
-	if blocked[cell_index(cell)]: return "这里已被占用"
-	for oy in range(-1, 2):
-		for ox in range(-1, 2):
-			if ox == 0 and oy == 0: continue
-			var other := cell + Vector2i(ox, oy)
-			if other.x < 0 or other.y < 0 or other.x >= GRID_W or other.y >= GRID_H: continue
-			if _tower_at(other) != null: return "不能挨着其他塔"
-	if check_cost and gold < tower_cost(build_kind): return "金币不足"
-	for enemy in enemies:
-		if is_instance_valid(enemy) and enemy.position.distance_to(point) < 46: return "敌人太近"
-	var index := cell_index(cell)
-	blocked[index] = true
-	var blocked_names := _blocked_spawn_names()
-	blocked[index] = false
-	if not blocked_names.is_empty():
-		return "会堵死%s路线" % "、".join(blocked_names)
-	return ""
-
-func _tower_at(cell: Vector2i) -> ArenaTower:
-	for tower in towers:
-		if is_instance_valid(tower) and tower.cell == cell: return tower
-	return null
-
-func _build_site_ok(cell: Vector2i) -> bool:
-	if cell.x < 0 or cell.y < 0 or cell.x >= GRID_W or cell.y >= GRID_H: return false
-	var point := cell_center(cell)
-	if point.distance_to(CORE) < CORE_EXCLUSION: return false
-	if point.distance_to(CORE) > BUILD_RADIUS: return false
-	if blocked[cell_index(cell)]: return false
-	for oy in range(-1, 2):
-		for ox in range(-1, 2):
-			if ox == 0 and oy == 0: continue
-			if _tower_at(cell + Vector2i(ox, oy)) != null: return false
-	return true
-
-func _nearest_build_cell(origin: Vector2i) -> Vector2i:
-	if _build_site_ok(origin): return origin
-	for radius in range(1, 8):
-		for x in range(origin.x - radius, origin.x + radius + 1):
-			for y in [origin.y - radius, origin.y + radius]:
-				var candidate := Vector2i(x, y)
-				if _build_site_ok(candidate): return candidate
-		for y in range(origin.y - radius + 1, origin.y + radius):
-			for x in [origin.x - radius, origin.x + radius]:
-				var candidate := Vector2i(x, y)
-				if _build_site_ok(candidate): return candidate
-	return world_to_cell(CORE + Vector2(CELL * 3.0, 0))
-
-func place_tower(cell: Vector2i) -> bool:
-	var reason := can_place(cell)
-	if reason != "":
-		debug.build_rejected += 1
-		build_reason = reason
-		hud.toast(reason, 2)
-		return false
-	var cost := tower_cost(build_kind)
-	gold -= cost
-	blocked[cell_index(cell)] = true
-	var tower := ArenaTower.new()
-	tower.game = self
-	tower.kind = build_kind
-	tower.cell = cell
-	tower.position = cell_center(cell)
-	tower.target_mode = default_target_mode
-	add_child(tower)
-	towers.append(tower)
-	stats.built += 1
-	_rebuild_flow()
-	hud.toast("已建造 %s（%d 金）" % [ArenaTower.STATS[build_kind].name, cost], 2)
-	return true
-
-func tower_destroyed(tower: ArenaTower) -> void:
-	if not is_instance_valid(tower) or tower.destroyed: return
-	tower.destroyed = true
-	debug.towers_lost += 1
-	blocked[cell_index(tower.cell)] = false
-	towers.erase(tower)
-	rings.append({"point": tower.position, "radius": 66.0, "life": 0.32, "max_life": 0.32, "color": Color("ff8b6a")})
-	for index in range(8):
-		var angle := randf() * TAU
-		sparks.append({
-			"point": tower.position,
-			"velocity": Vector2.RIGHT.rotated(angle) * randf_range(100.0, 280.0),
-			"life": randf_range(0.16, 0.32),
-			"max_life": 0.32,
-			"color": Color("ff9d65"),
-		})
-	hitstop = maxf(hitstop, 0.05)
-	shake(5.0, (tower.position - CORE).normalized())
-	if audio != null:
-		audio.play("explode", -9.0)
-	tower.queue_free()
-	_rebuild_flow()
-	hud.toast("一座塔被摧毁", 2)
-
-func nearest_damaged_tower(point: Vector2, radius: float) -> ArenaTower:
-	var result: ArenaTower
-	var best := radius
-	for tower in towers:
-		if not is_instance_valid(tower) or tower.health >= tower.max_health: continue
-		var distance := point.distance_to(tower.position)
-		if distance < best:
-			best = distance
-			result = tower
-	return result
-
-func nearest_tower(point: Vector2, radius: float) -> ArenaTower:
-	var result: ArenaTower
-	var best := radius
-	for tower in towers:
-		if not is_instance_valid(tower) or not tower.active: continue
-		var distance := point.distance_to(tower.position)
-		if distance < best:
-			best = distance
-			result = tower
-	return result
-
-func repair_nearest() -> void:
-	if hero == null or game_over: return
-	var tower := nearest_damaged_tower(hero.position, 150.0)
-	if tower == null:
-		hud.toast("附近没有受损的塔", 2)
-		return
-	if gold < 30:
-		hud.toast("修理需要 30 金", 2)
-		return
-	gold -= 30
-	tower.health = tower.max_health
-	hud.toast("塔已修复", 2)
-
-func try_build_at_mouse() -> void:
-	select_build_site(build_cell_from_world(get_global_mouse_position()))
-
-func set_build_kind(kind: String) -> void:
-	if ArenaTower.STATS.has(kind):
-		build_kind = kind
-		_set_build_cell(build_cell)
-
-func _set_build_cell(cell: Vector2i) -> void:
-	build_cell = cell
-	build_site_ok = _build_site_ok(cell)
-	build_reason = can_place(cell, build_site_selected)
-	build_valid = build_reason == ""
-
-func select_build_site(cell: Vector2i) -> bool:
-	if not build_mode or not running or game_over or get_tree().paused: return false
-	build_site_selected = false
-	_set_build_cell(cell)
-	if not build_valid:
-		hud.toast(build_reason, 2)
-		return false
-	build_site_selected = true
-	_set_build_cell(cell)
-	return true
-
-func choose_build_kind(kind: String) -> void:
-	if not build_mode or not build_site_selected or not running or game_over or get_tree().paused or not ArenaTower.STATS.has(kind): return
-	set_build_kind(kind)
-	confirm_build()
-
-func cancel_build_mode() -> void:
-	if not build_mode: return
-	build_mode = false
-	build_site_selected = false
-	suppress_primary_until_release = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
-	selected_tower = null
-	if hud != null:
-		hud.build_palette.visible = false
-		hud.show_tower_panel(null)
-	Engine.time_scale = sim_speed
-
-func toggle_build_mode() -> void:
-	if game_over or not running or get_tree().paused: return
-	get_viewport().gui_release_focus()
-	if build_mode:
-		cancel_build_mode()
-		return
-	if phase != "rest" and focus <= 0.0:
-		hud.toast("专注不足，先等休息段", 2)
-		return
-	build_mode = true
-	build_site_selected = false
-	selected_tower = null
-	hud.show_tower_panel(null)
-	_set_build_cell(build_cell_from_world(get_global_mouse_position()))
-
-func build_from_menu(kind: String) -> void:
-	number_build(kind)
-
-func number_build(kind: String) -> void:
-	if not ArenaTower.STATS.has(kind) or not running or game_over or get_tree().paused: return
-	if not build_mode:
-		toggle_build_mode()
-		if not build_mode: return
-	if build_site_selected:
-		choose_build_kind(kind)
-	else:
-		set_build_kind(kind)
-
-func cycle_build_kind(step: int) -> void:
-	if not build_mode or not running or game_over or get_tree().paused: return
-	var index := ArenaTower.TOWER_ORDER.find(build_kind)
-	if index < 0: index = 0
-	var next := (index + step + ArenaTower.TOWER_ORDER.size()) % ArenaTower.TOWER_ORDER.size()
-	set_build_kind(ArenaTower.TOWER_ORDER[next])
-
-func confirm_build() -> bool:
-	if not build_mode or not running or game_over or get_tree().paused: return false
-	var built := place_tower(build_cell)
-	if built:
-		cancel_build_mode()
-		get_viewport().gui_release_focus()
-	return built
-
-func select_tower_at_mouse() -> void:
-	if not running: return
-	var tower := nearest_tower(get_global_mouse_position(), 46.0)
-	if tower != null:
-		select_tower(tower)
-
-func select_tower(tower: ArenaTower) -> void:
-	selected_tower = tower
-	hud.show_tower_panel(tower)
-
-func upgrade_selected() -> void:
-	if selected_tower == null or not is_instance_valid(selected_tower): return
-	if not selected_tower.upgrade():
-		hud.toast("金币不足或已满级", 2)
-	hud.show_tower_panel(selected_tower)
-
-func repair_selected() -> void:
-	if selected_tower == null or not is_instance_valid(selected_tower): return
-	if gold < 30:
-		hud.toast("修理需要 30 金", 2)
-		return
-	selected_tower.health = selected_tower.max_health
-	gold -= 30
-	hud.toast("塔已修复", 1)
-	hud.show_tower_panel(selected_tower)
-
-func close_tower_panel() -> void:
-	selected_tower = null
-	hud.show_tower_panel(null)
-
-# ── cycle / spawning ────────────────────────────────────────
-func start_rest(seconds: float) -> void:
-	seconds = rest_seconds(seconds)
-	phase = "rest"
-	phase_clock = seconds
-	spawn_timer = 0.0
-	spawned_this_phase = 0
-	hot_region = rng.randi_range(0, REGION_COUNT - 1)
-	var cache_region := (hot_region + 4) % REGION_COUNT
-	var cache_point: Vector2 = spawn_points[cache_region] + Vector2(rng.randf_range(-50, 50), rng.randf_range(-50, 50))
-	var camp_name: String = Rules.CAMP_NAMES[mini(camps_cleared, Rules.CAMP_NAMES.size() - 1)]
-	spawn_drop(cache_point, 20, 30, true, true, "", camp_name)
-	_refresh_rest_hint()
-	hud.toast("休息段：热点 %s；%s宝匣在 %s（休息结束消失）" % [_region_name(hot_region), camp_name, _region_name(cache_region)], 3)
-
-func _refresh_rest_hint() -> void:
-	if phase != "rest": return
-	for drop in drops:
-		if not is_instance_valid(drop) or drop.is_queued_for_deletion() or not drop.cache:
-			continue
-		var direction: Vector2 = drop.position - CORE
-		var region := posmod(roundi(direction.angle() * REGION_COUNT / TAU), REGION_COUNT)
-		_set_phase_text("B 建塔 · %s宝匣在%s（金色标记，休息结束消失）" % [drop.camp_name, _region_name(region)])
-		return
-	_set_phase_text("休息准备 · B 建塔")
-
-func start_spawn() -> void:
-	expire_normal_drops()
-	phase = "spawn"
-	phase_clock = 30.0
-	spawn_budget = 32 + 9 * (cycle - 1)
-	spawn_interval = 30.0 / maxf(1.0, ceilf(float(spawn_budget) / 4.0))
-	spawn_timer = 0.0
-	if cycle >= level_cycles and not boss_spawned:
-		_spawn_boss()
-	_set_phase_text("出怪：林线有动静（热点 %s，预算 %d）" % [_region_name(hot_region), spawn_budget])
-	hud.toast("出怪：热点 %s；本轮预算 %d" % [_region_name(hot_region), spawn_budget], 3)
-
-func _region_name(index: int) -> String:
-	var names := ["东", "东南", "南", "西南", "西", "西北", "北", "东北"]
-	return names[index % names.size()]
-
-func hero_damage_scale() -> float:
-	var scale := 1.0
-	if "vanguard" in relics: scale += 0.35
-	if "command" in relics: scale -= 0.10
-	return scale
-
-func tower_damage_scale() -> float:
-	var scale := 1.0
-	if "lone" in relics: scale += 0.40
-	if "swarm" in relics: scale -= 0.15
-	if "command" in relics: scale += 0.25
-	if "vanguard" in relics: scale -= 0.10
-	if hero != null:
-		scale += 0.15 * int(hero.passives.get("tower_link", 0))
-		if hero.passives.has("tower_doctrine"):
-			scale += 0.30
-	return scale
-
-func tower_attack_speed_scale(kind := "", tower_position := Vector2.ZERO) -> float:
-	if hero == null: return 1.0
-	var scale := 1.0 + tower_global_speed_bonus()
-	if hero.passives.has("tower_legion"):
-		scale += 0.10
-	if kind == "bolt":
-		scale += 0.10 * int(hero.passives.get("tower_bolt", 0))
-	if hero.passives.has("tower_command") and tower_position.distance_to(hero.position) <= 240.0:
-		scale += 0.20
-	return scale
-
-func tower_cost_scale() -> float:
-	if hero == null: return 1.0
-	return maxf(0.84, 1.0 - 0.08 * int(hero.passives.get("tower_engineer", 0)))
-
-func tower_cost(kind: String) -> int:
-	if not ArenaTower.STATS.has(kind): return 0
-	return int(round(float(ArenaTower.STATS[kind].cost) * tower_cost_scale()))
-
-func distinct_tower_kinds() -> int:
-	var kinds := {}
-	for tower in towers:
-		if is_instance_valid(tower): kinds[tower.kind] = true
-	return kinds.size()
-
-func tower_global_damage_bonus() -> float:
-	if hero == null: return 0.0
-	var bonus := 0.0
-	bonus += 0.05 * int(hero.passives.get("tower_cannon", 0))
-	bonus += 0.04 * int(hero.passives.get("tower_arc", 0))
-	bonus += 0.05 * int(hero.passives.get("tower_venom", 0))
-	bonus += 0.04 * int(hero.passives.get("tower_laser", 0))
-	bonus += 0.04 * int(hero.passives.get("tower_mixed", 0)) * distinct_tower_kinds()
-	return bonus
-
-func tower_global_speed_bonus() -> float:
-	if hero == null: return 0.0
-	return 0.04 * int(hero.passives.get("tower_bolt", 0))
-
-func tower_global_range_bonus() -> float:
-	if hero == null: return 0.0
-	return 8.0 * (int(hero.passives.get("tower_frost", 0)) + int(hero.passives.get("tower_laser", 0)))
-
-func tower_support_bonus(tower: ArenaTower) -> float:
-	if hero == null or tower == null: return 0.0
-	var bonus := 0.0
-	for other in towers:
-		if other == tower or not is_instance_valid(other) or not other.active: continue
-		if other.kind != "banner": continue
-		if other.position.distance_to(tower.position) <= other.attack_range():
-			bonus += 0.10 * other.level
-	if hero.passives.has("tower_banner"):
-		bonus += 0.05 * int(hero.passives.get("tower_banner", 0))
-	return bonus
-
-func tower_conditional_damage(tower: ArenaTower) -> float:
-	if hero == null or tower == null: return 1.0
-	var scale := 1.0 + tower_support_bonus(tower) + tower_global_damage_bonus()
-	if hero.passives.has("tower_legion"):
-		scale += 0.15
-	var adjacent := 0
-	for other in towers:
-		if other == tower or not is_instance_valid(other): continue
-		if absi(other.cell.x - tower.cell.x) <= 2 and absi(other.cell.y - tower.cell.y) <= 2:
-			adjacent += 1
-	var network := int(hero.passives.get("tower_network", 0))
-	if network > 0:
-		scale += 0.10 * network * adjacent
-	if hero.passives.has("tower_fortress"):
-		scale += 0.10 * adjacent
-	if hero.passives.has("tower_commander") and tower.position.distance_to(hero.position) <= 240.0:
-		scale += 0.25
-	return scale
-
-func kill_gold_scale() -> float:
-	return 1.40 if "raid" in relics else 1.0
-
-func upgrade_scale() -> float:
-	return 0.70 if "hold" in relics else 1.0
-
-func rest_seconds(base: float) -> float:
-	var seconds := base
-	if "raid" in relics: seconds -= 5.0
-	if "hold" in relics: seconds += 5.0
-	return maxf(8.0, seconds)
-
-func open_relic_choice(group: String) -> void:
-	if group == "" or relic_choice_pending: return
-	cancel_build_mode()
-	pending_relic_group = group
-	relic_choice_pending = true
-	running = false
-	hud.show_relic_choice(group)
-
-func passive_info(key: String) -> Dictionary:
-	if Rules.RELICS.has(key):
-		var relic: Dictionary = Rules.RELICS[key]
-		return {"name": relic.name, "desc": relic.text, "tag": relic.tag, "tags_text": relic.tag, "rarity_name": "路线", "stack_text": ""}
-	var info: Dictionary
-	if hero != null:
-		info = ArenaUpgrades.info(key, int(hero.passives.get(key, 0)))
-	else:
-		info = ArenaUpgrades.info(key, 0)
-	var preview := tower_card_preview(key)
-	if preview != "":
-		info = info.duplicate()
-		info["preview"] = preview
-	for tag in ArenaUpgrades.ARCHETYPES:
-		if key in ArenaUpgrades.ARCHETYPES[tag].keys:
-			info = info.duplicate()
-			info["archetype_name"] = ArenaUpgrades.ARCHETYPES[tag].name
-			info["archetype_tier"] = ArenaUpgrades.archetype_tier(hero, String(tag))
-			break
-	var active_text := card_active_text(key)
-	if active_text != "":
-		info = info.duplicate()
-		info["active_text"] = active_text
-	return info
-
-func card_active_text(key: String) -> String:
-	if hero == null: return ""
-	match key:
-		"last_stand":
-			return "当前已触发" if hero.health < hero.max_health * 0.4 else "当前未触发"
-		"tower_arsenal":
-			return "当前 %d 种塔" % distinct_tower_kinds()
-		"predator":
-			for enemy in enemies:
-				if is_instance_valid(enemy) and (enemy.elite or enemy.kind == "boss"): return "当前有精英/Boss"
-			return "当前无精英/Boss"
-		"knight_champion":
-			return "当前护盾 %d" % int(hero.shield)
-		"mage_archon":
-			return "当前结界 %.1fs" % hero.barrier_time
-	return ""
-
-func tower_card_preview(key: String) -> String:
-	if hero == null or not key.begins_with("tower_"): return ""
-	var stacks := int(hero.passives.get(key, 0))
-	var distinct := distinct_tower_kinds()
-	var speed_before := int(round(tower_global_speed_bonus() * 100.0))
-	var damage_before := int(round(tower_global_damage_bonus() * 100.0))
-	var range_before := int(round(tower_global_range_bonus()))
-	var speed_after := speed_before
-	var damage_after := damage_before
-	var range_after := range_before
-	match key:
-		"tower_bolt":
-			speed_after += 4
-			return "全塔攻速 +%d%% → +%d%%；弩塔再 +%d%% → +%d%%" % [speed_before, speed_after, 10 * stacks, 10 * (stacks + 1)]
-		"tower_cannon":
-			damage_after += 5
-			return "全塔伤害 +%d%% → +%d%%；炮塔再 +15%%" % [damage_before, damage_after]
-		"tower_frost":
-			range_after += 8
-			return "全塔射程 +%d → +%d；霜塔减速再 +0.5 秒" % [range_before, range_after]
-		"tower_arc":
-			damage_after += 4
-			return "全塔伤害 +%d%% → +%d%%；电弧塔再 +15%%/跳数" % [damage_before, damage_after]
-		"tower_venom":
-			damage_after += 5
-			return "全塔伤害 +%d%% → +%d%%；毒塔再 +15%% 中毒" % [damage_before, damage_after]
-		"tower_laser":
-			range_after += 8
-			return "全塔射程 +%d → +%d；曜光塔再 +10%%" % [range_before, range_after]
-		"tower_banner":
-			return "战旗光环额外 +5%% → +%d%% 塔伤害" % (5 * (stacks + 1))
-		"tower_mixed":
-			return "当前 %d 种塔：全塔伤害 +%d%% → +%d%%" % [distinct, damage_before, damage_after + 4 * distinct]
-		"tower_network":
-			return "2 格内每座塔伤害 +10%"
-		"tower_commander":
-			return "英雄 240 范围内塔伤害 +25%"
-		"tower_engineer":
-			return "建造/升级费用再 -8%"
-		"tower_fortress":
-			return "塔网伤害再 +10%/邻塔，塔受伤 -25%"
-		"tower_overclock":
-			return "每座塔第 5 发双倍伤害"
-		"tower_winter":
-			return "霜塔减速 +1.5 秒，伤害 +15%"
-		"tower_command":
-			return "英雄附近塔攻速 +20%"
-	return ""
-
-func queue_level_choice() -> void:
-	pending_level_choices += 1
-	if not passive_selecting:
-		open_passive_choice("level")
-
-func _relic_available(key: String) -> bool:
-	if not Rules.RELICS.has(key): return true
-	var group: String = String(Rules.RELICS[key].group)
-	for owned in relics:
-		if Rules.RELICS.has(owned) and String(Rules.RELICS[owned].group) == group:
-			return false
-	return true
-
-func open_passive_choice(source: String) -> void:
-	if passive_selecting: return
-	passive_source = source
-	passive_guarantee_weapon = dry_weapon_choices >= 2
-	passive_guarantee_element = dry_element_choices >= 2
-	passive_choices = ArenaUpgrades.roll(hero, source, 3, rng, passive_guarantee_weapon, passive_guarantee_element, banished_passives, cycle)
-	if passive_choices.is_empty():
-		passive_selecting = false
-		var rewards := maxi(1, pending_level_choices)
-		pending_level_choices = 0
-		gold += 50 * rewards
-		if hero != null:
-			hero.health = minf(hero.max_health, hero.health + 20.0 * rewards)
-		running = true
-		hud.toast("被动已全满：转化为 %d 金与生命" % (50 * rewards), 3)
-		return
-	_update_dry_choices(passive_choices)
-	cancel_build_mode()
-	passive_selecting = true
-	running = false
-	hud.show_passive_choice(passive_choices, source, passive_rerolls, passive_banishes)
-
-func _update_dry_choices(choices: Array) -> void:
-	var has_weapon := false
-	var has_element := false
-	for key in choices:
-		if not ArenaUpgrades.DEFS.has(key): continue
-		if ArenaUpgrades.DEFS[key].has("weapon"): has_weapon = true
-		if "元素" in ArenaUpgrades.DEFS[key].tags: has_element = true
-	dry_weapon_choices = 0 if has_weapon else dry_weapon_choices + 1
-	dry_element_choices = 0 if has_element else dry_element_choices + 1
-
-func reroll_passive_choice() -> void:
-	if not passive_selecting or passive_rerolls <= 0: return
-	passive_rerolls -= 1
-	var next: Array[String] = []
-	for attempt in range(3):
-		next = ArenaUpgrades.roll(hero, passive_source, 3, rng, passive_guarantee_weapon, passive_guarantee_element, banished_passives, cycle)
-		if next != passive_choices:
-			break
-	if next.is_empty():
-		passive_rerolls += 1
-		hud.toast("没有可刷新的卡了", 2)
-		return
-	passive_choices = next
-	_update_dry_choices(passive_choices)
-	hud.show_passive_choice(passive_choices, passive_source, passive_rerolls, passive_banishes)
-
-func banish_passive_choice(key: String) -> void:
-	if not passive_selecting or passive_banishes <= 0 or not passive_choices.has(key): return
-	passive_banishes -= 1
-	banished_passives.append(key)
-	passive_choices.erase(key)
-	for attempt in range(3):
-		var replacement := ArenaUpgrades.roll(hero, passive_source, 1, rng, false, false, banished_passives, cycle)
-		if not replacement.is_empty() and not passive_choices.has(replacement[0]):
-			passive_choices.append(replacement[0])
-			break
-	_update_dry_choices(passive_choices)
-	hud.show_passive_choice(passive_choices, passive_source, passive_rerolls, passive_banishes)
-
-func choose_passive(key: String) -> void:
-	if not passive_selecting or not passive_choices.has(key): return
-	if Rules.RELICS.has(key):
-		relics.append(key)
-	else:
-		hero.apply_passive(key)
-	var was_level := passive_source == "level"
-	passive_selecting = false
-	if was_level and pending_level_choices > 0:
-		pending_level_choices -= 1
-	if pending_level_choices > 0:
-		open_passive_choice("level")
-	else:
-		running = true
-		hud.hide_passive_choice()
-		hud.toast("获得：%s" % passive_info(key).name, 2)
-
-func choose_relic(key: String) -> void:
-	if not relic_choice_pending or not Rules.RELICS.has(key): return
-	var data: Dictionary = Rules.RELICS[key]
-	if String(data.group) != pending_relic_group: return
-	relics.append(key)
-	relic_choice_pending = false
-	pending_relic_group = ""
-	running = true
-	hud.hide_relic_choice()
-	hud.toast("路线：%s" % data.name, 3)
-
-func _weighted_region() -> int:
-	var weights: Array[float] = []
-	var total := 0.0
-	for index in range(REGION_COUNT):
-		var weight := 1.0
-		if index == hot_region: weight = 2.5
-		weights.append(weight)
-		total += weight
-	var roll := rng.randf_range(0.0, total)
-	for index in range(REGION_COUNT):
-		roll -= weights[index]
-		if roll <= 0.0: return index
-	return REGION_COUNT - 1
-
-func spawn_cluster() -> void:
-	var region := _weighted_region()
-	var count := mini(4, spawn_budget)
-	var pattern := "swarm"
-	var angle_sigma := 0.30
-	var radius_sigma := 90.0
-	var roll := rng.randf()
-	if roll < 0.24:
-		pattern = "column"
-		count = mini(4, spawn_budget)
-		angle_sigma = 0.10
-		radius_sigma = 45.0
-	elif roll < 0.52:
-		pattern = "swarm"
-		angle_sigma = 0.48
-		radius_sigma = 120.0
-	elif roll < 0.76:
-		pattern = "pincer"
-		angle_sigma = 0.20
-	count = mini(count, spawn_budget)
-	if count <= 0: return
-	var anchors: Array[Vector2] = []
-	if pattern == "pincer":
-		anchors.append(_spawn_point(region, angle_sigma, radius_sigma))
-		var other := (region + 4) % REGION_COUNT
-		anchors.append(_spawn_point(other, angle_sigma, radius_sigma))
-	else:
-		anchors.append(_spawn_point(region, angle_sigma, radius_sigma))
-	spawn_warnings.append({"point": anchors[0], "life": 1.2, "radius": 74.0})
-	if anchors.size() > 1:
-		spawn_warnings.append({"point": anchors[1], "life": 1.2, "radius": 74.0})
-	var delay := 0.62 if pattern == "column" else (1.0 if pattern == "pincer" else 0.82)
-	for index in range(count):
-		var base: Vector2 = anchors[index % anchors.size()]
-		var jitter := Vector2(rng.randfn(0.0, 42.0), rng.randfn(0.0, 42.0))
-		var point := _nearest_spawn_point(base + jitter)
-		var kind := _roll_enemy_kind()
-		var health := 44.0 + cycle * 13.0
-		if kind == "barrel": health *= 1.6
-		if kind == "sapper": health *= 2.2
-		if kind == "charger": health *= 0.75
-		if kind == "hound": health *= 0.65
-		if kind == "bomber": health *= 1.5
-		if kind == "brute": health *= 3.0
-		if kind == "shielded": health *= 2.2
-		if kind == "armored": health *= 2.6
-		if kind == "shaman": health *= 1.8
-		if kind == "mortar": health *= 2.0
-		if kind == "splitter": health *= 1.8
-		if kind == "sniper": health *= 1.4
-		if kind == "grenadier": health *= 1.7
-		if kind == "spinner": health *= 1.5
-		if kind != "boss": health *= 1.08
-		var elite := cycle >= 2 and rng.randf() < 0.20
-		if elite: health *= 3.0
-		pending_spawns.append({
-			"point": point,
-			"kind": kind,
-			"health": health,
-			"elite": elite,
-			"delay": delay + rng.randf_range(-0.12, 0.18),
-		})
-		spawn_budget -= 1
-	spawn_timer = spawn_interval
-	spawned_this_phase += count
-	debug.regions[region] += 1
-	debug.spawn_patterns[pattern] = int(debug.spawn_patterns.get(pattern, 0)) + 1
-
-func _spawn_point(region: int, angle_sigma: float, radius_sigma: float) -> Vector2:
-	var base_angle := TAU * float(region) / float(REGION_COUNT)
-	var angle := base_angle + rng.randfn(0.0, angle_sigma)
-	var radius := SPAWN_RADIUS + rng.randfn(0.0, radius_sigma)
-	radius = clampf(radius, SPAWN_RADIUS - 180.0, SPAWN_RADIUS + 180.0)
-	var point: Vector2 = CORE + Vector2.RIGHT.rotated(angle) * radius
-	point = point.clamp(Vector2(80, 80), ARENA_SIZE - Vector2(80, 80))
-	return _nearest_spawn_point(point)
-
-func _nearest_spawn_point(point: Vector2) -> Vector2:
-	var cell := world_to_cell(point)
-	for radius in range(0, 12):
-		for dy in range(-radius, radius + 1):
-			for dx in range(-radius, radius + 1):
-				if maxi(absi(dx), absi(dy)) != radius: continue
-				var candidate := cell + Vector2i(dx, dy)
-				if candidate.x < 0 or candidate.y < 0 or candidate.x >= GRID_W or candidate.y >= GRID_H: continue
-				var index := cell_index(candidate)
-				if blocked[index] or reach[index] < 0: continue
-				return cell_center(candidate)
-	return cell_center(cell)
-
-func _roll_enemy_kind() -> String:
-	var kind := "torch"
-	if cycle >= 2 and rng.randf() < 0.24: kind = "shooter"
-	if cycle >= 2 and rng.randf() < 0.10: kind = "hound"
-	if cycle >= 3 and rng.randf() < 0.15: kind = "charger"
-	if cycle >= 3 and rng.randf() < 0.10: kind = "bomber"
-	if cycle >= 3 and rng.randf() < 0.16: kind = "barrel"
-	if cycle >= 3 and rng.randf() < 0.07: kind = "shaman"
-	if cycle >= 3 and rng.randf() < 0.08: kind = "sniper"
-	if cycle >= 4 and rng.randf() < 0.08: kind = "sapper"
-	if cycle >= 4 and rng.randf() < 0.12: kind = "brute"
-	if cycle >= 4 and rng.randf() < 0.15: kind = "shielded"
-	if cycle >= 4 and rng.randf() < 0.07: kind = "mortar"
-	if cycle >= 4 and rng.randf() < 0.08: kind = "splitter"
-	if cycle >= 4 and rng.randf() < 0.07: kind = "grenadier"
-	if cycle >= 4 and rng.randf() < 0.07: kind = "spinner"
-	if cycle >= 5 and rng.randf() < 0.15: kind = "armored"
-	return kind
-
-func build_report() -> Dictionary:
-	var fire := 0
-	var frost := 0
-	var lightning := 0
-	var towers := 0
-	var survival := 0
-	var class_cards := 0
-	var synergies := 0
-	for key in hero.passives:
-		var stacks := int(hero.passives[key])
-		if key in ["burn", "pyroclasm", "thermal_shock"]:
-			fire += stacks
-		if key in ["frost", "nova", "permafrost", "chainfrost"] or (key == "scatter_frost" and hero.has_weapon_equipped("scatter")):
-			frost += stacks
-		if key in ["chain", "storm", "tempest", "stormfire"]:
-			lightning += stacks
-		if ArenaUpgrades.DEFS.has(key):
-			var data: Dictionary = ArenaUpgrades.DEFS[key]
-			if "塔防" in data.tags: towers += stacks
-			if "生存" in data.tags: survival += stacks
-			if "职业" in data.tags: class_cards += stacks
-			if String(data.rarity) == "synergy": synergies += 1
-	var element_total := fire + frost + lightning
-	var dominant := ""
-	var best := 0
-	for pair in [["fire", fire], ["frost", frost], ["lightning", lightning]]:
-		if int(pair[1]) > best:
-			best = int(pair[1])
-			dominant = String(pair[0])
-	var counter := {"fire": "frost", "frost": "lightning", "lightning": "fire"}
-	var boss_affinity := String(dominant) if dominant != "" else "fire"
-	var boss_weakness := String(counter.get(dominant, "frost"))
-	var warnings: Array[String] = []
-	if hero.weapon_level < 2: warnings.append("武器未进化")
-	if element_total < 2: warnings.append("元素覆盖不足")
-	if synergies == 0: warnings.append("没有协同")
-	if towers == 0: warnings.append("没有塔防投入")
-	if survival == 0: warnings.append("没有生存卡")
-	var score := hero.weapon_level * 2 + element_total + synergies * 3 + towers * 2 + survival + class_cards
-	var grade := "C"
-	if score >= 20: grade = "S"
-	elif score >= 14: grade = "A"
-	elif score >= 9: grade = "B"
-	return {
-		"score": score,
-		"grade": grade,
-		"weapon_level": hero.weapon_level,
-		"elements": element_total,
-		"dominant": dominant,
-		"synergies": synergies,
-		"towers": towers,
-		"survival": survival,
-		"class_cards": class_cards,
-		"boss_affinity": boss_affinity,
-		"boss_weakness": boss_weakness,
-		"warnings": warnings,
-	}
-
-func _spawn_boss() -> void:
-	boss_spawned = true
-	var report := build_report()
-	var point: Vector2 = _spawn_point(hot_region, 0.22, 60.0)
-	boss = spawn_enemy("boss", point, 5000.0)
-	boss.affinity = String(report.boss_affinity)
-	boss.weakness = String(report.boss_weakness)
-	hud.show_boss_check(report)
-	hud.toast("焚林统领从%s林线走来" % _region_name(hot_region), 4)
-
-func boss_phase_shift(point: Vector2, phase: int) -> void:
-	rings.append({"point": point, "radius": 320.0, "life": 0.55})
-	shake(8.0 + phase * 2.0)
-	if audio != null:
-		audio.play("phase", -4.0, 0.9 + phase * 0.05)
-	for tower in towers.duplicate():
-		if is_instance_valid(tower) and tower.position.distance_to(point) <= 360.0:
-			tower.disabled_time = maxf(tower.disabled_time, 1.2 + phase * 0.4)
-			tower.health -= 8.0 * phase
-			if tower.health <= 0.0: tower_destroyed(tower)
-	hud.toast("Boss 阶段 %d：冲击波静默附近塔" % (phase + 1), 3)
-
-func boss_summon(point: Vector2) -> void:
-	hud.toast("焚林统领召来援军", 2)
-	for index in range(3):
-		var angle := TAU * index / 3.0
-		var spawn_point := point + Vector2.RIGHT.rotated(angle) * 90.0
-		var kind := "charger" if index % 2 == 0 else "shooter"
-		var health := 70.0 + cycle * 12.0
-		spawn_enemy(kind, spawn_point, health, index == 0)
-
-func _weakness_for(kind: String) -> String:
-	match kind:
-		"armored", "shielded", "mortar", "sniper", "spinner": return "lightning"
-		"brute", "shaman", "splitter", "grenadier": return "fire"
-		"bomber", "sapper", "charger", "hound": return "frost"
-		"shooter": return "lightning"
-		"boss": return "frost"
-	return ""
-
-func _affinity_for(kind: String, elite: bool, weakness: String) -> String:
-	if not elite and kind != "boss":
-		return ""
-	var elements := ["fire", "frost", "lightning"]
-	if kind == "boss":
-		return "fire"
-	for _attempt in range(4):
-		var pick: String = elements[rng.randi_range(0, elements.size() - 1)]
-		if pick != weakness:
-			return pick
-	return ""
-
-func spawn_enemy(kind: String, point: Vector2, health: float, elite := false) -> ArenaEnemy:
-	var enemy := ArenaEnemy.new()
-	enemy.game = self
-	enemy.kind = kind
-	enemy.elite = elite
-	if elite:
-		enemy.elite_mod = ["swift", "tough", "volatile", "warding"][rng.randi_range(0, 3)]
-	enemy.weakness = _weakness_for(kind)
-	enemy.affinity = _affinity_for(kind, elite, enemy.weakness)
-	enemy.max_health = health
-	enemy.health = health
-	enemy.position = point
-	add_child(enemy)
-	enemies.append(enemy)
-	debug.spawns += 1
-	return enemy
-
-func record_damage(amount: float, source: String) -> void:
-	var key := source if source in ["hero", "tower"] else "other"
-	damage_stats[key] = float(damage_stats[key]) + maxf(0.0, amount)
-
-func enemy_died(enemy: ArenaEnemy) -> void:
-	if not is_instance_valid(enemy): return
-	enemies.erase(enemy)
-	stats.kills += 1
-	if enemy.last_source == "hero":
-		stats.hero_kills += 1
-	elif enemy.last_source == "tower":
-		stats.tower_kills += 1
-	death_feedback(enemy)
-	if enemy.kind == "boss":
-		boss_dead = true
-		boss = null
-		spawn_drop(enemy.position, 80, 120, true)
-		hud.toast("焚林统领倒下", 3)
-	elif enemy.kind in ["shielded", "armored"] or enemy.elite:
-		spawn_drop(enemy.position, 20, 15, true)
-	else:
-		spawn_drop(enemy.position, 6, 5, false)
-	# A readable, predictable stream of distinct weapons; all heroes share it.
-	# Existing drops waiting on the ground count as pending to prevent duplicates.
-	if stats.kills >= 5 and (int(stats.kills) - 5) % 8 == 0 and hero != null:
-		var pending: Array[String] = []
-		for item in drops:
-			if is_instance_valid(item) and not item.weapon_key.is_empty(): pending.append(item.weapon_key)
-		for key in WeaponCatalog.IDS:
-			if key not in hero.weapon_inventory and key not in pending:
-				spawn_drop(enemy.position + Vector2(30, 0), 0, 0, true, false, key)
-				break
-	if boss_dead and cycle >= level_cycles and enemies.is_empty() and pending_spawns.is_empty():
-		finish(true)
-	if hero != null:
-		if hero.passives.has("lifesteal"):
-			var lifesteal_stacks := int(hero.passives.get("lifesteal", 1))
-			hero.health = minf(hero.max_health, hero.health + 6.0 + 3.0 * (lifesteal_stacks - 1))
-		if hero.passives.has("dash_reset"):
-			var reset_stacks := int(hero.passives.get("dash_reset", 1))
-			hero.skill_cooldown = maxf(0.0, hero.skill_cooldown - (1.0 + 0.5 * (reset_stacks - 1)))
-		if hero.passives.has("deathblast"):
-			var blast_stacks := int(hero.passives.get("deathblast", 1))
-			damage_radius(enemy.position, 80.0 + 10.0 * (blast_stacks - 1), 38.0 + 20.0 * (blast_stacks - 1), "hero")
-			if hero.passives.has("reaper"):
-				hero.health = minf(hero.max_health, hero.health + 5.0)
-		if hero.passives.has("pyroclasm") and enemy.burn_time > 0.0:
-			damage_radius(enemy.position, 90.0, 32.0, "hero")
-		if hero.passives.has("inferno") and enemy.burn_time > 0.0:
-			damage_radius(enemy.position, 120.0, 54.0, "hero")
-			for other in enemies.duplicate():
-				if is_instance_valid(other) and not other.dead and other != enemy and other.position.distance_to(enemy.position) < 150.0:
-					other.apply_burn(hero.burn_dps * 0.8, 3.0, "hero")
-		if hero.passives.has("firestorm") and enemy.burn_time > 0.0:
-			damage_radius(enemy.position, 155.0, 70.0, "hero")
-		if hero.passives.has("wildfire") and enemy.burn_time > 0.0:
-			for other in enemies.duplicate():
-				if is_instance_valid(other) and not other.dead and other != enemy and other.position.distance_to(enemy.position) < 120.0:
-					other.apply_burn(hero.burn_dps * 0.6, 3.0, "hero")
-		if enemy.elite and enemy.elite_mod == "volatile":
-			enemy_explosion(enemy.position, 110.0, 12.0, 18.0)
-		if enemy.kind == "splitter":
-			for index in range(2):
-				var angle := TAU * index / 2.0
-				var child := spawn_enemy("hound", enemy.position + Vector2.RIGHT.rotated(angle) * 34.0, maxf(20.0, enemy.max_health * 0.22))
-				child.elite = false
-
-func enemy_escaped(enemy: ArenaEnemy) -> void:
-	enemies.erase(enemy)
-
-func death_feedback(enemy: ArenaEnemy) -> void:
-	var point := enemy.center()
-	var color := Color("ffb36e") if enemy.elite else Color("ff8b6a")
-	rings.append({"point": point, "radius": 40.0 if enemy.elite else 26.0, "life": 0.3, "max_life": 0.3, "color": color})
-	for index in range(10 if enemy.elite else 5):
-		var angle := randf() * TAU
-		sparks.append({
-			"point": point,
-			"velocity": Vector2.RIGHT.rotated(angle) * randf_range(120.0, 320.0),
-			"life": randf_range(0.18, 0.38),
-			"max_life": 0.38,
-			"color": color,
-		})
-	hitstop = maxf(hitstop, 0.06 if enemy.elite else 0.04)
-	shake(4.0 if enemy.elite else 2.2, (point - CORE).normalized())
-	if audio != null:
-		audio.play("kill", -8.0 if enemy.elite else -12.0)
-
-func core_hit(amount: float) -> void:
-	if game_over: return
-	debug.leaks += 1
-	debug.leak_damage += amount
-	core_health = maxf(0.0, core_health - amount)
-	if core_health <= 0: finish(false, "core")
-
-func hero_died() -> void:
-	if game_over: return
-	finish(false, "hero")
-
-func finish(win: bool, reason := "") -> void:
-	if game_over: return
-	cancel_build_mode()
-	game_over = true
-	victory = win
-	defeat_reason = "" if win else reason
-	running = false
-	Engine.time_scale = 1.0
-	if started and hero != null:
-		var completed_cycles := maxi(0, cycle - 1) + (1 if win else 0)
-		var reward := ArenaProgression.battle_reward(int(stats.kills), completed_cycles, win)
-		progression_reward = progression.grant_experience(hero.class_id, reward)
-		if progression_reward < 0:
-			progression_error = progression.last_error
-			progression_reward = 0
-	hud.show_result(win)
-	_set_phase_text("")
-
-# ── drops / projectiles ────────────────────────────────────
-func spawn_drop(point: Vector2, xp: int, gold_value: int, big: bool, cache := false, weapon_key := "", camp_name := "") -> ArenaDrop:
-	if hero != null:
-		gold_value = int(round(gold_value * hero.gold_mult))
-	var drop := ArenaDrop.new()
-	drop.game = self
-	drop.xp = xp
-	drop.gold_value = gold_value
-	drop.big = big
-	drop.cache = cache
-	drop.weapon_key = weapon_key
-	drop.camp_name = camp_name
-	drop.position = point
-	add_child(drop)
-	drops.append(drop)
-	debug.drops_spawned += 1
-	if drops.size() > 150:
-		for index in range(drops.size()):
-			if not drops[index].big and drops[index].weapon_key.is_empty():
-				var oldest: ArenaDrop = drops[index]
-				drops.remove_at(index)
-				oldest.queue_free()
-				break
-	return drop
-
-func collect_drop(drop: ArenaDrop) -> void:
-	if not is_instance_valid(drop) or drop not in drops: return
-	drops.erase(drop)
-	if drop.cache: _refresh_rest_hint()
-	debug.drops_collected += 1
-	if hero != null:
-		if not drop.weapon_key.is_empty():
-			hero.collect_weapon(drop.weapon_key)
-		var gold_value := int(drop.gold_value * kill_gold_scale() * hero.gold_mult)
-		gold += gold_value
-		hero.gold_gained += gold_value
-		if drop.cache:
-			if camps_cleared < Rules.CAMP_NAMES.size():
-				camps_cleared += 1
-				open_passive_choice("camp")
-			else:
-				hud.toast("营地已全部肃清，宝匣只留下金币", 2)
-		hero.add_xp(drop.xp)
-	drop.queue_free()
-
-func expire_normal_drops() -> void:
-	var cache_expired := false
-	for drop in drops.duplicate():
-		if is_instance_valid(drop) and drop.weapon_key.is_empty() and (not drop.big or drop.cache):
-			drops.erase(drop)
-			cache_expired = cache_expired or drop.cache
-			debug.drops_expired += 1
-			drop.queue_free()
-	if cache_expired: _refresh_rest_hint()
-
-func tower_target(tower: ArenaTower) -> ArenaEnemy:
-	if tower == null or not is_instance_valid(tower): return null
-	var reach := tower.attack_range()
-	var best: ArenaEnemy
-	var best_score := -INF
-	for enemy in enemies:
-		if not is_instance_valid(enemy) or enemy.dead: continue
-		var distance := tower.position.distance_to(enemy.position)
-		if distance > reach: continue
-		var score := -distance
-		match tower.target_mode:
-			"strongest": score = enemy.health
-			"first": score = -enemy.position.distance_to(CORE)
-		if score > best_score:
-			best_score = score
-			best = enemy
+func nearest_road(point: Vector2) -> Dictionary:
+	var best: Dictionary={"route":0,"progress":0.0,"point":Vector2.ZERO};var distance:=INF
+	for index in range(routes.size()):
+		var progress: float=routes[index].get_closest_offset(point);var sample: Vector2=routes[index].sample_baked(progress,true)
+		if sample.distance_squared_to(point)<distance:
+			distance=sample.distance_squared_to(point);best={"route":index,"progress":progress,"point":sample}
 	return best
-
-func cycle_tower_target() -> void:
-	if selected_tower == null or not is_instance_valid(selected_tower): return
-	var index := ArenaTower.TARGET_MODES.find(selected_tower.target_mode)
-	selected_tower.target_mode = ArenaTower.TARGET_MODES[(index + 1) % ArenaTower.TARGET_MODES.size()]
-	hud.toast("目标：%s" % ArenaTower.TARGET_LABELS[selected_tower.target_mode], 1)
-	hud.show_tower_panel(selected_tower)
-
-func cycle_all_targets() -> void:
-	var index := ArenaTower.TARGET_MODES.find(default_target_mode)
-	default_target_mode = ArenaTower.TARGET_MODES[(index + 1) % ArenaTower.TARGET_MODES.size()]
-	for tower in towers:
-		if is_instance_valid(tower):
-			tower.target_mode = default_target_mode
-	hud.toast("全塔目标：%s" % ArenaTower.TARGET_LABELS[default_target_mode], 2)
-	if selected_tower != null:
-		hud.show_tower_panel(selected_tower)
-
-func sell_selected() -> void:
-	if selected_tower == null or not is_instance_valid(selected_tower): return
-	var tower := selected_tower
-	var refund := tower.sell_value()
-	gold += refund
-	tower.destroyed = true
-	blocked[cell_index(tower.cell)] = false
-	towers.erase(tower)
-	tower.queue_free()
-	selected_tower = null
-	hud.show_tower_panel(null)
-	_rebuild_flow()
-	hud.toast("已拆除塔，返还 %d 金" % refund, 2)
-
-func nearest_enemy(point: Vector2, radius: float) -> ArenaEnemy:
-	var result: ArenaEnemy
-	var best := radius
-	for enemy in enemies:
-		if not is_instance_valid(enemy) or enemy.dead: continue
-		var distance := point.distance_to(enemy.position)
-		if distance < best:
-			best = distance
-			result = enemy
+func available_towers() -> Array[String]:
+	var result: Array[String]=[]
+	for key in ArenaDefinitions.TOWER_IDS:
+		if int(level_definition.towers.get(key,99))<=cycle:result.append(key)
 	return result
-
-func spawn_projectile(origin: Vector2, target: Vector2, damage: float, color: Color, splash := 0.0, slow := 0.0, speed := 760.0, pierce := 0, execute_bonus := 0.0, burn_dps := 0.0, critical := false, execute_threshold := 0.35, shatter := false, poison_dps := 0.0, source := "other") -> ArenaProjectile:
-	var projectile := ArenaProjectile.new()
-	projectile.z_index = 1
-	projectile.game = self
-	projectile.position = origin
-	projectile.direction = (target - origin).normalized()
-	projectile.damage = damage
-	projectile.speed = speed
-	projectile.color = color
-	projectile.splash = splash
-	projectile.slow = slow
-	projectile.pierce = pierce
-	projectile.execute_bonus = execute_bonus
-	projectile.burn_dps = burn_dps
-	projectile.poison_dps = poison_dps
-	projectile.source = source
-	projectile.critical = critical
-	projectile.execute_threshold = execute_threshold
-	projectile.shatter = shatter
-	add_child(projectile)
-	return projectile
-
-func enemy_shot_arc(origin: Vector2, target: Vector2, damage: float, speed: float, count: int, spread: float) -> void:
-	var direction := (target - origin).normalized()
-	for index in range(count):
-		var t := 0.0 if count <= 1 else float(index) / float(count - 1)
-		var angle := lerpf(-spread, spread, t)
-		enemy_shot(origin, origin + direction.rotated(angle) * 800.0, damage, speed)
-
-func enemy_shot_radial(origin: Vector2, damage: float, speed: float, count: int) -> void:
-	for index in range(count):
-		var angle := TAU * float(index) / float(count)
-		enemy_shot(origin, origin + Vector2.RIGHT.rotated(angle) * 800.0, damage, speed)
-
-func enemy_grenade(point: Vector2, radius: float, damage: float, delay: float) -> void:
-	danger_zones.append({
-		"point": point,
-		"radius": radius,
-		"damage": damage,
-		"life": delay,
-		"max_life": delay,
-	})
-
-func enemy_shot(origin: Vector2, target: Vector2, damage: float, speed := 190.0) -> ArenaProjectile:
-	var projectile := ArenaProjectile.new()
-	projectile.z_index = 1
-	projectile.game = self
-	projectile.hostile = true
-	projectile.position = origin
-	projectile.direction = (target - origin).normalized()
-	projectile.damage = damage
-	projectile.speed = speed
-	projectile.color = Color("ff6b5e")
-	add_child(projectile)
-	projectile.add_to_group("hostile_projectile")
-	return projectile
-
-func chain_strike(origin: Vector2, damage: float, jumps: int, source := "hero") -> void:
-	var from := origin
-	var hit: Array[int] = []
-	for index in range(jumps):
-		var target: ArenaEnemy
-		var best := 360.0
-		for enemy in enemies:
-			if not is_instance_valid(enemy) or enemy.dead: continue
-			if enemy.get_instance_id() in hit: continue
-			var distance := from.distance_to(enemy.position)
-			if distance < best:
-				best = distance
-				target = enemy
-		if target == null: break
-		hit.append(target.get_instance_id())
-		bolts.append({"start": from, "end": target.center(), "life": 0.14})
-		var lightning_damage := damage
-		if hero != null and hero.passives.has("conductive") and (target.burn_time > 0.0 or target.slow_time > 0.0 or target.freeze_time > 0.0):
-			lightning_damage *= 1.4
-		target.take_damage(lightning_damage * target.element_multiplier("lightning"), source)
-		if hero != null and hero.passives.has("burn"):
-			target.apply_burn(hero.burn_dps, 3.0, source)
-		if hero != null and hero.passives.has("stormfire"):
-			damage_radius(target.position, 72.0, damage * 0.55, source)
-		if hero != null and hero.passives.has("chainfrost"):
-			target.apply_frost(1.5)
-		from = target.center()
-	shake(2.0)
-
-func poison_cloud(point: Vector2, radius: float, damage: float, poison: float, source := "tower") -> void:
-	rings.append({"point": point, "radius": radius, "life": 0.35})
+func site_tower(index: int) -> ArenaTower:
+	for tower in towers:
+		if is_instance_valid(tower) and not tower.destroyed and tower.site_id==index:return tower
+	return null
+func build_tower(index: int,kind: String) -> bool:
+	if not running or game_over or index<0 or index>=level_definition.sites.size() or kind not in available_towers() or site_tower(index)!=null:return false
+	var cost: int=ArenaDefinitions.TOWERS[kind].cost
+	if gold<cost:return false
+	gold-=cost;var tower:=ArenaTower.new();tower.game=self;tower.kind=kind;tower.site_id=index;tower.position=level_definition.sites[index]
+	actors.add_child(tower);towers.append(tower);built+=1;rebuild_navigation();audio.play("tower");hud.refresh_context();return true
+func start_rest(duration: float) -> void:
+	phase="rest";phase_clock=duration;rest_duration=duration;wave_preview=false;rewarded=false
+	hud.announce_unlock()
+func request_wave() -> void:
+	if not running or game_over or phase!="rest" or get_tree().paused:return
+	if not wave_preview:wave_preview=true;return
+	if not rewarded:gold+=mini(12,int(floor(12.0*clampf(phase_clock/rest_duration,0,1))));rewarded=true
+	begin_wave()
+func begin_wave() -> void:
+	if phase!="rest":return
+	phase="spawn";wave_preview=false;spawn_queue.clear();spawn_clock=0;wave_elapsed=0
+	var pattern:=ArenaLevelCatalog.wave(level_id,cycle)
+	var index:=0
+	for group in pattern.units:
+		for unit in range(group[1]):
+			var lane:=0
+			if routes.size()>1:lane=index%2 if pattern.lead<0 else (int(pattern.lead) if index%4<3 else 1-int(pattern.lead))
+			var at: float=index*(0.68 if cycle<4 else 0.5)+(4.5 if level_id=="creek" and cycle==1 and lane==1 else 0.0)
+			spawn_queue.append({"kind":group[0],"route":lane,"elite":cycle>=4 and index%9==8,"at":at});index+=1
+	if bool(level_definition.boss) and cycle==8:spawn_queue.append({"kind":"moth","route":0,"elite":false,"at":index*0.5+2})
+	spawn_queue.sort_custom(func(a,b):return a.at<b.at)
+func spawn_enemy(kind: String,lane: int,offset := 0.0,elite := false) -> ArenaEnemy:
+	if lane<0 or lane>=routes.size():return null
+	var enemy:=ArenaEnemy.new();enemy.game=self;enemy.kind=kind;enemy.route_id=lane;enemy.progress=offset;enemy.elite=elite;enemy.position=routes[lane].sample_baked(offset,true)
+	actors.add_child(enemy);enemies.append(enemy);return enemy
+func nearest_enemy(point: Vector2,distance: float,include_guards:=true) -> ArenaEnemy:
+	var best: ArenaEnemy;var squared: float=distance*distance
+	for enemy in enemies:
+		if not is_instance_valid(enemy) or enemy.dead or (enemy.is_guard and not include_guards):continue
+		var d: float=point.distance_squared_to(enemy.center())
+		if d<squared:squared=d;best=enemy
+	return best
+func tower_target(tower: ArenaTower) -> ArenaEnemy:
+	var best: ArenaEnemy;var score:=-INF
+	for enemy in enemies:
+		if not is_instance_valid(enemy) or enemy.dead or enemy.is_guard or enemy.position.distance_to(tower.position)>tower.attack_range():continue
+		var next: float=enemy.progress/routes[enemy.route_id].get_baked_length()
+		if tower.target_mode=="strongest":next=enemy.health
+		if next>score:score=next;best=enemy
+	return best
+func remove_enemy(enemy: ArenaEnemy) -> void:
+	enemy.dead=true;blocking.release_enemy(enemy);enemies.erase(enemy);enemy.queue_free()
+func enemy_defeated(enemy: ArenaEnemy) -> void:
+	blocking.release_enemy(enemy);enemies.erase(enemy);kills+=1
+	gold+=int(enemy.data.gold);hero.add_xp(int(enemy.data.xp))
+	if enemy.is_guard:
+		camps[enemy.camp_id].remaining-=1
+		if int(camps[enemy.camp_id].remaining)<=0 and not camps[enemy.camp_id].cleared:
+			camps[enemy.camp_id].cleared=true;camps_cleared+=1;gold+=60;queue_choice();effect(camps[enemy.camp_id].point,65,Color("f6d68d"),"upgrade",0.9)
+	if kind_has_visual(enemy):
+		var ghost: ArenaCreature=enemy.visual;ghost.reparent(actors,true);ghost.show_pose("down",enemy.facing);corpses.append({"node":ghost,"life":0.65})
+	enemy.queue_free()
+func kind_has_visual(enemy: ArenaEnemy) -> bool:
+	return is_instance_valid(enemy.visual) and enemy.visual.sprite_frames.has_animation("down")
+func core_hit(amount: float) -> void:
+	if game_over:return
+	core_health=maxf(0,core_health-amount);audio.play("hurt");shake=2.5
+	if core_health<=0:finish(false)
+func support_scale(point: Vector2) -> float:
+	var result:=1.0
+	if not hero.knocked_out and hero.position.distance_to(point)<240:result+=hero.perk("command")*0.1
+	if war_cry_clock>0 and point.distance_to(war_cry_position)<240:result+=0.3
+	return result
+func fire_projectile(origin: Vector2,target: Vector2,amount: float,kind: int,source: String,options: Dictionary={}) -> ArenaProjectile:
+	var shot:=ArenaProjectile.new();shot.game=self;shot.position=origin;shot.direction=(target-origin).normalized();shot.damage=amount;shot.damage_type=kind;shot.source=source
+	shot.speed=float(options.get("speed",590.0));shot.appearance=options.get("appearance","magic" if kind==1 else "arrow");shot.pierce=int(options.get("pierce",0));shot.expose=bool(options.get("expose",false));shot.target=options.get("target");shot.splash=float(options.get("splash",0))
+	shot.z_index=20;actors.add_child(shot)
+	if source=="enemy":shot.add_to_group("hostile_projectile")
+	return shot
+func cone_damage(point: Vector2,direction: Vector2,radius: float,amount: float,kind: int,source: String,stagger:=0.0) -> void:
 	for enemy in enemies.duplicate():
-		if is_instance_valid(enemy) and not enemy.dead and enemy.position.distance_to(point) <= radius:
-			enemy.take_damage(damage, source)
-			enemy.apply_poison(poison, 3.0, source)
-	shake(2.0)
-
-func beam_damage(origin: Vector2, endpoint: Vector2, damage: float, width: float, source := "tower") -> void:
-	bolts.append({"start": origin, "end": endpoint, "life": 0.12})
+		if not is_instance_valid(enemy) or enemy.dead:continue
+		var offset: Vector2=enemy.position-point
+		if offset.length()<radius and (offset.length()<25 or offset.normalized().dot(direction)>0.3):enemy.take_hit(amount,kind,source,stagger);enemy.push_back(6 if stagger>0 else 0)
+func area_damage(point: Vector2,radius: float,amount: float,kind: int,source: String,stagger:=0.0,chill:=0.0) -> void:
 	for enemy in enemies.duplicate():
-		if not is_instance_valid(enemy) or enemy.dead: continue
-		var closest := Geometry2D.get_closest_point_to_segment(enemy.position, origin, endpoint)
-		if closest.distance_to(enemy.position) <= width + enemy.radius:
-			enemy.take_damage(damage, source)
-	shake(1.5)
-
-func frost_nova(point: Vector2, radius: float, damage: float, slow: float, source := "hero") -> void:
-	if hero != null and hero.passives.has("permafrost"):
-		radius += 30.0
-		slow += 1.0
-		damage *= 1.20
-	rings.append({"point": point, "radius": radius, "life": 0.35})
-	for enemy in enemies.duplicate():
-		if is_instance_valid(enemy) and not enemy.dead and enemy.position.distance_to(point) < radius:
-			enemy.take_damage(damage * enemy.element_multiplier("frost"), source)
-			enemy.apply_frost(slow)
-	shake(3.0)
-
-func storm_strike(target: ArenaEnemy, damage: float, source := "hero") -> void:
-	if not is_instance_valid(target): return
-	bolts.append({"start": target.center() + Vector2(0, -320), "end": target.center(), "life": 0.18})
-	var lightning_damage := damage
-	if hero != null and hero.passives.has("conductive") and (target.burn_time > 0.0 or target.slow_time > 0.0 or target.freeze_time > 0.0):
-		lightning_damage *= 1.4
-	target.take_damage(lightning_damage * target.element_multiplier("lightning"), source)
-	if hero != null and hero.passives.has("thunder_god"):
-		target.take_damage(lightning_damage * 0.55 * target.element_multiplier("lightning"), source)
-		target.freeze_time = maxf(target.freeze_time, 0.55)
-	shake(4.0)
-
-func hit_feedback(point: Vector2, amount: float, critical := false, direction := Vector2.ZERO, enemy: ArenaEnemy = null, kill := false) -> void:
-	if amount <= 0.0: return
-	var color := Color("ffd36e") if critical else Color(1.0, 0.9, 0.55)
-	floaters.append({
-		"point": point + Vector2(randf_range(-12, 12), randf_range(-8, 8)),
-		"text": ("✦" if critical else "") + str(int(round(amount))),
-		"life": 0.55 if critical else 0.45,
-		"max_life": 0.55 if critical else 0.45,
-		"color": color,
-		"size": 19 if critical else 14,
-	})
-	rings.append({"point": point, "radius": 20.0 if critical else 13.0, "life": 0.22, "max_life": 0.22, "color": color})
-	for index in range(7 if critical else 4):
-		var angle := randf() * TAU
-		var speed := randf_range(90.0, 260.0) * (1.3 if critical else 1.0)
-		sparks.append({
-			"point": point,
-			"velocity": Vector2.RIGHT.rotated(angle) * speed + direction * 80.0,
-			"life": randf_range(0.12, 0.24),
-			"max_life": 0.24,
-			"color": color,
-		})
-	if hitstop_lock <= 0.0:
-		hitstop_lock = 0.07
-		hitstop = maxf(hitstop, 0.055 if kill else (0.038 if critical else 0.018))
-	shake(minf(6.0, amount * 0.035) * (1.8 if critical else 1.0), direction)
-	if audio != null:
-		audio.play("crit" if critical else "hit", -7.0 if critical else -11.0)
-	if enemy != null and is_instance_valid(enemy) and direction != Vector2.ZERO:
-		enemy.apply_knockback(direction, 46.0 if critical else 28.0)
-
-func ambient_hit(point: Vector2, amount: float) -> void:
-	hit_feedback(point, amount)
-
-func clear_hostile_projectiles() -> void:
-	for projectile in get_tree().get_nodes_in_group("hostile_projectile"):
-		if is_instance_valid(projectile):
-			projectile.queue_free()
-
-func enemy_explosion(point: Vector2, radius: float, hero_damage: float, tower_damage: float) -> void:
-	rings.append({"point": point, "radius": radius, "life": 0.35})
-	if audio != null:
-		audio.play("explode", -8.0)
-	if hero != null and hero.position.distance_to(point) < radius:
-		hero.take_damage(hero_damage)
-	for tower in towers.duplicate():
-		if is_instance_valid(tower) and tower.position.distance_to(point) < radius:
-			tower.health -= tower_damage
-			if tower.health <= 0.0: tower_destroyed(tower)
-
-func shaman_support(point: Vector2) -> void:
-	for enemy in enemies.duplicate():
-		if is_instance_valid(enemy) and not enemy.dead and enemy.position.distance_to(point) < 200.0:
-			enemy.health = minf(enemy.max_health, enemy.health + enemy.max_health * 0.05)
-			rings.append({"point": enemy.position, "radius": 26.0, "life": 0.25})
-
-func damage_radius(point: Vector2, radius: float, damage: float, source := "other") -> void:
-	for enemy in enemies.duplicate():
-		if is_instance_valid(enemy) and not enemy.dead and enemy.position.distance_to(point) < radius:
-			enemy.take_damage(damage, source)
-
-func _set_phase_text(text: String) -> void:
-	if hud != null: hud.phase_hint = text
-
-# ── input ──────────────────────────────────────────────────
+		if is_instance_valid(enemy) and not enemy.dead and enemy.position.distance_to(point)<=radius:enemy.take_hit(amount,kind,source,stagger,chill)
+func delayed_attack(point: Vector2,radius: float,amount: float,kind: int,source: String,delay: float,options: Dictionary={}) -> void:
+	delayed.append({"point":point,"radius":radius,"damage":amount,"type":kind,"source":source,"life":delay,"duration":delay,"options":options})
+func effect(point: Vector2,radius: float,colour: Color,kind: String,duration: float,direction:=Vector2.RIGHT) -> void:
+	if effects.size()>90:effects.pop_front()
+	effects.append({"point":point,"radius":radius,"colour":colour,"kind":kind,"life":duration,"duration":duration,"direction":direction})
+func feedback(point: Vector2,damage: float,kind: int,kill: bool) -> void:
+	effect(point,12 if not kill else 21,ArenaCombat.colour(kind),"hit",0.16 if not kill else 0.27)
+	if numbers.size()<24:numbers.append({"point":point,"text":str(int(ceil(damage))),"colour":ArenaCombat.colour(kind),"life":0.55})
+	if damage>90:shake=1.4
+	audio.play("kill" if kill else "hit",-16 if not kill else -12)
+func queue_choice() -> void:
+	choice_queue+=1
+	if not choice_open:_open_choice.call_deferred()
+func _open_choice() -> void:
+	if choice_open or choice_queue<=0 or game_over:return
+	choices.clear()
+	var pool: Array=ArenaDefinitions.PERKS.keys()
+	while not pool.is_empty() and choices.size()<3:
+		var index:=rng.randi_range(0,pool.size()-1);var key: String=pool[index];pool.remove_at(index)
+		if hero.perk(key)<int(ArenaDefinitions.PERKS[key].max):choices.append(key)
+	if choices.is_empty():choice_queue=0;gold+=40;return
+	choice_open=true;get_tree().paused=true;hud.show_choices(choices)
+func choose_perk(key: String) -> bool:
+	if not choice_open or key not in choices or not hero.apply_perk(key):return false
+	choice_queue-=1;choice_open=false;get_tree().paused=false;hud.close_modal();suppress_primary=true
+	if choice_queue>0:_open_choice.call_deferred()
+	return true
+func finish(won: bool) -> void:
+	if game_over:return
+	game_over=true;victory=won;running=false;get_tree().paused=false;targeting_slot=-1;selected_site=-1
+	growth_reward=progression.grant_experience(hero.class_id,ArenaProgression.battle_reward(kills,cycle if won else cycle-1,won))
+	hud.show_result()
+func restart_run() -> void:
+	get_tree().paused=false;get_tree().set_meta("restart_hero",hero.class_id);get_tree().set_meta("restart_level",level_id);get_tree().reload_current_scene()
+func return_to_menu() -> void:get_tree().paused=false;get_tree().reload_current_scene()
+func mouse_world() -> Vector2:return get_viewport().get_canvas_transform().affine_inverse()*get_viewport().get_mouse_position()
+func input_blocked() -> bool:
+	if hud.has_modal() or selected_site>=0 or targeting_slot>=0 or rally_site>=0:return true
+	var hovered: Control=get_viewport().gui_get_hovered_control()
+	return hovered!=null and hud.root.is_ancestor_of(hovered) and hovered.mouse_filter!=Control.MOUSE_FILTER_IGNORE
+func request_skill(slot: int) -> void:
+	if hero.knocked_out or hero.cooldowns[slot]>0:return
+	hud.close_context()
+	if slot==1 and hero.class_id!="knight":targeting_slot=slot;suppress_primary=true
+	else:hero.cast(slot,hero.position+hero.facing*120)
 func _input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
-		suppress_primary_until_release = false
-
+	if event is InputEventMouseButton and event.button_index==MOUSE_BUTTON_LEFT and not event.pressed:suppress_primary=false
+	if wave_preview and event is InputEventMouseButton and event.pressed and not hud.wave_button.get_global_rect().has_point(event.position):wave_preview=false
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed:
-		if event.button_index == MOUSE_BUTTON_RIGHT:
-			if build_mode:
-				toggle_build_mode()
-				get_viewport().set_input_as_handled()
-				return
-			var tower := nearest_tower(get_global_mouse_position(), 46.0)
-			if tower != null:
-				select_tower(tower)
-			else:
-				close_tower_panel()
-			get_viewport().set_input_as_handled()
-			return
-		if event.button_index == MOUSE_BUTTON_WHEEL_UP or event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			if build_mode:
-				cycle_build_kind(-1 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1)
-				get_viewport().set_input_as_handled()
-				return
-		if event.button_index == MOUSE_BUTTON_LEFT:
-			if build_mode:
-				var mouse: Vector2 = event.position
-				if hud.build_palette.visible and hud.build_palette.get_global_rect().has_point(mouse):
-					get_viewport().set_input_as_handled()
-					return
-				var world_pos: Vector2 = get_viewport().get_canvas_transform().affine_inverse() * mouse
-				select_build_site(build_cell_from_world(world_pos))
-				get_viewport().set_input_as_handled()
-				return
-			if selected_tower != null:
-				close_tower_panel()
-			return
+	if not started or game_over or get_tree().paused:return
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
-			KEY_B:
-				toggle_build_mode()
-			KEY_1:
-				number_build("bolt")
-			KEY_2:
-				number_build("cannon")
-			KEY_3:
-				number_build("frost")
-			KEY_4:
-				number_build("arc")
-			KEY_5:
-				number_build("venom")
-			KEY_6:
-				number_build("laser")
-			KEY_7:
-				number_build("banner")
-			KEY_T:
-				cycle_all_targets()
-			KEY_Q:
-				if running and not game_over and not build_mode and hero != null:
-					hero.cycle_weapon()
-					get_viewport().set_input_as_handled()
+			KEY_Q:hero.cast(0,mouse_world())
+			KEY_SPACE:hero.cast(1,mouse_world())
+			KEY_F:request_wave()
 			KEY_ESCAPE:
-				if build_mode:
-					toggle_build_mode()
-				elif selected_tower != null:
-					close_tower_panel()
-			KEY_E: repair_nearest()
-			KEY_R: get_tree().reload_current_scene()
-
-# ── process ────────────────────────────────────────────────
-func _process(delta: float) -> void:
-	if suppress_primary_until_release and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
-		suppress_primary_until_release = false
-	if not running: return
-	elapsed += delta
-	hitstop = maxf(0.0, hitstop - delta)
-	hitstop_lock = maxf(0.0, hitstop_lock - delta)
-	_update_build_mode(delta)
-	_update_phase(delta)
-	_update_camera(delta)
-	for spark in sparks:
-		spark.life -= delta
-		spark.point += spark.velocity * delta
-		spark.velocity *= 0.92
-	sparks = sparks.filter(func(item): return item.life > 0.0)
-	var armed_zones: Array[Dictionary] = []
-	for zone in danger_zones:
-		zone["life"] = float(zone.life) - delta
-		if float(zone.life) <= 0.0:
-			armed_zones.append(zone)
-	danger_zones = danger_zones.filter(func(item): return float(item.life) > 0.0)
-	for zone in armed_zones:
-		enemy_explosion(zone.point, float(zone.radius), float(zone.damage), float(zone.damage) * 0.6)
-	for bolt in bolts: bolt.life -= delta
-	bolts = bolts.filter(func(item): return item.life > 0.0)
-	for ring in rings: ring.life -= delta
-	rings = rings.filter(func(item): return item.life > 0.0)
-	for warning in spawn_warnings: warning.life -= delta
-	spawn_warnings = spawn_warnings.filter(func(item): return item.life > 0.0)
-	var ready_spawns: Array[Dictionary] = []
-	for pending in pending_spawns:
-		pending["delay"] = float(pending.delay) - delta
-		if float(pending.delay) <= 0.0:
-			ready_spawns.append(pending)
-	pending_spawns = pending_spawns.filter(func(item): return float(item.delay) > 0.0)
-	for pending in ready_spawns:
-		spawn_enemy(String(pending.kind), pending.point, float(pending.health), bool(pending.elite))
-	for floater in floaters: floater.life -= delta
-	floaters = floaters.filter(func(item): return item.life > 0.0)
-	if build_mode and not build_site_selected:
-		var mouse_screen := get_viewport().get_mouse_position()
-		if hud.build_palette.visible and hud.build_palette.get_global_rect().has_point(mouse_screen):
-			pass
-		else:
-			_set_build_cell(build_cell_from_world(get_global_mouse_position()))
-	elif build_mode:
-		_set_build_cell(build_cell)
-	queue_redraw()
-
-func _update_build_mode(delta: float) -> void:
-	if build_mode and phase != "rest":
-		focus = maxf(0.0, focus - delta / 1.0)
-		if focus <= 0.0:
-			cancel_build_mode()
-	if not build_mode:
-		focus = minf(focus_max, focus + delta * 1.5)
-	Engine.time_scale = 0.45 if build_mode else sim_speed
-
-func _update_camera(delta: float) -> void:
-	var target := CORE
-	var zoom := 0.72
-	if build_mode:
-		target = CORE
-		zoom = 0.60
-	elif hero != null:
-		var framing := hero.position * 0.72 + CORE * 0.28 + hero.velocity * 0.12
-		target = framing.clamp(Vector2(420, 420), ARENA_SIZE - Vector2(420, 420))
-		zoom = 0.78
-	camera.position = camera.position.lerp(target, 1.0 - exp(-6.0 * delta))
-	camera.zoom = camera.zoom.lerp(Vector2(zoom, zoom), 1.0 - exp(-7.0 * delta))
-	shake_amount = maxf(0.0, shake_amount - delta * 28.0)
-	if shake_direction != Vector2.ZERO:
-		camera.offset = shake_direction * randf_range(-shake_amount, shake_amount) + shake_direction.orthogonal() * randf_range(-shake_amount * 0.35, shake_amount * 0.35)
+				if targeting_slot>=0 or rally_site>=0:targeting_slot=-1;rally_site=-1
+				elif selected_site>=0:hud.close_context()
+				else:hud.show_pause()
+		return
+	if not (event is InputEventMouseButton and event.pressed):return
+	if event.button_index==MOUSE_BUTTON_RIGHT:
+		if targeting_slot>=0 or rally_site>=0 or selected_site>=0:targeting_slot=-1;rally_site=-1;hud.close_context()
+		else:hero.command_move(mouse_world())
+	elif event.button_index==MOUSE_BUTTON_LEFT:
+		if targeting_slot>=0:
+			if hero.cast(targeting_slot,mouse_world()):targeting_slot=-1
+			suppress_primary=true;return
+		if rally_site>=0:
+			var tower:=site_tower(rally_site)
+			if tower!=null and tower.set_rally(mouse_world()):rally_site=-1
+			suppress_primary=true;return
+		for index in range(level_definition.sites.size()):
+			if mouse_world().distance_to(level_definition.sites[index])<42:
+				selected_site=index;hud.show_context(index);suppress_primary=true;return
+		if selected_site>=0:hud.close_context()
+func _physics_process(delta: float) -> void:
+	if not running or game_over:return
+	elapsed+=delta;war_cry_clock=maxf(0,war_cry_clock-delta)
+	blocking.update()
+	if phase=="rest":
+		phase_clock-=delta
+		if phase_clock<=0:begin_wave()
 	else:
-		camera.offset = Vector2(randf_range(-shake_amount, shake_amount), randf_range(-shake_amount, shake_amount))
-	# Clamp the actual camera center, including shake, using the visible world
-	# dimensions at the current zoom rather than a fixed world-space margin.
-	var center := _constrain_camera_center(camera.position + camera.offset, get_viewport_rect().size, camera.zoom)
-	camera.position = center - camera.offset
-
-func _constrain_camera_center(center: Vector2, viewport_size: Vector2, camera_zoom: Vector2) -> Vector2:
-	var half := viewport_size / (camera_zoom * 2.0)
-	return Vector2(
-		ARENA_SIZE.x * 0.5 if half.x * 2.0 >= ARENA_SIZE.x else clampf(center.x, half.x, ARENA_SIZE.x - half.x),
-		ARENA_SIZE.y * 0.5 if half.y * 2.0 >= ARENA_SIZE.y else clampf(center.y, half.y, ARENA_SIZE.y - half.y)
-	)
-
-func shake(amount: float, direction := Vector2.ZERO) -> void:
-	if amount > shake_amount:
-		shake_amount = amount
-		shake_direction = direction.normalized() if direction != Vector2.ZERO else Vector2.ZERO
-
-func _update_phase(delta: float) -> void:
-	match phase:
-		"rest":
-			var rest_delta := delta / maxf(0.01, Engine.time_scale)
-			phase_clock -= rest_delta
-			if phase_clock <= 0.0: start_spawn()
-		"spawn":
-			phase_clock -= delta
-			spawn_timer -= delta
-			if spawn_budget > 0 and spawn_timer <= 0.0:
-				spawn_cluster()
-			if spawn_budget <= 0 and enemies.is_empty() and pending_spawns.is_empty():
-				if cycle >= level_cycles and boss_dead:
-					finish(true)
-				else:
-					_advance_cycle()
-			elif phase_clock <= 0.0:
-				phase = "clear"
-		"clear":
-			if enemies.is_empty() and pending_spawns.is_empty():
-				if cycle >= level_cycles and boss_dead: finish(true)
-				else: _advance_cycle()
-
-func _advance_cycle() -> void:
-	if cycle >= level_cycles: return
-	cycle += 1
-	start_rest(16.0)
-
-# ── draw ───────────────────────────────────────────────────
+		wave_elapsed+=delta
+		while not spawn_queue.is_empty() and float(spawn_queue[0].at)<=wave_elapsed:
+			var packet: Dictionary=spawn_queue.pop_front();spawn_enemy(packet.kind,packet.route,0,packet.elite)
+		if spawn_queue.is_empty():
+			var live:=0
+			for enemy in enemies:
+				if is_instance_valid(enemy) and not enemy.dead and not enemy.is_guard:live+=1
+			if live==0:
+				if cycle>=8:finish(true)
+				else:cycle+=1;start_rest(16)
+	var finished: Array=[]
+	for attack in delayed:
+		attack.life-=delta
+		if attack.life<=0:
+			if attack.source=="enemy":
+				if not hero.knocked_out and hero.center().distance_to(attack.point)<attack.radius:hero.take_hit(attack.damage,attack.type)
+			else:area_damage(attack.point,attack.radius,attack.damage,attack.type,attack.source,float(attack.options.get("stun",0)))
+			effect(attack.point,attack.radius,ArenaCombat.colour(attack.type),"blast",0.45);audio.play("explode",-14);finished.append(attack)
+	for attack in finished:delayed.erase(attack)
+func _process(delta: float) -> void:
+	if not started:return
+	for item in effects:item.life-=delta
+	effects=effects.filter(func(item):return item.life>0)
+	for item in numbers:item.life-=delta;item.point.y-=delta*27
+	numbers=numbers.filter(func(item):return item.life>0)
+	for corpse in corpses:
+		corpse.life-=delta
+		if is_instance_valid(corpse.node):corpse.node.modulate.a=clampf(corpse.life/0.25,0,1)
+	for corpse in corpses.duplicate():
+		if corpse.life<=0:
+			if is_instance_valid(corpse.node):corpse.node.queue_free()
+			corpses.erase(corpse)
+	shake=maxf(0,shake-delta*12);camera.offset=Vector2(sin(elapsed*71),cos(elapsed*49))*shake
+	queue_redraw()
 func _draw() -> void:
-	if landscape_texture != null:
-		draw_texture_rect(landscape_texture, Rect2(Vector2.ZERO, ARENA_SIZE), false, Color("c8d2bc"))
-	if clearing_texture != null:
-		draw_texture_rect(clearing_texture, Rect2(CORE - Vector2(240, 240), Vector2(480, 480)), false)
-	for rock in obstacles:
-		if obstacle_texture != null:
-			draw_texture_rect(obstacle_texture, Rect2(rock.get_center() - Vector2(64, 68), Vector2(128, 128)), false)
-	# Only while placing towers, reveal the same occupied cells that placement
-	# and the flow field use.  The ground image contains decorative details,
-	# so its painted rocks should not be mistaken for the gameplay grid.
-	if build_mode:
-		for y in range(GRID_H):
-			for x in range(GRID_W):
-				var cell := Vector2i(x, y)
-				if not blocked[cell_index(cell)]: continue
-				if cell_center(cell).distance_to(CORE) > BUILD_RADIUS + CELL: continue
-				var footprint := Rect2(Vector2(x, y) * CELL + Vector2.ONE * 2.0, Vector2.ONE * (CELL - 4.0))
-				draw_rect(footprint, Color(0.72, 0.36, 0.22, 0.16))
-				draw_rect(footprint, Color(0.9, 0.55, 0.36, 0.25), false, 1.0)
-	draw_rect(Rect2(Vector2.ZERO, ARENA_SIZE), Color("17251e"), false, 10)
-	draw_arc(CORE, BUILD_RADIUS, 0, TAU, 96, Color(0.55, 0.85, 0.7, 0.18), 3, true)
-	draw_arc(CORE, SPAWN_RADIUS, 0, TAU, 96, Color(0.9, 0.65, 0.4, 0.22), 3, true)
-	for index in range(REGION_COUNT):
-		var angle := TAU * index / float(REGION_COUNT)
-		var color := Color(0.95, 0.4, 0.25, 0.35 if index == hot_region else 0.12)
-		draw_arc(CORE, SPAWN_RADIUS, angle - 0.32, angle + 0.32, 24, color, 8, true)
-	for warning in spawn_warnings:
-		var alpha: float = clampf(warning.life / 1.2, 0.0, 1.0)
-		draw_arc(warning.point, warning.radius * (1.25 - alpha * 0.25), 0, TAU, 40, Color(1.0, 0.55, 0.32, alpha * 0.8), 3, true)
-		draw_circle(warning.point, 8, Color(1.0, 0.62, 0.35, alpha * 0.7))
-	for zone in danger_zones:
-		var left: float = clampf(float(zone.life) / maxf(0.01, float(zone.max_life)), 0.0, 1.0)
-		draw_circle(zone.point, float(zone.radius), Color(1.0, 0.15, 0.10, 0.10 + (1.0 - left) * 0.12))
-		draw_arc(zone.point, float(zone.radius), 0, TAU, 48, Color(1.0, 0.3, 0.15, 0.75), 3, true)
-		draw_arc(zone.point, float(zone.radius) * (0.15 + 0.85 * left), 0, TAU, 40, Color(1.0, 0.45, 0.2, 0.9), 2, true)
-	if build_mode:
-		for x in range(0, GRID_W + 1):
-			draw_line(Vector2(x * CELL, 0), Vector2(x * CELL, ARENA_SIZE.y), Color(0.7, 0.85, 0.8, 0.06), 1)
-		for y in range(0, GRID_H + 1):
-			draw_line(Vector2(0, y * CELL), Vector2(ARENA_SIZE.x, y * CELL), Color(0.7, 0.85, 0.8, 0.06), 1)
-		var rect := Rect2(cell_center(build_cell) - Vector2.ONE * CELL * 0.5, Vector2.ONE * CELL)
-		draw_rect(rect, Color(0.4, 0.95, 0.65, 0.28) if build_valid else Color(0.95, 0.35, 0.3, 0.28))
-		draw_rect(rect, Color(0.4, 0.95, 0.65, 0.8) if build_valid else Color(0.95, 0.35, 0.3, 0.8), false, 2)
-		var tower_color: Color = ArenaTower.STATS[build_kind].color
-		var ghost_center := cell_center(build_cell)
-		var alpha := 0.32 if build_valid else 0.14
-		draw_circle(ghost_center + Vector2(0, 2), 27, Color(tower_color, alpha * 0.55))
-		draw_arc(ghost_center + Vector2(0, 2), 27, 0, TAU, 32, Color(tower_color, alpha * 1.6), 2, true)
-		draw_circle(ghost_center + Vector2(0, -18), 17, Color(tower_color, alpha * 1.2))
-		draw_arc(ghost_center + Vector2(0, -18), 17, 0, TAU, 24, Color(tower_color, alpha * 2.0), 2, true)
-		var range_value := float(ArenaTower.STATS[build_kind].range)
-		draw_arc(cell_center(build_cell), range_value, 0, TAU, 64, Color(0.55, 0.9, 0.75, 0.45), 2, true)
-		var route_point: Vector2 = spawn_points[hot_region]
-		for step in range(60):
-			var direction: Vector2 = flow_at(route_point)
-			if direction == Vector2.ZERO: break
-			draw_line(route_point, route_point + direction * 18.0, Color(0.95, 0.55, 0.35, 0.55), 4, true)
-			route_point += direction * 18.0
-			if route_point.distance_to(CORE) < 50.0: break
-	for bolt in bolts:
-		draw_line(bolt.start, bolt.end, Color(0.7, 0.95, 1.0, bolt.life / 0.18), 4, true)
-		draw_line(bolt.start, bolt.end, Color.WHITE, 1.5, true)
-	for ring in rings:
-		var ring_life: float = float(ring.get("max_life", 0.35))
-		var progress: float = 1.0 - ring.life / ring_life
-		var ring_color: Color = ring.get("color", Color(0.65, 0.95, 1.0))
-		draw_arc(ring.point, ring.radius * (0.4 + progress * 0.6), 0, TAU, 40, Color(ring_color, ring.life / ring_life), 4, true)
-	for spark in sparks:
-		var spark_alpha: float = clampf(spark.life / spark.max_life, 0.0, 1.0)
-		draw_line(spark.point - spark.velocity * 0.012, spark.point, Color(spark.color, spark_alpha), 2.5, true)
-	for floater in floaters:
-		draw_string(ThemeDB.fallback_font, floater.point, floater.text, HORIZONTAL_ALIGNMENT_CENTER, -1, int(floater.get("size", 14)), Color(floater.get("color", Color(1.0, 0.9, 0.55)), floater.life / floater.max_life))
-	if build_mode:
-		for cell in range(GRID_W * GRID_H):
-			if reach[cell] == 0: continue
-			var direction: Vector2 = flow[cell]
-			if direction == Vector2.ZERO: continue
-			var start := cell_center(Vector2i(cell % GRID_W, int(cell / GRID_W)))
-			draw_line(start, start + direction * 18, Color(0.7, 0.9, 0.85, 0.18), 2)
+	if not started:return
+	if ground.texture==null:
+		draw_rect(Rect2(Vector2.ZERO,ArenaLevelCatalog.SIZE),Color("88a65c"))
+		for road in routes:
+			draw_polyline(road.get_baked_points(),Color("667344"),80,true);draw_polyline(road.get_baked_points(),Color("d9bb7b"),67,true)
+		for rect in level_definition.blocked:draw_rect(rect,Color("466947"))
+	for index in range(level_definition.sites.size()):
+		if site_tower(index)!=null:continue
+		var point: Vector2=level_definition.sites[index]
+		draw_circle(point+Vector2(0,4),30,Color(0.2,0.22,0.11,0.18));draw_arc(point,29,0,TAU,36,Color("e1ce9b"),3,true)
+		draw_line(point-Vector2(8,0),point+Vector2(8,0),Color("faf1cc"),2);draw_line(point-Vector2(0,8),point+Vector2(0,8),Color("faf1cc"),2)
+	if wave_preview:
+		for road in routes:draw_polyline(road.get_baked_points(),Color(1,0.82,0.35,0.5),3,true)
+	if targeting_slot>=0 or rally_site>=0:
+		var point:=mouse_world();draw_arc(point,135 if targeting_slot>=0 else 25,0,TAU,48,Color("f2dd9c"),2,true)
+func _notification(what: int) -> void:
+	if what==NOTIFICATION_WM_CLOSE_REQUEST:quit_game()
+func quit_game() -> void:
+	if quitting:return
+	quitting=true;get_tree().paused=false;running=false;audio.shutdown()
+	await get_tree().create_timer(0.15,true,false,true).timeout
+	get_tree().quit()
