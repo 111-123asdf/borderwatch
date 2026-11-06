@@ -12,6 +12,10 @@ func _ready() -> void:
 		player.volume_db = -8.0
 		add_child(player)
 		players.append(player)
+	_make("blade",0.12,340.0,0.88,0.7)
+	_make("bow",0.09,760.0,0.15,0.55)
+	_make("rocket",0.22,95.0,0.85,0.8)
+	_make("throw",0.15,410.0,0.5,0.5)
 	_make("shoot", 0.055, 900.0, 0.55, 0.85)
 	_make("hit", 0.06, 520.0, 0.65, 0.55)
 	_make("crit", 0.11, 1300.0, 0.45, 0.7)
@@ -26,7 +30,8 @@ func play(kind: String, volume_db := -8.0, pitch := 1.0) -> void:
 	var now := Time.get_ticks_msec()
 	if last_play.has(kind) and now - int(last_play[kind]) < 45: return
 	last_play[kind] = now
-	var player: AudioStreamPlayer = players[cursor % players.size()]
+	var index: int=6+cursor%2 if kind in ["hurt","phase"] else cursor%6
+	var player: AudioStreamPlayer=players[index]
 	cursor += 1
 	player.stream = streams[kind]
 	player.volume_db = volume_db
@@ -55,3 +60,13 @@ func _make(kind: String, duration: float, base_hz: float, noise_mix: float, volu
 	stream.stereo = false
 	stream.data = bytes
 	streams[kind] = stream
+
+func _exit_tree() -> void:
+	shutdown()
+
+func shutdown() -> void:
+	for player in players:
+		if not is_instance_valid(player): continue
+		player.stop()
+		player.stream = null
+	streams.clear()

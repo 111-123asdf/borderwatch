@@ -1,21 +1,7 @@
-边境守望 0.3 · 资源来源与许可
-
-主要美术：Tiny Swords (Update 010)，Pixel Frog。
-官方页面：https://pixelfrog-assets.itch.io/tiny-swords
-使用官方明确标为 TS_old version_CC0 Licensed 的旧包，上传号9428013，2026-10-19下载。
-该旧包采用CC0 1.0；不混用现行新版的限制再分发许可，也未使用付费Enemy Pack。
-CC0文本：https://creativecommons.org/publicdomain/zero/1.0/legalcode
-游戏内使用同包地形、角色、建筑、树木和装饰；法炮部件、晶体、宝匣、弹道、预警和界面由代码构建。
-十二种被动技能图标：2026-10-19通过OpenAI图像生成工具制作的原创图集，未使用商业游戏图标。
-三位英雄立绘与六帧跑步图集：同日通过OpenAI图像生成工具创作，蓝羽甲骑士、林影游侠、星纹秘术师为本项目独立形象。场内持械、瞄向、双持、挥砍与后坐力由独立武器骨架驱动。
-用户提供的商业游戏截图与视频只作机制研究，不进入发行包。
-木箱与残墙掩体图集：同日通过OpenAI图像生成工具创作，用于替换临时几何块；与英雄图集均保存在工程内。
-声音：本项目程序合成的短音效，无外部录音素材。系统字体由运行机器提供，不分发Windows字体文件。
-英雄手持武器来自OpenGameArt素材496 pixel art icons for medieval/fantasy RPG，采用CC0 1.0开放。
-引擎：Godot Engine 4.7.2，MIT License。
-Copyright (c) 2014-present Godot Engine contributors.
-Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
-Godot许可与第三方组件：https://godotengine.org/license/
-完整引擎许可和第三方声明见godot-copyright.txt。
-
-没有使用《王国保卫战》《星露谷物语》或《元气骑士》的代码、美术或音频。
+边境守望 v0.6 · 资源说明
+人物立绘、三方向完整动作、森林生物、四塔三级、两张地表和场景道具，使用OpenAI内置图像生成工具为本项目制作。角色与场内动作按同一职业服装、配色与轮廓简化。
+菜单木牌沿用项目前期生成素材。所有成品资源在assets/v06及assets/original/frontier_menu_button.png，生成提示和记录见docs/ASSET_SOURCES.md。
+声音为本项目程序合成的短音效，未使用外部录音。运行字体由系统／引擎提供，不分发Windows字体。
+用户提供的元气骑士参考图与公开商业游戏截图用于设计研究，不作为运行贴图分发。未使用这些游戏的代码、录音或直接复制的角色图片。
+旧Tiny Swords与CC0武器图已退出v0.6工作区，历史授权声明继续保留在third_party及Git历史。
+引擎Godot4.7.2，MIT License。完整引擎及第三方声明见godot-copyright.txt。

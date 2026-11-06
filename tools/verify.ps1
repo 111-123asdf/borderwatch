@@ -2,33 +2,37 @@
 $projectRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot 'godot_path.ps1')
 $enginePath = Resolve-GodotBinary $projectRoot
-New-Item -ItemType Directory -Path (Join-Path $projectRoot 'test-results') -Force | Out-Null
-function Invoke-CheckedGodot([string[]]$GodotArguments, [string]$LogName) {
-    $previous = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    try {
-        $output = & $enginePath @GodotArguments 2>&1
+$logs = Join-Path $projectRoot 'test-results\release'
+$profile = Join-Path $projectRoot 'test-results\release-user'
+New-Item -ItemType Directory -Force -Path $logs, (Join-Path $profile 'Roaming'), (Join-Path $profile 'Local') | Out-Null
+$savedAppData = $env:APPDATA
+$savedLocalAppData = $env:LOCALAPPDATA
+try {
+    $env:APPDATA = Join-Path $profile 'Roaming'
+    $env:LOCALAPPDATA = Join-Path $profile 'Local'
+    $jobs = @()
+    $jobs += ,@('--headless','--editor','--path',$projectRoot,'--import','--quit')
+    $names = @('import')
+    foreach ($test in @('v06_rules','v06_layout','v06_combat','v06_progression','v06_assets','v06_outcome')) {
+        $testArgs = @('--headless','--path',$projectRoot,'--script',"res://tests/$test.gd")
+        if ($test -eq 'v06_outcome') { $testArgs += @('--fixed-fps','60') }
+        $jobs += ,$testArgs
+        $names += $test
+    }
+    for ($index = 0; $index -lt $jobs.Count; $index++) {
+        $previous = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        $arguments = $jobs[$index]
+        $output = & $enginePath @arguments 2>&1
         $code = $LASTEXITCODE
-    } finally {
         $ErrorActionPreference = $previous
+        $output | Set-Content -LiteralPath (Join-Path $logs ($names[$index] + '.log')) -Encoding utf8
+        $errors = $output | Where-Object { "$_" -match 'SCRIPT ERROR:|Parse Error|FAIL:|FAILURES: [1-9]|instances were leaked' -or "$_" -match '^ERROR:' }
+        if ($code -ne 0 -or $errors) { $output | Write-Output; throw "Verification failed: $($names[$index])" }
+        $output | Select-String 'CHECKS' | Write-Output
     }
-    $logPath = Join-Path $projectRoot ('test-results\' + $LogName)
-    $output | Set-Content -LiteralPath $logPath -Encoding utf8
-    $problem = $output | Where-Object { $_ -match 'SCRIPT ERROR:|Parse Error|^ERROR:|FAIL:' -and $_ -notmatch 'Failed to read the root certificate store' }
-    if ($code -ne 0 -or $problem) {
-        $output | Write-Output
-        throw "Godot check failed: $LogName"
-    }
-    $output | Select-String 'CHECKS:|boss_defeated' | ForEach-Object { $_.Line }
+} finally {
+    $env:APPDATA = $savedAppData
+    $env:LOCALAPPDATA = $savedLocalAppData
 }
-Invoke-CheckedGodot @('--headless', '--editor', '--path', $projectRoot, '--import', '--quit') 'import.log'
-Invoke-CheckedGodot @('--headless', '--path', $projectRoot, '--script', 'res://tests/game_tests.gd') 'rules.log'
-Invoke-CheckedGodot @('--headless', '--path', $projectRoot, '--script', 'res://tests/combat_tests.gd') 'combat.log'
-foreach ($hero in @('knight', 'ranger', 'mage', 'engineer', 'vanguard')) {
-    Invoke-CheckedGodot @('--headless', '--path', $projectRoot, '--fixed-fps', '60', '--script', 'res://tests/playthrough.gd', '--', "--hero=$hero") "playthrough-$hero.log"
-}
-Invoke-CheckedGodot @('--headless', '--path', $projectRoot, '--fixed-fps', '60', '--script', 'res://tests/defense_balance.gd') 'defense_balance.log'
-Invoke-CheckedGodot @('--headless', '--path', $projectRoot, '--fixed-fps', '60', '--script', 'res://tests/loop_viability.gd', '--', '--mode=tower') 'loop-tower.log'
-Invoke-CheckedGodot @('--headless', '--path', $projectRoot, '--fixed-fps', '60', '--script', 'res://tests/loop_viability.gd', '--', '--mode=hero') 'loop-hero.log'
-Invoke-CheckedGodot @('--headless', '--path', $projectRoot, '--fixed-fps', '60', '--script', 'res://tests/loop_viability.gd', '--', '--mode=no_explore') 'loop-no-explore.log'
-Invoke-CheckedGodot @('--headless', '--path', $projectRoot, '--fixed-fps', '60', '--script', 'res://tests/loop_viability.gd', '--', '--mode=minimal') 'loop-minimal.log'
+Write-Output 'SOURCE VERIFICATION PASSED'

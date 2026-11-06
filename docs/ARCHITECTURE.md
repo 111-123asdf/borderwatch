@@ -1,25 +1,12 @@
-# 工程架构与修改入口
+# 当前架构
+ArenaGame组装唯一战斗场景、地图、固定相机、按脚底排序的Actors、碰撞、导航、波次、成长选择和胜负状态。关卡差异只进入ArenaLevelCatalog；敌人记录route_id与progress，沿同一Curve2D采样。英雄使用CharacterBody2D与静态障碍碰撞；右键路径使用20像素网格，建塔后重建。
 
-> 2026-10-24：主场景已切到 `scenes/arena.tscn`；旧 `scenes/main.tscn` 保留为旧模式/回归基线。竞技场入口在 `scripts/arena/`，迁移映射见[竞技场迁移记录](ARENA_MIGRATION.md)。下表仍描述旧 core-slice 模块，避免把旧架构当新竞技场。
+ArenaBlocking集中维护敌人与英雄／士兵的拦截关系、容量与释放。塔无生命且不接收敌弹；兵营士兵独立承受近战，阵亡10秒补员。敌人未被拦截就沿道路前进，击退只改变道路进度。营地守卫在home附近行动。
 
-scenes/main.tscn只有挂game.gd的根Node2D。运行时创建世界、Y排序角色、英雄、弹道、相机、声音、营地和HUD；无后端、.NET或运行下载依赖。
+ArenaDefinitions为英雄、敌人、四塔、八类成长的唯一配置。ArenaCombat统一物理／法术与两类抗性；Area、Cone、Projectile、Delayed均显式传伤害类型。魔法易伤只影响法术。漏怪损失由关卡规则计算。
 
-| 模块 | 职责 |
-| --- | --- |
-| rules.gd | 地图/英雄/武器/塔/路线定义，伤害抗性表 |
-| progression.gd | 关卡外英雄等级、经验、升级点、永久属性与本地存档 |
-| camp.gd | 营地解锁、遭遇、进度、宝匣与伙伴状态聚合，NODES=1 |
-| threat.gd | 随波次/营地变动的压力纯函数，统一敌人血量倍率 |
-| game.gd | 组合根、输入、经济、波次、探索、奖励、导航和胜负 |
-| hero.gd | CharacterBody2D移动、指令行军、索敌、武器与职业主动 |
-| enemy.gd / projectile.gd / tower.gd | 敌人行为、弹道扫掠、自动塔和升级 |
-| world.gd / cover.gd | 地形、碰撞、掩体、LOS和AStar阻挡 |
-| actor_visual.gd / weapon_rig.gd / turret_visual.gd | 身体逐帧、独立持械、塔表现 |
-| hud.gd / minimap.gd | 按需界面、教程、成长路线、地图、设置和结算 |
-| effects.gd / sound.gd / art.gd | 绘制反馈、合成短音效、素材缓存 |
+ArenaHero管理职业状态、双技能、经验、被动、脱战回血、倒下复活。ArenaActor使用完整人物与武器动作帧；ArenaMotion配置预备、出手、恢复节奏，动作帧事件与低帧率时钟后备使用同一释放比例。步频随速度变化。ArenaCreature统一敌人与士兵动画；ArenaArtAnchors按图片真实透明范围对齐脚底和建筑接触面。
 
-营地通过Camp推进，不恢复平行状态数组；压力只从Threat取值。路线走tower_damage_scale、hero_damage_scale、prep_seconds、kill_gold_scale、tower_limit统一入口，pending_group保证互斥。
+ArenaHUD负责入口、图卡、图标HUD、固定塔位菜单、开波预览、成长与结算。模态和建造屏蔽普攻；右键／Esc优先取消选点。ArenaProgression校验旧v1数据后只读迁移到v2，写入失败不扣点、损坏档不覆盖。ArenaAudio程序生成短音效并显式释放播放器。
 
-game.gd仍职责较多、动态属性多；增加英雄/营地/塔会遇固定数量假设，不只扩数组就声称支持。掩体同时影响物理、LOS、扫掠和导航。新增内容沿Rules→行为→表现→获得途径→UI→测试验证。
-
-不在接收任务全盘重构。weapon_drop已移除，不能单独恢复而调用已删除的仓库API。保留定义和当前开放流程不同，恢复系统需负责人确认。
+所有运行资源在res://，存档在user://。编辑器、测试、导出和外层入口均指向唯一正式工程，不复制第二套玩法脚本。

@@ -1,82 +1,49 @@
 class_name ArenaProjectile
 extends Node2D
-
 var game: Node2D
-var direction := Vector2.RIGHT
-var damage := 10.0
-var speed := 700.0
-var color := Color("ffe3a1")
-var splash := 0.0
-var slow := 0.0
-var hostile := false
-var pierce := 0
-var execute_bonus := 0.0
-var burn_dps := 0.0
-var poison_dps := 0.0
-var source := "other"
-var critical := false
-var execute_threshold := 0.35
-var shatter := false
-var hit_ids := {}
-var life := 1.6
-
+var direction:=Vector2.RIGHT
+var speed:=590.0
+var damage:=20.0
+var damage_type:=0
+var source: String="hero"
+var appearance: String="arrow"
+var radius:=4.0
+var life:=2.5
+var pierce:=0
+var expose:=false
+var splash:=0.0
+var target: Node2D
+var hit_ids: Dictionary={}
+var trail: Array[Vector2]=[]
 func _physics_process(delta: float) -> void:
-	if game.hitstop > 0.0: return
-	life -= delta
-	if life <= 0.0:
-		queue_free()
-		return
-	position += direction * speed * delta
-	if hostile:
-		if game.hero != null and game.hero.position.distance_to(position) < 20.0:
-			game.hero.take_damage(damage)
-			queue_free()
-			return
-		queue_redraw()
-		return
-	for enemy in game.enemies.duplicate():
-		if not is_instance_valid(enemy) or enemy.dead: continue
-		if enemy.position.distance_to(position) < enemy.radius + 10.0:
-			var enemy_id: int = enemy.get_instance_id()
-			if hit_ids.has(enemy_id): continue
-			hit_ids[enemy_id] = true
-			if splash > 0.0:
-				game.damage_radius(position, splash, damage, source)
-				game.hit_feedback(position, damage, false, direction)
-			else:
-				var applied := damage
-				var element := ""
-				if burn_dps > 0.0: element = "fire"
-				elif slow > 0.0: element = "frost"
-				if element != "":
-					applied *= enemy.element_multiplier(element)
-				if execute_bonus > 0.0 and enemy.health < enemy.max_health * execute_threshold:
-					applied *= 1.0 + execute_bonus
-				if shatter and critical:
-					applied *= 1.5
-					enemy.apply_frost(1.0)
-				enemy.take_damage(applied, source)
-				var hit_source := source
-				if burn_dps > 0.0:
-					enemy.apply_burn(burn_dps, 3.0, hit_source)
-				if poison_dps > 0.0:
-					enemy.apply_poison(poison_dps, 3.0, hit_source)
-				if game.hero != null and game.hero.passives.has("thermal_shock") and enemy.burn_time > 0.0 and enemy.slow_time > 0.0:
-					game.damage_radius(enemy.position, 90.0, damage * 0.55)
-				game.hit_feedback(enemy.center(), applied, critical, direction, enemy, enemy.dead)
-			if slow > 0.0:
-				enemy.apply_frost(slow)
-			if pierce > 0:
-				pierce -= 1
-			else:
-				queue_free()
-				return
+	if not game.running or game.game_over:return
+	life-=delta
+	if life<=0:queue_free();return
+	var old:=position
+	if appearance=="magic" and source!="enemy" and is_instance_valid(target) and not target.dead:direction=(target.center()-position).normalized()
+	position+=direction*speed*delta;trail.append(position)
+	if trail.size()>5:trail.pop_front()
+	if source=="enemy":
+		if not game.hero.knocked_out and Geometry2D.get_closest_point_to_segment(game.hero.center(),old,position).distance_to(game.hero.center())<14:
+			game.hero.take_hit(damage,damage_type);queue_free();return
+	else:
+		for enemy in game.enemies.duplicate():
+			if not is_instance_valid(enemy) or enemy.dead or hit_ids.has(enemy.get_instance_id()):continue
+			if Geometry2D.get_closest_point_to_segment(enemy.center(),old,position).distance_to(enemy.center())>enemy.radius+5:continue
+			hit_ids[enemy.get_instance_id()]=true
+			if splash>0:game.area_damage(enemy.position,splash,damage,damage_type,source)
+			else:enemy.take_hit(damage,damage_type,source)
+			if expose and is_instance_valid(enemy) and not enemy.dead:enemy.exposure=2.0
+			if pierce<=0:queue_free();return
+			pierce-=1
 	queue_redraw()
-
 func _draw() -> void:
-	draw_line(-direction * 24, direction * 4, Color(color, 0.45), 4, true)
-	draw_circle(Vector2.ZERO, 4.0 if splash <= 0.0 else 6.0, color)
-	if critical and not hostile:
-		draw_arc(Vector2.ZERO, 9, 0, TAU, 16, Color(1.0, 0.9, 0.45, 0.8), 2, true)
-	if hostile:
-		draw_arc(Vector2.ZERO, 9, 0, TAU, 16, Color(color, 0.35), 2, true)
+	var colour:=Color("ff645a") if source=="enemy" else ArenaCombat.colour(damage_type)
+	for index in range(1,trail.size()):draw_line(trail[index-1]-position,trail[index]-position,Color(colour,float(index)/trail.size()*0.4),2.0,true)
+	draw_set_transform(Vector2.ZERO,direction.angle())
+	if appearance in ["arrow","spear"]:
+		draw_line(Vector2(-14,0),Vector2(4,0),Color("6e4a2f"),3)
+		draw_colored_polygon(PackedVector2Array([Vector2(10,0),Vector2(3,-3),Vector2(3,3)]),colour)
+		draw_line(Vector2(-12,-3),Vector2(-7,0),colour,2)
+	else:
+		draw_circle(Vector2.ZERO,7,Color("40334b"));draw_circle(Vector2.ZERO,5,colour);draw_circle(Vector2(-1,-1),2,Color("fff4d2"))
