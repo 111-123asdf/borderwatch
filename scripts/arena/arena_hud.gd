@@ -23,10 +23,10 @@ var skill_glyphs: Array[ArenaGlyph]=[]
 var battle_nodes: Array=[]
 var update_clock:=0.0
 var selected_hero: String="knight"
-var selected_growth: String="knight"
 const CREAM:=Color("f2e4c5")
 const GOLD:=Color("e9c588")
 const MUTED:=Color("bbbea1")
+const INK:=Color("17241e")
 func _ready() -> void:
 	process_mode=Node.PROCESS_MODE_ALWAYS
 	root=Control.new();root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT);root.mouse_filter=Control.MOUSE_FILTER_IGNORE;add_child(root)
@@ -50,6 +50,19 @@ func icon(parent: Node,key: String,rect: Rect2,tint:=GOLD) -> ArenaGlyph:
 func image(parent: Node,texture: Texture2D,rect: Rect2,cover:=false) -> TextureRect:
 	var node:=TextureRect.new();node.expand_mode=TextureRect.EXPAND_IGNORE_SIZE;node.texture=texture;node.position=rect.position;node.size=rect.size
 	node.stretch_mode=TextureRect.STRETCH_SCALE if cover else TextureRect.STRETCH_KEEP_ASPECT_CENTERED;node.mouse_filter=Control.MOUSE_FILTER_IGNORE;parent.add_child(node);return node
+func colour_block(parent: Node,rect: Rect2,colour: Color) -> ColorRect:
+	var node:=ColorRect.new();node.position=rect.position;node.size=rect.size;node.color=colour;node.mouse_filter=Control.MOUSE_FILTER_IGNORE;parent.add_child(node);return node
+func entry_button(message: String,rect: Rect2,callback: Callable,glyph: String,primary:=false) -> Button:
+	var node:=button(menu,message,rect,callback);node.name=message;node.alignment=HORIZONTAL_ALIGNMENT_LEFT
+	node.add_theme_constant_override("icon_max_width",34);node.add_theme_constant_override("h_separation",16);node.add_theme_font_size_override("font_size",22)
+	for state in ["normal","hover","pressed","disabled"]:
+		var style:=StyleBoxFlat.new()
+		style.bg_color=({"normal":Color("b88943"),"hover":Color("d1a55d"),"pressed":Color("8d6835"),"disabled":Color("6d6a59")}[state] if primary else {"normal":Color("263a30e8"),"hover":Color("3c5543f2"),"pressed":Color("1c2d25f2"),"disabled":Color("26312be0")}[state])
+		style.border_color=Color("f0d59c") if state=="hover" else Color("8e805f")
+		style.set_border_width_all(1);style.set_corner_radius_all(6);style.content_margin_left=68;node.add_theme_stylebox_override(state,style)
+	node.add_theme_color_override("font_color",INK if primary else CREAM);node.add_theme_color_override("font_hover_color",INK if primary else Color.WHITE)
+	icon(node,glyph,Rect2(18,15,32,32),INK if primary else GOLD)
+	return node
 func meter(parent: Node,rect: Rect2,colour: Color) -> ArenaMeter:
 	var node:=ArenaMeter.new();node.position=rect.position;node.size=rect.size
 	var bg:=StyleBoxFlat.new();bg.bg_color=Color("23372d");bg.set_corner_radius_all(4)
@@ -75,17 +88,22 @@ func backdrop() -> void:
 		var bg:=ColorRect.new();bg.color=Color("607447");bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT);menu.add_child(bg)
 func show_entry() -> void:
 	reset_menu();backdrop()
-	var title:=label(menu,"边境守望",Rect2(105,155,700,100),64,GOLD);title.add_theme_constant_override("outline_size",8);title.add_theme_color_override("font_outline_color",Color("243124"))
-	label(menu,"守住微光，走向森林深处。",Rect2(110,265,600,42),24)
-	var y:=355
-	for spec in [["开始守望",show_heroes],["英雄训练",show_growth],["如何游玩",show_guide],["退出游戏",game.quit_game]]:
-		var node:=button(menu,spec[0],Rect2(110,y,350,70),spec[1]);node.name=str(spec[0]);y+=90
-		if ResourceLoader.exists("res://assets/original/frontier_menu_button.png"):
-			var atlas:=AtlasTexture.new();atlas.atlas=load("res://assets/original/frontier_menu_button.png");atlas.region=Rect2(0,125,2172,470)
-			for state in ["normal","hover","pressed"]:
-				var style:=StyleBoxTexture.new();style.texture=atlas;style.modulate_color=Color(1.12,1.1,0.95) if state=="hover" else Color.WHITE;node.add_theme_stylebox_override(state,style)
-	label(menu,"v0.6 · 林线守望",Rect2(110,820,400,30),17,MUTED)
-	image(menu,hero_portrait("knight"),Rect2(820,200,350,520))
+	colour_block(menu,Rect2(0,0,610,900),Color("101d18e8"));colour_block(menu,Rect2(610,0,990,900),Color("101a151f"))
+	colour_block(menu,Rect2(82,118,72,4),GOLD)
+	label(menu,"森林边境防线",Rect2(82,72,400,32),17,MUTED)
+	var title:=label(menu,"边境守望",Rect2(78,142,480,88),62,GOLD);title.add_theme_constant_override("outline_size",7);title.add_theme_color_override("font_outline_color",INK)
+	label(menu,"选择守望者，部署防线，挡住八轮攻势。",Rect2(82,238,455,56),21,CREAM)
+	entry_button("开始守望",Rect2(82,344,414,66),show_heroes,"flag",true)
+	entry_button("如何游玩",Rect2(82,426,414,62),show_guide,"guide")
+	entry_button("退出游戏",Rect2(82,504,414,62),game.quit_game,"exit")
+	colour_block(menu,Rect2(82,622,414,1),Color("e9c58855"))
+	label(menu,"三位英雄  ·  两条防线  ·  八轮攻势",Rect2(82,646,450,32),18,MUTED)
+	label(menu,"v0.6  林线守望",Rect2(82,826,320,28),15,Color("8f9d88"))
+	var ranger:=image(menu,hero_portrait("ranger"),Rect2(650,182,350,590));ranger.modulate=Color(0.82,0.86,0.78)
+	var mage:=image(menu,hero_portrait("mage"),Rect2(1220,170,330,600));mage.modulate=Color(0.82,0.84,0.88)
+	image(menu,hero_portrait("knight"),Rect2(850,106,520,710))
+	colour_block(menu,Rect2(650,780,850,1),Color("e9c58899"))
+	label(menu,"守望者集结",Rect2(970,798,280,36),22,GOLD)
 func show_heroes() -> void:
 	reset_menu();backdrop();label(menu,"选择守望者",Rect2(605,75,500,70),40,GOLD)
 	button(menu,"‹",Rect2(70,60,72,48),show_entry)
@@ -199,24 +217,10 @@ func show_guide() -> void:
 	var panel:=modal_panel(Vector2(800,510));label(panel,"守住防线",Rect2(275,27,500,50),32,GOLD)
 	label(panel,"弓箭与火炮：物理伤害\n法师塔：法术伤害，克制重甲\n兵营：派士兵在路上拦住敌人\n英雄可拦截、施法、躲弹；离开战斗后回血",Rect2(65,115,670,220),22)
 	button(panel,"明白了",Rect2(240,410,320,55),close_modal)
-func show_growth() -> void:
-	var panel:=modal_panel(Vector2(850,580));label(panel,"英雄训练",Rect2(310,22,480,50),32,GOLD)
-	for index in range(3):
-		var key: String=ArenaDefinitions.HERO_IDS[index];button(panel,ArenaDefinitions.HEROES[key].name,Rect2(45+index*255,90,235,48),_growth_select.bind(key))
-	var data: Dictionary=game.progression.entry(selected_growth)
-	image(panel,hero_portrait(selected_growth),Rect2(45,160,220,290));label(panel,"可用训练点  "+str(game.progression.points(selected_growth)),Rect2(310,175,470,35),24,GOLD)
-	label(panel,"生命训练  "+str(data.health)+"/5    每级 +3",Rect2(310,245,400,35),21)
-	var hp:=button(panel,"+1",Rect2(690,240,90,45),_growth_upgrade.bind("health"));hp.disabled=game.progression.points(selected_growth)<=0 or int(data.health)>=5 or game.progression.locked
-	label(panel,"技能训练  "+str(data.cooldown)+"/5    每级冷却 -2%",Rect2(310,330,420,35),21)
-	var cd:=button(panel,"+1",Rect2(690,325,90,45),_growth_upgrade.bind("cooldown"));cd.disabled=game.progression.points(selected_growth)<=0 or int(data.cooldown)>=5 or game.progression.locked
-	if game.progression.locked:label(panel,game.progression.last_error,Rect2(310,420,450,35),18,Color("e7a28a"))
-	button(panel,"返回",Rect2(275,495,300,50),close_modal)
-func _growth_select(key: String) -> void:selected_growth=key;show_growth()
-func _growth_upgrade(stat: String) -> void:game.progression.upgrade(selected_growth,stat);show_growth()
 func show_result() -> void:
 	close_context();var panel:=modal_panel(Vector2(660,410));label(panel,"防线守住了" if game.victory else "信标失守",Rect2(205,35,500,60),36,GOLD)
 	label(panel,"第 "+str(game.cycle)+" 波 · 击败 "+str(game.kills)+" · 建塔 "+str(game.built),Rect2(100,133,500,40),24)
-	label(panel,"清理营地 "+str(game.camps_cleared)+" / 2 · 成长经验 +"+str(maxi(0,game.growth_reward)),Rect2(100,190,520,35),21,MUTED)
+	label(panel,"清理营地 "+str(game.camps_cleared)+" / 2 · 英雄等级 "+str(game.hero.level),Rect2(100,190,520,35),21,MUTED)
 	var retry:=button(panel,"再守一次",Rect2(50,290,260,60),game.restart_run);retry.name="RetryRun"
 	button(panel,"返回主菜单",Rect2(350,290,260,60),game.return_to_menu)
 func _input(event: InputEvent) -> void:

@@ -7,7 +7,7 @@ var physics: Array[float]=[]
 func _initialize() -> void:call_deferred("run")
 func run() -> void:
 	game=load("res://scenes/arena.tscn").instantiate();root.add_child(game);current_scene=game;await process_frame
-	game.progression=ArenaProgression.new("",false);game.start_run("knight","creek")
+	game.start_run("knight","creek")
 	game.cycle=8;game.gold=20000;game.core_max=100000;game.core_health=100000
 	game.hero.max_health=100000;game.hero.health=100000
 	for i in range(10):

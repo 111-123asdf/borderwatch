@@ -12,7 +12,7 @@ func cleanup() -> void:
 func run() -> void:
 	for identity in ArenaDefinitions.HERO_IDS:
 		game=load("res://scenes/arena.tscn").instantiate();root.add_child(game);await process_frame
-		game.progression=ArenaProgression.new("",false);game.start_run(identity,"creek")
+		game.start_run(identity,"creek")
 		var h: ArenaHero=game.hero
 		check(h.max_health==ArenaDefinitions.HEROES[identity].health,"class health "+identity)
 		check(h.cooldowns==[0.0,0.0],"skills start ready")

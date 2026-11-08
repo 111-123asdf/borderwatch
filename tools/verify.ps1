@@ -13,7 +13,7 @@ try {
     $jobs = @()
     $jobs += ,@('--headless','--editor','--path',$projectRoot,'--import','--quit')
     $names = @('import')
-    foreach ($test in @('v06_rules','v06_layout','v06_combat','v06_progression','v06_assets','v06_outcome')) {
+    foreach ($test in @('v06_rules','v06_layout','v06_combat','v06_assets','v06_outcome')) {
         $testArgs = @('--headless','--path',$projectRoot,'--script',"res://tests/$test.gd")
         if ($test -eq 'v06_outcome') { $testArgs += @('--fixed-fps','60') }
         $jobs += ,$testArgs

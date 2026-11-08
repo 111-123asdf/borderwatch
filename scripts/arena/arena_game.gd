@@ -19,7 +19,6 @@ var numbers: Array=[]
 var audio: ArenaAudio
 var hud: ArenaHUD
 var blocking: ArenaBlocking
-var progression: ArenaProgression
 var navigation:=AStarGrid2D.new()
 var rng:=RandomNumberGenerator.new()
 var camera: Camera2D
@@ -52,7 +51,6 @@ var kills:=0
 var built:=0
 var camps_cleared:=0
 var elapsed:=0.0
-var growth_reward:=0
 var damage_stats: Dictionary={"hero":0.0,"tower":0.0,"soldier":0.0}
 var quitting:=false
 var shake:=0.0
@@ -63,7 +61,7 @@ func _ready() -> void:
 	ground=Sprite2D.new();ground.z_index=-20;ground.position=ArenaLevelCatalog.SIZE*0.5;add_child(ground)
 	camera=Camera2D.new();camera.position=ArenaLevelCatalog.SIZE*0.5;add_child(camera);camera.make_current()
 	var painter:=ArenaEffects.new();painter.game=self;painter.z_index=5;add_child(painter)
-	audio=ArenaAudio.new();add_child(audio);progression=ArenaProgression.new();blocking=ArenaBlocking.new(self)
+	audio=ArenaAudio.new();add_child(audio);blocking=ArenaBlocking.new(self)
 	hud=ArenaHUD.new();hud.game=self;add_child(hud)
 	get_tree().auto_accept_quit=false
 	if get_tree().has_meta("restart_hero"):
@@ -266,7 +264,6 @@ func choose_perk(key: String) -> bool:
 func finish(won: bool) -> void:
 	if game_over:return
 	game_over=true;victory=won;running=false;get_tree().paused=false;targeting_slot=-1;selected_site=-1
-	growth_reward=progression.grant_experience(hero.class_id,ArenaProgression.battle_reward(kills,cycle if won else cycle-1,won))
 	hud.show_result()
 func restart_run() -> void:
 	get_tree().paused=false;get_tree().set_meta("restart_hero",hero.class_id);get_tree().set_meta("restart_level",level_id);get_tree().reload_current_scene()
