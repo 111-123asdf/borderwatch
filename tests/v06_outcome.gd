@@ -7,7 +7,7 @@ var failures:=0
 func _initialize() -> void:call_deferred("run")
 func run() -> void:
 	game=load("res://scenes/arena.tscn").instantiate();root.add_child(game);current_scene=game;await process_frame
-	game.progression=ArenaProgression.new("",false);game.start_run("mage","creek")
+	game.start_run("mage","creek")
 func _process(delta: float) -> bool:
 	if waiting or game==null:return false
 	elapsed+=delta

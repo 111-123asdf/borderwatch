@@ -13,7 +13,8 @@ func run() -> void:
 	check(is_equal_approx(ArenaCombat.resolve(100,1,0,0.2,0.1),88),"magic exposure applies only to magic")
 	check(is_equal_approx(ArenaCombat.resolve(100,0,0,0,0.1),100),"physical ignores magic exposure")
 	game=load("res://scenes/arena.tscn").instantiate();root.add_child(game);current_scene=game;await process_frame
-	game.progression=ArenaProgression.new("user://fixture-v2.cfg",false,"user://fixture-v1.cfg")
+	check(game.hud.root.find_child("开始守望",true,false)!=null,"entry keeps the direct start action")
+	check(game.hud.root.find_child("英雄训练",true,false)==null,"entry has no retired hero training action")
 	game.start_run("knight","forest")
 	check(game.routes.size()==1 and game.level_definition.sites.size()==8,"first level authored road and sites")
 	check(game.available_towers()==["archer","barracks"],"first wave introduces archers and barracks")
@@ -30,7 +31,10 @@ func run() -> void:
 	var has_resource:=false
 	for property in game.hero.get_property_list():
 		if property.name in ["energy","max_energy","shield","max_shield","weapon_inventory"]:has_resource=true
-	check(not has_resource,"hero has no retired combat resources")
+	var has_progression:=false
+	for property in game.get_property_list():
+		if property.name=="progression":has_progression=true
+	check(not has_resource and not has_progression,"hero has no retired weapon or metaprogression resources")
 	game.gold=2000
 	check(tower.upgrade() and tower.upgrade() and tower.level==3,"tower reaches level three")
 	check(not tower.upgrade(),"tower cannot exceed level three")

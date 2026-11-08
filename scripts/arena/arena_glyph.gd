@@ -21,6 +21,10 @@ func _draw() -> void:
 			draw_colored_polygon(PackedVector2Array([c+Vector2(0,-r),c+Vector2(r*0.3,-r*0.2),c+Vector2(r,0),c+Vector2(r*0.3,r*0.2),c+Vector2(0,r),c+Vector2(-r*0.3,r*0.2),c+Vector2(-r,0),c+Vector2(-r*0.3,-r*0.2)]),tint)
 		"flag":
 			draw_line(c+Vector2(-r*0.5,r),c+Vector2(-r*0.5,-r),tint,3);draw_colored_polygon(PackedVector2Array([c+Vector2(-r*0.5,-r),c+Vector2(r,-r*0.6),c+Vector2(-r*0.5,0)]),tint)
+		"guide":
+			draw_rect(Rect2(c+Vector2(-r,-r*0.85),Vector2(r*0.82,r*1.7)),tint,false,2.5);draw_rect(Rect2(c+Vector2(r*0.18,-r*0.85),Vector2(r*0.82,r*1.7)),tint,false,2.5);draw_line(c+Vector2(0,-r*0.72),c+Vector2(0,r*0.86),tint,2)
+		"exit":
+			draw_arc(c,r*0.82,-PI*0.72,PI*0.72,20,tint,3);draw_line(c+Vector2(0,-r),c+Vector2(0,r*0.12),tint,3)
 		"move":
 			for n in [-0.4,0.4]:draw_arc(c+Vector2(n*r,0),r*0.6,-PI*0.5,PI*0.5,12,tint,3)
 		"skill":draw_arc(c,r,0,TAU,24,tint,3);draw_line(c,c+Vector2(0,-r*0.7),tint,3);draw_line(c,c+Vector2(r*0.6,0),tint,3)

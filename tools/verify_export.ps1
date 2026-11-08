@@ -16,7 +16,7 @@ try {
     $env:LOCALAPPDATA=Join-Path $isolated 'Local'
     New-Item -ItemType Directory -Path $env:APPDATA,$env:LOCALAPPDATA -Force | Out-Null
     $jobs=@()
-    foreach($name in @('v06_rules','v06_layout','v06_combat','v06_progression','v06_assets','v06_outcome','v06_export_audit')) {
+    foreach($name in @('v06_rules','v06_layout','v06_combat','v06_assets','v06_outcome','v06_export_audit')) {
         $jobs+=,@($name,@())
     }
     if($FullPlaythrough) {

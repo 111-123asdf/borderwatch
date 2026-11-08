@@ -15,7 +15,7 @@ Windows试玩包解压后双击Borderwatch.exe，无需安装引擎。源码用G
 
 弓箭塔、火炮、骑士、游侠及士兵造成物理伤害；法师与法师塔造成法术伤害。重甲抗物理、幽光抗魔法，鼠标停留怪物可查看抗性。第一关先开放弓箭塔与兵营，第3波法师塔、第5波火炮塔；第二关四塔均可用。
 
-本版本没有武器掉落、换装、背包、能量或护盾。击杀金币与经验自动到账，每关重置局内状态。训练另存user://arena_progression_v2.cfg；有效旧v1档只读迁移，保留经验和生命训练，原护盾投入退回训练点。
+本版本没有武器掉落、换装、背包、能量、护盾或跨局英雄训练。英雄攻击与双技能由职业固定；击杀金币与经验自动到账，每关重置局内状态。历史版本生成的训练存档保持原样，但当前版本不再读取或改写。
 
 ## 开发与验证
 唯一入口scenes/arena.tscn，两关通过ArenaLevelCatalog配置，共用战斗代码。PowerShell执行tools/verify.ps1、tools/export.ps1、tools/verify_export.ps1。测试边界见docs/TESTING.md，实际结果见docs/RELEASE_NOTES.md。素材来源见docs/ASSET_SOURCES.md。仓库不带引擎、缓存或发行二进制，GitHub操作由负责人手动完成。

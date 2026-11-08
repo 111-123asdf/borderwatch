@@ -20,7 +20,6 @@ func run() -> void:
 		if arg.begins_with("--level="):stage=arg.trim_prefix("--level=")
 	if hero_id not in ArenaDefinitions.HERO_IDS or stage not in ArenaLevelCatalog.IDS:push_error("Invalid playthrough arguments");quit(1);return
 	game=load("res://scenes/arena.tscn").instantiate();root.add_child(game);current_scene=game;await process_frame
-	game.progression=ArenaProgression.new("user://normal-"+hero_id+"-"+stage+".cfg",false)
 	game.rng.seed=60406;game.start_run(hero_id,stage);Input.action_press("shoot")
 func release_and_hold() -> void:
 	Input.action_release("shoot")

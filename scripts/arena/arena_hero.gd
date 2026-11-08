@@ -39,8 +39,7 @@ func _ready() -> void:
 	visual.animation_finished.connect(_animation_finished)
 func configure(key: String) -> void:
 	class_id=key;data=ArenaDefinitions.hero(key)
-	var bonus: Dictionary=game.progression.bonuses(key)
-	max_health=float(data.health)+float(bonus.health);health=max_health;meta_cooldown=float(bonus.cooldown)
+	max_health=float(data.health);health=max_health;meta_cooldown=0.0
 	visual.configure(key,70.0 if key=="knight" else 66.0)
 func center() -> Vector2: return position+Vector2(0,-30)
 func block_capacity() -> int: return int(data.get("block",1))
@@ -175,7 +174,7 @@ func apply_perk(key: String) -> bool:
 	if key not in ArenaDefinitions.PERKS or perk(key)>=int(ArenaDefinitions.PERKS[key].max): return false
 	perks[key]=perk(key)+1
 	if key=="vitality":
-		var old:=max_health;max_health=float(data.health)*(1+0.12*perk("vitality"))+float(game.progression.bonuses(class_id).health);health+=max_health-old
+		var old:=max_health;max_health=float(data.health)*(1+0.12*perk("vitality"));health+=max_health-old
 	return true
 func _draw() -> void:
 	draw_ellipse_shadow()
