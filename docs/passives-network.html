@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>边境守望 · 被动网络 v3</title>
+<style>
+  :root{
+    --bg:#0f1a17; --panel:#16241f; --panel2:#1b2b25; --line:#2c4038;
+    --text:#f2e4c5; --muted:#a9b3a4; --gold:#e9c588; --danger:#e07a6a;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;display:flex;flex-direction:column;background:var(--bg);color:var(--text);
+    font-family:"Microsoft YaHei","PingFang SC","Noto Sans SC",system-ui,sans-serif;
+    overflow:hidden;
+  }
+  header{
+    flex:0 0 58px;display:flex;align-items:center;gap:16px;padding:0 18px;
+    border-bottom:1px solid var(--line);background:linear-gradient(180deg,#182822,#13201b);
+  }
+  header h1{font-size:17px;margin:0;letter-spacing:.5px;color:var(--gold);font-weight:600}
+  header .sub{font-size:12px;color:var(--muted)}
+  .tabs{display:flex;gap:4px;margin-left:12px}
+  .tab{
+    border:1px solid var(--line);background:transparent;color:var(--muted);
+    padding:6px 12px;border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit;
+  }
+  .tab.on{background:#23382f;color:var(--text);border-color:#4a6b58}
+  .spacer{flex:1}
+  .search{
+    width:190px;padding:6px 10px;border-radius:6px;border:1px solid var(--line);
+    background:#0e1815;color:var(--text);font-size:13px;font-family:inherit;outline:none;
+  }
+  .search:focus{border-color:#5d8a70}
+  .btn{
+    border:1px solid var(--line);background:#1c2d26;color:var(--text);padding:6px 11px;
+    border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;
+  }
+  .btn:hover{border-color:#5d8a70;background:#23382f}
+  .buildcount{font-size:13px;color:var(--muted)}
+  .buildcount b{color:var(--gold)}
+  main{flex:1;display:flex;min-height:0}
+  #stage{flex:1;position:relative;min-width:0;background:
+    radial-gradient(circle at 50% 45%,#15251f 0%,#0d1714 70%)}
+  svg#net{width:100%;height:100%;display:block;cursor:grab}
+  svg#net.panning{cursor:grabbing}
+  .node{cursor:pointer}
+  .node text{font-family:inherit;pointer-events:none;user-select:none}
+  .edge{fill:none;stroke-linecap:round}
+  aside{
+    flex:0 0 392px;border-left:1px solid var(--line);background:var(--panel);
+    display:flex;flex-direction:column;min-height:0;
+  }
+  #detail{flex:1;overflow:auto;padding:16px 18px}
+  #buildbox{flex:0 0 auto;border-top:1px solid var(--line);padding:12px 16px;background:var(--panel2);max-height:46%;overflow:auto}
+  h2{font-size:15px;margin:0 0 10px;color:var(--gold);font-weight:600}
+  h3{font-size:13px;margin:14px 0 6px;color:var(--muted);font-weight:600;letter-spacing:.4px}
+  p{margin:6px 0;font-size:13px;line-height:1.7;color:#d9d3bd}
+  .muted{color:var(--muted);font-size:12px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{font-size:11px;padding:2px 7px;border-radius:10px;border:1px solid var(--line);color:var(--muted);background:#14221d}
+  .statgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 4px}
+  .stat{background:#13211c;border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+  .stat b{display:block;font-size:20px;color:var(--gold);font-weight:600}
+  .stat span{font-size:11px;color:var(--muted)}
+  .rankline{display:flex;gap:8px;margin:6px 0;font-size:12.5px;line-height:1.55}
+  .rankline .rk{flex:0 0 30px;color:var(--gold);font-weight:600}
+  .rankline .tx{color:#ddd6c0}
+  .linkrow{border:1px solid var(--line);border-radius:7px;padding:8px 10px;margin:6px 0;background:#13211c}
+  .linkrow .lt{font-size:12px;color:var(--text)}
+  .linkrow .ty{font-size:10px;padding:1px 6px;border-radius:8px;margin-right:6px;border:1px solid}
+  .ty-amplify{color:#e9c588;border-color:#6b5a35}
+  .ty-trigger{color:#7fd4c1;border-color:#2f5d53}
+  .ty-convert{color:#b9a7ff;border-color:#4a3f73}
+  .ty-require{color:#f2d27a;border-color:#6b5f2f}
+  .legend{display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;color:var(--muted)}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+  .legend .ln{display:inline-block;width:22px;height:2px;margin-right:6px;vertical-align:3px}
+  .cardgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(238px,1fr));gap:10px;padding:16px;overflow:auto;height:100%;align-content:start}
+  .card{
+    border:1px solid var(--line);border-radius:9px;background:#14231d;padding:10px 11px;cursor:pointer;
+    transition:border-color .15s,transform .15s;
+  }
+  .card:hover{border-color:#5d8a70;transform:translateY(-1px)}
+  .card.sel{border-color:var(--gold);box-shadow:0 0 0 1px #6b5a35 inset}
+  .card .top{display:flex;align-items:center;gap:7px}
+  .card .nm{font-size:14px;font-weight:600}
+  .card .badge{font-size:10px;padding:1px 6px;border-radius:8px;border:1px solid var(--line);color:var(--muted)}
+  .card .desc{font-size:12px;color:#cfc9b4;line-height:1.6;margin-top:6px}
+  .card .lnk{font-size:11px;color:#9fc7b3;margin-top:6px}
+  #listview,#setview{display:none;flex:1;overflow:auto;min-width:0}
+  #listview{display:none}
+  .setgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;padding:16px}
+  .setcard{border:1px solid var(--line);border-radius:9px;padding:12px 14px;background:#14231d}
+  .setcard.on{border-color:var(--gold);box-shadow:0 0 14px rgba(233,197,136,.12)}
+  .setcard h4{margin:0 0 6px;font-size:14px;color:var(--text)}
+  .setcard p{font-size:12px;color:var(--muted);margin:4px 0}
+  #filters{
+    position:absolute;left:14px;top:14px;z-index:5;background:#0f1a17ee;border:1px solid var(--line);
+    border-radius:9px;padding:10px 12px;max-width:300px;
+  }
+  #filters .ft{font-size:10px;color:#7f9b88;letter-spacing:2px;margin:6px 0 4px}
+  #filters .grp{display:flex;flex-wrap:wrap;gap:5px}
+  .fchip{font-size:11px;padding:2px 8px;border-radius:9px;border:1px solid var(--line);
+    background:#14231d;color:#8b978a;cursor:pointer;font-family:inherit}
+  .fchip.on{border-color:#5d8a70;color:var(--text)}
+  .edgehit{fill:none;stroke:transparent;stroke-width:12;cursor:pointer;pointer-events:stroke}
+  .zoom{position:absolute;right:14px;bottom:14px;display:flex;gap:6px;z-index:5}
+  #tip{
+    position:fixed;pointer-events:none;background:#0b1411f2;border:1px solid #46604f;color:var(--text);
+    padding:7px 10px;border-radius:6px;font-size:12px;max-width:280px;line-height:1.6;opacity:0;transition:opacity .12s;z-index:9;
+  }
+  .axisdot{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px}
+  .buildchips{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0}
+  .bchip{font-size:11px;padding:2px 7px;border-radius:9px;border:1px solid #3d5a4a;background:#1c3028;cursor:pointer}
+  .bchip:hover{border-color:var(--danger)}
+  .empty{color:#7d8a7c;font-size:12px}
+  .foot{margin-top:10px;font-size:11px;color:#77857a;line-height:1.6}
+</style>
+</head>
+<body>
+<header>
+  <h1>被动网络 · v3</h1>
+  <span class="sub">34 张卡 · 37 条连接 · 6 星座 · 8 套装</span>
+  <div class="tabs">
+    <button class="tab on" data-view="net">网络图</button>
+    <button class="tab" data-view="list">卡牌列表</button>
+    <button class="tab" data-view="sets">套装</button>
+  </div>
+  <div class="spacer"></div>
+  <input id="search" class="search" placeholder="搜索卡名 / 效果…">
+  <span class="buildcount">构筑 <b id="bc">0</b>/11</span>
+  <button class="btn" id="reset">重置布局</button>
+  <button class="btn" id="clear">清空构筑</button>
+</header>
+
+<main>
+  <div id="stage">
+    <svg id="net" viewBox="0 0 1600 1100" preserveAspectRatio="xMidYMid meet"></svg>
+    <div id="filters">
+      <div class="ft">轴</div><div class="grp" id="axisfilter"></div>
+      <div class="ft">线型</div><div class="grp" id="typefilter"></div>
+    </div>
+    <div class="zoom">
+      <button class="btn" id="zin" title="放大">＋</button>
+      <button class="btn" id="zout" title="缩小">－</button>
+      <button class="btn" id="zfit" title="适应画布">适应</button>
+    </div>
+  </div>
+  <div id="listview"><div class="cardgrid" id="cards"></div></div>
+  <div id="setview"><div class="setgrid" id="sets"></div></div>
+
+  <aside>
+    <div id="detail"></div>
+    <div id="buildbox">
+      <div style="display:flex;align-items:center;gap:8px">
+        <h2 style="margin:0">当前构筑</h2>
+        <span class="muted" id="buildhint">点卡牌加入，最多 11 张</span>
+      </div>
+      <div class="buildchips" id="buildchips"></div>
+      <div id="buildstats"></div>
+    </div>
+  </aside>
+</main>
+<div id="tip"></div>
+
+<script>
+const AXES = {
+  blade:   {label:"锋刃", color:"#e2a34f"},
+  star:    {label:"星火", color:"#a78bfa"},
+  bulwark: {label:"壁垒", color:"#4fb3a1"},
+  command: {label:"号令", color:"#c9a15a"},
+  bridge:  {label:"桥接", color:"#9aa08e"},
+  knight:  {label:"骑士", color:"#c96b5f"},
+  ranger:  {label:"游侠", color:"#8fbf6a"},
+  mage:    {label:"法师", color:"#9d86d8"},
+  evo:     {label:"进化", color:"#f2d27a"}
+};
+const RARITY = {common:{label:"普通",r:22}, rare:{label:"稀有",r:26}, epic:{label:"史诗",r:30}, evo:{label:"进化",r:32}};
+
+const CARDS = [
+  // 锋刃
+  {id:"power", name:"锋芒", axis:"blade", rarity:"common", max:3, cluster:"blade",
+   ranks:["普攻伤害 +12%","+1 固定伤害","对满血目标 +15%"]},
+  {id:"rapid", name:"疾攻", axis:"blade", rarity:"common", max:3, cluster:"blade",
+   ranks:["攻速 +10%","每第 5 次攻击 +30%","改为每第 4 次"]},
+  {id:"lifesteal", name:"嗜血", axis:"blade", rarity:"common", max:3, cluster:"blade",
+   ranks:["击杀回复 4 生命","过量治疗转护盾（上限 30）","护盾期间 +8% 伤害"]},
+  {id:"pierce", name:"破防", axis:"blade", rarity:"rare", max:2, cluster:"expose",
+   ranks:["无视 15% 对应抗性","对 >30% 抗性目标 +10% 伤害"]},
+  {id:"execute", name:"处决", axis:"blade", rarity:"rare", max:2, cluster:"blade",
+   ranks:["对 <25% 生命目标 +30% 伤害","击杀刷新 Q 冷却 50%"]},
+  {id:"combo", name:"连击", axis:"blade", rarity:"epic", max:1, cluster:"blade",
+   ranks:["每第 3 次攻击追加 80% 伤害；切换目标保留 1 层"]},
+
+  // 星火
+  {id:"focus", name:"专注", axis:"star", rarity:"common", max:3, cluster:"star",
+   ranks:["技能冷却 −10%","技能命中 −0.3 秒全冷却","击杀 −0.2 秒全冷却"]},
+  {id:"starlight", name:"星辉", axis:"star", rarity:"common", max:3, cluster:"star",
+   ranks:["技能伤害 +20%","命中施加 10% 易伤 3 秒","易伤可叠 2 层"]},
+  {id:"burn", name:"灼烧", axis:"star", rarity:"common", max:3, cluster:"star",
+   ranks:["攻击附加 3 秒灼烧（3/5/7 每秒）","灼烧目标死亡爆炸（30/60）","爆炸半径 90"]},
+  {id:"echo", name:"回响", axis:"star", rarity:"rare", max:2, cluster:"star",
+   ranks:["技能后 3 秒普攻 +20%","期间攻速 +10%"]},
+  {id:"chain", name:"连锁", axis:"star", rarity:"rare", max:2, cluster:"star",
+   ranks:["技能弹射 1 个目标（50% 伤害）","弹射目标减速 20%"]},
+  {id:"overload", name:"超载", axis:"star", rarity:"epic", max:1, cluster:"star",
+   ranks:["大招期间攻速 +40%、技能 +20%；大招后 3 秒冷却回复 +50%"]},
+
+  // 壁垒
+  {id:"tough", name:"坚韧", axis:"bulwark", rarity:"common", max:3, cluster:"bulwark",
+   ranks:["最大生命 +12%","脱战回血 +50%","每秒回复 0.5% 生命"]},
+  {id:"ironwall", name:"铁壁", axis:"bulwark", rarity:"common", max:3, cluster:"bulwark",
+   ranks:["拦截时近战 −8%","10% 概率完全格挡","20% 概率完全格挡"]},
+  {id:"battlewill", name:"战意", axis:"bulwark", rarity:"common", max:3, cluster:"bulwark",
+   ranks:["生命 <50% 时伤害 +10%","<30% 时再 +10%","低血击杀回复 5% 生命"]},
+  {id:"reflect", name:"反震", axis:"bulwark", rarity:"rare", max:2, cluster:"bulwark",
+   ranks:["被近战击中反弹 20% 伤害","反弹变为 80 半径 AoE"]},
+  {id:"revive", name:"复苏", axis:"bulwark", rarity:"rare", max:2, cluster:"bulwark",
+   ranks:["复活时间 −4 秒","复活时全塔 +20% 攻速 3 秒"]},
+  {id:"unyield", name:"不屈", axis:"bulwark", rarity:"epic", max:1, cluster:"bulwark",
+   ranks:["每局一次免死；触发后 5 秒 +30% 伤害"]},
+
+  // 号令
+  {id:"command", name:"共战", axis:"command", rarity:"common", max:3, cluster:"tower",
+   ranks:["附近塔 +12% 伤害","半径 240 → 320","士兵也 +12% 伤害"]},
+  {id:"armament", name:"军械", axis:"command", rarity:"common", max:3, cluster:"tower",
+   ranks:["塔攻速 +10%","每第 5 发 +50% 伤害","改为每第 4 发"]},
+  {id:"spoils", name:"战利", axis:"command", rarity:"common", max:3, cluster:"economy",
+   ranks:["击杀 +1 金币","每波开始 +10 金币","出售返还 +10%"]},
+  {id:"farsight", name:"远见", axis:"command", rarity:"rare", max:2, cluster:"tower",
+   ranks:["塔射程 +8%","对 >250px 目标 +10% 伤害"]},
+  {id:"works", name:"工事", axis:"command", rarity:"rare", max:2, cluster:"economy",
+   ranks:["建造费用 −10%","升级费用 −20%"]},
+  {id:"horn", name:"号角", axis:"command", rarity:"epic", max:1, cluster:"economy",
+   ranks:["提前开波奖励 ×2；每提前 5 秒 +3 金币；休息 −3 秒"]},
+
+  // 桥接
+  {id:"warcredit", name:"战功", axis:"bridge", rarity:"epic", max:1, cluster:"tower",
+   ranks:["英雄每击杀 10 个敌人，全塔 +5% 伤害（最多 5 层）"]},
+  {id:"citywall", name:"城防", axis:"bridge", rarity:"epic", max:1, cluster:"tower",
+   ranks:["每座塔给英雄 +2% 减伤（最多 8%）"]},
+  {id:"enchant", name:"附魔", axis:"bridge", rarity:"epic", max:1, cluster:"expose",
+   ranks:["技能命中后 3 秒内普攻附加 40% 技能伤害"]},
+  {id:"bloodrage", name:"血怒", axis:"bridge", rarity:"epic", max:1, cluster:"bulwark",
+   ranks:["每损失 10% 生命 +3% 伤害（最多 30%）"]},
+
+  // 职业
+  {id:"shieldback", name:"盾反", axis:"knight", rarity:"rare", max:2, cluster:"bulwark",
+   ranks:["拦截时反弹 15% 近战伤害","触发时获得 2 秒 20% 减伤"]},
+  {id:"oath", name:"守誓", axis:"knight", rarity:"epic", max:1, cluster:"tower",
+   ranks:["战吼 +3 秒、范围 +80；期间全塔 +15% 伤害"]},
+  {id:"shadowstep", name:"疾影", axis:"ranger", rarity:"rare", max:2, cluster:"blade",
+   ranks:["翻滚后 2 秒攻速 +25%","翻滚后第一击 +100% 伤害"]},
+  {id:"piercearrow", name:"穿杨", axis:"ranger", rarity:"epic", max:1, cluster:"blade",
+   ranks:["普攻 +1 穿透；每第三箭再 +1；穿透目标 +10% 伤害"]},
+  {id:"frostheart", name:"霜心", axis:"mage", rarity:"rare", max:2, cluster:"star",
+   ranks:["霜环半径 +20%、减速 +10%","命中 3+ 敌人时冷却 −1 秒"]},
+  {id:"starcore", name:"星核", axis:"mage", rarity:"epic", max:1, cluster:"star",
+   ranks:["星陨 +40%、冷却 −4 秒；落点燃烧 3 秒"]},
+
+  // 进化
+  {id:"sworddance", name:"剑舞", axis:"evo", rarity:"evo", max:1, cluster:"blade",
+   ranks:["20% 概率立即再攻击；每次触发 +5% 攻速（5 层）"]},
+  {id:"executioner", name:"处刑者", axis:"evo", rarity:"evo", max:1, cluster:"expose",
+   ranks:["对精英/首领 +25%；击杀精英 +30 金币"]},
+  {id:"frostfire", name:"焚霜", axis:"evo", rarity:"evo", max:1, cluster:"star",
+   ranks:["灼烧目标死亡时爆炸并传播灼烧"]},
+  {id:"fortress", name:"堡垒", axis:"evo", rarity:"evo", max:1, cluster:"bulwark",
+   ranks:["拦截时每秒回复 2% 生命；格挡容量 +1"]},
+  {id:"warmachine", name:"战争机器", axis:"evo", rarity:"evo", max:1, cluster:"tower",
+   ranks:["塔连续 3 次攻击同目标后 +20% 伤害（2 层）"]},
+  {id:"goldenage", name:"黄金时代", axis:"evo", rarity:"evo", max:1, cluster:"economy",
+   ranks:["每波 +25 金币；出售返还 80%"]}
+];
+
+const EDGES = [
+  // 连击
+  {from:"rapid", to:"power", type:"amplify", text:"拥有【锋芒】时，疾攻第 5 次攻击改为第 4 次"},
+  {from:"power", to:"execute", type:"amplify", text:"拥有【处决】时，锋芒“满血 +15%”扩展为“>70% 生命 +15%”"},
+  {from:"combo", to:"rapid", type:"trigger", text:"连击触发时，疾攻计数 +1"},
+  {from:"execute", to:"combo", type:"trigger", text:"处决击杀使连击计数 +1"},
+  {from:"lifesteal", to:"combo", type:"convert", text:"护盾存在时，连击伤害 +15%"},
+  // 灼烧
+  {from:"burn", to:"chain", type:"trigger", text:"连锁弹射的目标附加灼烧"},
+  {from:"chain", to:"burn", type:"amplify", text:"灼烧目标死亡爆炸半径 +30%"},
+  {from:"starlight", to:"burn", type:"amplify", text:"易伤目标受到的灼烧伤害 +20%"},
+  {from:"focus", to:"starlight", type:"convert", text:"每 10% 冷却缩减使技能伤害 +3%"},
+  {from:"echo", to:"overload", type:"amplify", text:"超载期间回响的普攻加成翻倍"},
+  {from:"overload", to:"focus", type:"amplify", text:"大招后的冷却回复 +1 秒（有专注再 +1 秒）"},
+  // 易伤
+  {from:"starlight", to:"pierce", type:"amplify", text:"对易伤目标，破防额外无视 10% 抗性"},
+  {from:"pierce", to:"execute", type:"amplify", text:"处决阈值从 25% 提高到 30%"},
+  {from:"enchant", to:"starlight", type:"amplify", text:"附魔附加的技能伤害吃易伤加成"},
+  {from:"execute", to:"enchant", type:"trigger", text:"处决击杀刷新附魔的持续时间"},
+  // 护盾
+  {from:"lifesteal", to:"tough", type:"amplify", text:"护盾上限 +50%"},
+  {from:"tough", to:"ironwall", type:"amplify", text:"格挡减伤 +3%"},
+  {from:"ironwall", to:"reflect", type:"amplify", text:"反弹伤害 +50%"},
+  {from:"unyield", to:"revive", type:"trigger", text:"不屈触发后，复活时间减半"},
+  {from:"revive", to:"ironwall", type:"trigger", text:"复活后 3 秒内格挡概率 +30%"},
+  {from:"bloodrage", to:"battlewill", type:"amplify", text:"拥有【血怒】时，战意低血阈值 50%→60%"},
+  {from:"battlewill", to:"bloodrage", type:"amplify", text:"战意激活时，血怒层数上限 +2"},
+  // 塔链
+  {from:"command", to:"armament", type:"amplify", text:"拥有共战时，军械第 5 发改第 4 发"},
+  {from:"armament", to:"command", type:"amplify", text:"共战光环内塔攻速 +5%"},
+  {from:"warcredit", to:"command", type:"convert", text:"每层战功使共战加成 +2%"},
+  {from:"citywall", to:"command", type:"convert", text:"每座受光环影响的塔，给英雄 +1% 减伤"},
+  {from:"farsight", to:"command", type:"amplify", text:"共战光环半径 +40"},
+  {from:"works", to:"spoils", type:"convert", text:"每波开始 +5 金（拥有工事时）"},
+  // 经济
+  {from:"spoils", to:"works", type:"amplify", text:"工事的费用减免 +5%"},
+  {from:"horn", to:"spoils", type:"amplify", text:"提前开波每提前 5 秒额外 +3 金"},
+  {from:"spoils", to:"horn", type:"amplify", text:"拥有战利时，提前开波奖励 +50%"},
+  // 职业
+  {from:"shieldback", to:"ironwall", type:"amplify", text:"盾反触发时，格挡概率 +10%"},
+  {from:"oath", to:"command", type:"amplify", text:"战吼期间共战光环翻倍"},
+  {from:"shadowstep", to:"rapid", type:"amplify", text:"翻滚后攻速与疾攻叠加，且疾攻计数 +1"},
+  {from:"piercearrow", to:"combo", type:"trigger", text:"穿透命中使连击计数 +1"},
+  {from:"frostheart", to:"focus", type:"amplify", text:"命中 3+ 敌人时冷却 −1 秒；有专精再 −1 秒"},
+  {from:"starcore", to:"starlight", type:"amplify", text:"星陨对易伤目标 +20%"},
+  // 进化门槛
+  {from:"power", to:"sworddance", type:"require", text:"锋芒 3 级", req:3},
+  {from:"rapid", to:"sworddance", type:"require", text:"疾攻 3 级", req:3},
+  {from:"pierce", to:"executioner", type:"require", text:"破防 2 级", req:2},
+  {from:"execute", to:"executioner", type:"require", text:"处决 2 级", req:2},
+  {from:"burn", to:"frostfire", type:"require", text:"灼烧 3 级", req:3},
+  {from:"chain", to:"frostfire", type:"require", text:"连锁 2 级", req:2},
+  {from:"tough", to:"fortress", type:"require", text:"坚韧 3 级", req:3},
+  {from:"ironwall", to:"fortress", type:"require", text:"铁壁 3 级", req:3},
+  {from:"command", to:"warmachine", type:"require", text:"共战 3 级", req:3},
+  {from:"armament", to:"warmachine", type:"require", text:"军械 3 级", req:3},
+  {from:"spoils", to:"goldenage", type:"require", text:"战利 3 级", req:3},
+  {from:"works", to:"goldenage", type:"require", text:"工事 2 级", req:2}
+];
+
+const SETS = [
+  {id:"blade3", name:"锋刃 · 三", desc:"任意 3 张锋刃卡", effect:"攻速 +6%", axes:{blade:3}},
+  {id:"star3", name:"星火 · 三", desc:"任意 3 张星火卡", effect:"冷却 −5%", axes:{star:3}},
+  {id:"bulwark3", name:"壁垒 · 三", desc:"任意 3 张壁垒卡", effect:"生命 +8%", axes:{bulwark:3}},
+  {id:"command3", name:"号令 · 三", desc:"任意 3 张号令卡", effect:"塔攻速 +6%", axes:{command:3}},
+  {id:"burn3", name:"灼烧 · 三", desc:"灼烧、连锁、焚霜中 3 张", effect:"灼烧伤害 +50%", members:["burn","chain","frostfire"]},
+  {id:"expose3", name:"易伤 · 三", desc:"星辉、破防、附魔中 3 张", effect:"易伤效果 +5%", members:["starlight","pierce","enchant"]},
+  {id:"shield3", name:"护盾 · 三", desc:"嗜血、坚韧、不屈中 3 张", effect:"护盾上限 +30%", members:["lifesteal","tough","unyield"]},
+  {id:"cross22", name:"跨轴 · 二二", desc:"任意两轴各 2 张", effect:"混合效果（如锋刃+壁垒：拦截时 +8% 伤害）", cross:true}
+];
+
+const CLUSTER_CENTER = {
+  blade:   {x: 430, y: 340},
+  star:    {x:1170, y: 340},
+  expose:  {x: 800, y: 150},
+  bulwark: {x: 430, y: 780},
+  tower:   {x:1180, y: 770},
+  economy: {x: 800, y: 910},
+
+};
+const CLUSTER_LABEL = {
+  blade:"连击 · 锋刃", star:"灼烧 · 星火", expose:"易伤 · 锋刃×星火",
+  bulwark:"护盾 · 壁垒", tower:"塔链 · 号令", economy:"经济 · 号令"
+};
+
+// ---------- 状态 ----------
+const sim = CARDS.map(c => ({...c, x:0, y:0, vx:0, vy:0}));
+const byId = Object.fromEntries(sim.map(n => [n.id, n]));
+const build = new Set();
+let hoverId = null, selectedId = null, query = "", hoverEdge = null;
+const axisFilter = new Set(["blade","star","bulwark","command","bridge","hero","evo"]);
+const typeFilter = new Set(["amplify","trigger","convert","require"]);
+const AXIS_FILTERS = [["blade","锋刃"],["star","星火"],["bulwark","壁垒"],["command","号令"],["bridge","桥接"],["hero","职业"],["evo","进化"]];
+const TYPE_FILTERS = [["amplify","强化"],["trigger","触发"],["convert","转化"],["require","门槛"]];
+function axisOk(n){
+  return axisFilter.has(n.axis) || (axisFilter.has("hero") && ["knight","ranger","mage"].includes(n.axis));
+}
+
+// ---------- 布局 ----------
+function layout(){
+  const groups = {};
+  sim.forEach(n => (groups[n.cluster] = groups[n.cluster] || []).push(n));
+  for (const [cluster, list] of Object.entries(groups)) {
+    const c = CLUSTER_CENTER[cluster];
+    const n = list.length;
+    const R = n <= 2 ? 90 : n <= 4 ? 100 : n <= 6 ? 140 : 165;
+    list.forEach((node, i) => {
+      const a = -Math.PI/2 + (i / n) * Math.PI * 2;
+      node.x = c.x + Math.cos(a) * R;
+      node.y = c.y + Math.sin(a) * R;
+    });
+  }
+}
+layout();
+
+// ---------- SVG ----------
+const svg = document.getElementById("net");
+const NS = "http://www.w3.org/2000/svg";
+const viewport = el("g");
+const hullLayer = el("g");
+const edgeLayer = el("g");
+const nodeLayer = el("g");
+svg.append(viewport);
+const bg = el("rect", {x:0, y:0, width:1600, height:1100, fill:"#0f1a17"});
+viewport.append(bg, hullLayer, edgeLayer, nodeLayer);
+
+function el(tag, attrs = {}){
+  const node = document.createElementNS(NS, tag);
+  for (const [k,v] of Object.entries(attrs)) node.setAttribute(k, v);
+  return node;
+}
+
+const EDGE_STYLE = {
+  amplify: {stroke:"#e9c588", width:1.6, dash:""},
+  trigger: {stroke:"#7fd4c1", width:1.6, dash:"6 4"},
+  convert: {stroke:"#b9a7ff", width:1.6, dash:"2 5"},
+  require: {stroke:"#f2d27a", width:2.4, dash:"10 5"}
+};
+
+// 箭头
+const defs = el("defs");
+for (const [type, st] of Object.entries(EDGE_STYLE)){
+  const marker = el("marker", {id:"arr-"+type, viewBox:"0 0 10 10", refX:"9", refY:"5",
+    markerWidth:"6", markerHeight:"6", orient:"auto-start-reverse"});
+  marker.append(el("path", {d:"M 0 0 L 10 5 L 0 10 z", fill:st.stroke}));
+  defs.append(marker);
+}
+viewport.append(defs);
+
+const edgeEls = [];
+for (const e of EDGES){
+  const p = el("path", {class:"edge", "stroke-width":EDGE_STYLE[e.type].width,
+    stroke:EDGE_STYLE[e.type].stroke, "stroke-dasharray":EDGE_STYLE[e.type].dash,
+    "marker-end":"url(#arr-"+e.type+")"});
+  const hit = el("path", {class:"edgehit"});
+  hit.addEventListener("pointerenter", ev => { hoverEdge = e; edgeTip(e, ev); paint(); });
+  hit.addEventListener("pointermove", ev => { if (hoverEdge === e) moveTip(ev); });
+  hit.addEventListener("pointerleave", () => { if (hoverEdge === e){ hoverEdge = null; hideTip(); paint(); } });
+  edgeLayer.append(p, hit);
+  edgeEls.push({e, p, hit});
+}
+
+const nodeEls = {};
+for (const n of sim){
+  const g = el("g", {class:"node"});
+  const color = AXES[n.axis].color;
+  const r = RARITY[n.rarity].r;
+  const halo = el("circle", {r:r+7, fill:"none", stroke:color, "stroke-width":1, opacity:0});
+  const circle = el("circle", {r:r, fill:color, stroke:"#0d1714", "stroke-width":2});
+  const fs = n.name.length >= 4 ? 11 : (n.name.length === 3 ? 12.5 : 14);
+  const text = el("text", {"text-anchor":"middle", y:5, "font-size":fs, "font-weight":600, fill:"#10201a"});
+  text.textContent = n.name;
+  const dots = el("g", {transform:`translate(0,${r+9})`});
+  for (let i = 0; i < n.max; i++){
+    dots.append(el("circle", {cx:(i-(n.max-1)/2)*9, cy:0, r:2.6, fill:"#6f866f"}));
+  }
+  g.append(halo, circle, text, dots);
+  g.addEventListener("pointerdown", ev => startDrag(ev, n));
+  g.addEventListener("pointerenter", ev => { hoverId = n.id; tipFor(n, ev); paint(); });
+  g.addEventListener("pointermove", ev => moveTip(ev));
+  g.addEventListener("pointerleave", () => { hoverId = null; hideTip(); paint(); });
+  g.addEventListener("click", ev => { ev.stopPropagation(); selectCard(n.id); });
+  nodeLayer.append(g);
+  nodeEls[n.id] = {g, halo, circle, text, dots};
+}
+
+// 星座标签与背景光晕
+{
+  const CLUSTER_COLOR = {blade:"#e2a34f", star:"#a78bfa", expose:"#d8a7c9", bulwark:"#4fb3a1",
+    tower:"#c9a15a", economy:"#c9a15a"};
+  const counts = {};
+  sim.forEach(n => counts[n.cluster] = (counts[n.cluster] || 0) + 1);
+  for (const [cluster, center] of Object.entries(CLUSTER_CENTER)){
+    const n = counts[cluster] || 0;
+    const R = n <= 2 ? 90 : n <= 4 ? 100 : n <= 6 ? 140 : 165;
+    const color = CLUSTER_COLOR[cluster];
+    hullLayer.append(el("circle", {cx:center.x, cy:center.y, r:R+45,
+      fill:color, "fill-opacity":0.05, stroke:color, "stroke-opacity":0.18, "stroke-width":1}));
+    const y = cluster === "expose" ? center.y + R + 30 : center.y - R - 25;
+    const t = el("text", {x:center.x, y:y, "text-anchor":"middle", "font-size":15,
+      fill:"#7f9b88", "letter-spacing":"2", style:"cursor:pointer"});
+    t.textContent = CLUSTER_LABEL[cluster];
+    t.addEventListener("click", ev => { ev.stopPropagation(); focusCluster(cluster); });
+    hullLayer.append(t);
+  }
+}
+
+function edgePath(a, b){
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const mx = (a.x + b.x)/2 - dy*0.08;
+  const my = (a.y + b.y)/2 + dx*0.08;
+  return `M ${a.x} ${a.y} Q ${mx} ${my} ${b.x} ${b.y}`;
+}
+
+function paint(){
+  for (const {e, p, hit} of edgeEls){
+    const a = byId[e.from], b = byId[e.to];
+    if (!a || !b) continue;
+    const d = edgePath(a, b);
+    p.setAttribute("d", d);
+    if (hit) hit.setAttribute("d", d);
+    const active = build.has(e.from) && build.has(e.to);
+    const focus = hoverId && (e.from === hoverId || e.to === hoverId);
+    const sel = selectedId && (e.from === selectedId || e.to === selectedId);
+    let op = e.type === "require" ? 0.10 : 0.28;
+    if (!typeFilter.has(e.type)) op = 0.02;
+    else if (!axisOk(a) || !axisOk(b)) op = 0.02;
+    else if (hoverEdge) op = hoverEdge === e ? 1 : 0.05;
+    else if (sel) op = 1;
+    else if (hoverId) op = focus ? 1 : 0.08;
+    else if (build.size) op = active ? 0.95 : 0.07;
+    p.setAttribute("opacity", op);
+    p.setAttribute("stroke-width", active ? EDGE_STYLE[e.type].width + 1.6 : EDGE_STYLE[e.type].width);
+  }
+  for (const n of sim){
+    const {g, halo, text} = nodeEls[n.id];
+    g.setAttribute("transform", `translate(${n.x},${n.y})`);
+    const isSel = build.has(n.id);
+    const isFocus = n.id === hoverId || n.id === selectedId;
+    const edgeFocus = hoverEdge && (hoverEdge.from === n.id || hoverEdge.to === n.id);
+    const dim = !axisOk(n) ||
+                (hoverEdge && !edgeFocus) ||
+                (hoverId && !isFocus && !isNeighbour(hoverId, n.id)) ||
+                (build.size && !isSel && !isFocus && !isNeighbourBuild(n.id)) ||
+                (query && !matches(n));
+    g.setAttribute("opacity", dim ? (!axisOk(n) ? 0.06 : 0.18) : 1);
+    halo.setAttribute("opacity", isSel ? 0.9 : 0);
+    text.setAttribute("fill", n.axis === "evo" ? "#3a2a08" : "#10201a");
+  }
+}
+
+function isNeighbour(a, b){
+  return EDGES.some(e => (e.from === a && e.to === b) || (e.from === b && e.to === a));
+}
+function isNeighbourBuild(id){
+  for (const e of EDGES){
+    if (e.from === id && build.has(e.to)) return true;
+    if (e.to === id && build.has(e.from)) return true;
+  }
+  return false;
+}
+function matches(n){
+  const q = query.toLowerCase();
+  return n.name.toLowerCase().includes(q) || (n.ranks || []).join(" ").toLowerCase().includes(q);
+}
+function tipFor(n, ev){
+  const tip = document.getElementById("tip");
+  tip.innerHTML = `<b>${n.name}</b> · ${AXES[n.axis].label} · ${RARITY[n.rarity].label}`
+    + `<br><span style="color:#a9b3a4">${n.ranks[0]}</span>`;
+  tip.style.opacity = 1;
+  moveTip(ev);
+}
+function moveTip(ev){
+  const tip = document.getElementById("tip");
+  const tw = tip.offsetWidth || 220, th = tip.offsetHeight || 60;
+  let x = ev.clientX + 14, y = ev.clientY + 14;
+  if (x + tw > window.innerWidth - 10) x = ev.clientX - tw - 14;
+  if (y + th > window.innerHeight - 10) y = ev.clientY - th - 14;
+  tip.style.left = x + "px";
+  tip.style.top = y + "px";
+}
+function hideTip(){ document.getElementById("tip").style.opacity = 0; }
+function edgeTip(e, ev){
+  const tip = document.getElementById("tip");
+  tip.innerHTML = `<b>${byId[e.from].name} → ${byId[e.to].name}</b> · ${linkName(e.type)}`
+    + `<br><span style="color:#a9b3a4">${e.text}</span>`;
+  tip.style.opacity = 1;
+  moveTip(ev);
+}
+function focusCluster(cluster){
+  const list = sim.filter(n => n.cluster === cluster);
+  if (!list.length) return;
+  let minX=1e9, minY=1e9, maxX=-1e9, maxY=-1e9;
+  list.forEach(n => { minX=Math.min(minX,n.x); maxX=Math.max(maxX,n.x); minY=Math.min(minY,n.y); maxY=Math.max(maxY,n.y); });
+  const pad = 130;
+  const bw = maxX-minX+pad*2, bh = maxY-minY+pad*2;
+  pan.k = Math.min(1.8, Math.max(0.7, Math.min(1600/bw, 1100/bh)));
+  pan.x = (1600-bw*pan.k)/2 - (minX-pad)*pan.k;
+  pan.y = (1100-bh*pan.k)/2 - (minY-pad)*pan.k;
+  applyPan();
+}
+
+// 拖拽与平移
+let pan = {x:0, y:0, k:1};
+function applyPan(){ viewport.setAttribute("transform", `translate(${pan.x},${pan.y}) scale(${pan.k})`); }
+function fitView(){
+  let minX=1e9, minY=1e9, maxX=-1e9, maxY=-1e9;
+  sim.forEach(n => { minX=Math.min(minX,n.x); maxX=Math.max(maxX,n.x); minY=Math.min(minY,n.y); maxY=Math.max(maxY,n.y); });
+  const pad = 110;
+  const bw = Math.max(320, maxX-minX+pad*2), bh = Math.max(320, maxY-minY+pad*2);
+  pan.k = Math.min(1.7, Math.max(0.55, Math.min(1600/bw, 1100/bh)));
+  pan.x = (1600-bw*pan.k)/2 - (minX-pad)*pan.k;
+  pan.y = (1100-bh*pan.k)/2 - (minY-pad)*pan.k;
+  applyPan();
+}
+function zoomBy(f){
+  const k = Math.min(2.6, Math.max(0.4, pan.k * f));
+  const cx = 800, cy = 550;
+  pan.x = cx - (cx - pan.x) * (k / pan.k);
+  pan.y = cy - (cy - pan.y) * (k / pan.k);
+  pan.k = k;
+  applyPan();
+}
+
+let dragging = null, dragStart = null, panning = false, panStart = null;
+function baseScale(){
+  const rect = svg.getBoundingClientRect();
+  const vb = svg.viewBox.baseVal;
+  return Math.min(rect.width / vb.width, rect.height / vb.height);
+}
+function vbPoint(ev){
+  const rect = svg.getBoundingClientRect();
+  const vb = svg.viewBox.baseVal;
+  const s = baseScale();
+  const ox = rect.left + (rect.width - vb.width*s)/2;
+  const oy = rect.top + (rect.height - vb.height*s)/2;
+  return {x:(ev.clientX-ox)/s, y:(ev.clientY-oy)/s};
+}
+function toWorld(ev){
+  const p = vbPoint(ev);
+  return {x:(p.x-pan.x)/pan.k, y:(p.y-pan.y)/pan.k};
+}
+function startDrag(ev, n){
+  ev.stopPropagation();
+  dragging = n;
+  const pt = toWorld(ev);
+  dragStart = {x: pt.x - n.x, y: pt.y - n.y};
+  svg.setPointerCapture(ev.pointerId);
+}
+svg.addEventListener("pointerdown", ev => {
+  if (dragging) return;
+  panning = true; svg.classList.add("panning");
+  panStart = {x: ev.clientX, y: ev.clientY, px: pan.x, py: pan.y};
+  svg.setPointerCapture(ev.pointerId);
+});
+svg.addEventListener("pointermove", ev => {
+  if (dragging){
+    const pt = toWorld(ev);
+    dragging.x = pt.x - dragStart.x;
+    dragging.y = pt.y - dragStart.y;
+    paint();
+  } else if (panning){
+    const s = baseScale() * pan.k;
+    pan.x = panStart.px + (ev.clientX - panStart.x) / s;
+    pan.y = panStart.py + (ev.clientY - panStart.y) / s;
+    applyPan();
+  }
+});
+svg.addEventListener("pointerup", ev => {
+  if (dragging){ dragging = null; dragStart = null; }
+  panning = false; svg.classList.remove("panning");
+  if (svg.hasPointerCapture(ev.pointerId)) svg.releasePointerCapture(ev.pointerId);
+});
+svg.addEventListener("wheel", ev => {
+  ev.preventDefault();
+  const p = vbPoint(ev);
+  const old = pan.k;
+  const k = Math.min(2.6, Math.max(0.4, old * (ev.deltaY < 0 ? 1.1 : 0.9)));
+  pan.x = p.x - (p.x - pan.x) * (k / old);
+  pan.y = p.y - (p.y - pan.y) * (k / old);
+  pan.k = k; applyPan();
+}, {passive:false});
+
+document.getElementById("zin").addEventListener("click", () => zoomBy(1.18));
+document.getElementById("zout").addEventListener("click", () => zoomBy(1/1.18));
+document.getElementById("zfit").addEventListener("click", fitView);
+svg.addEventListener("click", ev => {
+  if (ev.target === svg || ev.target === bg){
+    selectedId = null; hoverEdge = null;
+    renderDetail(); paint();
+  }
+});
+window.addEventListener("keydown", ev => {
+  if (ev.target && ev.target.tagName === "INPUT") return;
+  if (ev.key === "Escape"){ selectedId = null; hoverEdge = null; renderDetail(); paint(); }
+  else if (ev.key === "0"){ fitView(); }
+  else if (ev.key === "+" || ev.key === "="){ zoomBy(1.15); }
+  else if (ev.key === "-"){ zoomBy(1/1.15); }
+});
+
+// ---------- 选择与构筑 ----------
+function selectCard(id){
+  selectedId = id;
+  renderDetail();
+  paint();
+}
+function toggleBuild(id){
+  if (build.has(id)) build.delete(id);
+  else {
+    if (build.size >= 11) { flashHint("最多 11 张"); return; }
+    build.add(id);
+  }
+  renderBuild(); renderDetail(); paint(); renderCards(); renderSets();
+}
+document.getElementById("clear").addEventListener("click", () => {
+  build.clear(); renderBuild(); renderDetail(); paint(); renderCards(); renderSets();
+});
+document.getElementById("reset").addEventListener("click", () => {
+  layout(); fitView(); paint();
+});
+
+// ---------- 面板 ----------
+function renderDetail(){
+  const box = document.getElementById("detail");
+  if (!selectedId){
+    box.innerHTML = overviewHTML();
+    return;
+  }
+  const n = byId[selectedId];
+  const links = EDGES.filter(e => e.from === n.id || e.to === n.id);
+  const sets = SETS.filter(s => setHas(s, n.id));
+  box.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px">
+      <span class="axisdot" style="background:${AXES[n.axis].color}"></span>
+      <h2 style="margin:0">${n.name}</h2>
+      <span class="chip">${AXES[n.axis].label}</span>
+      <span class="chip">${RARITY[n.rarity].label} · 上限 ${n.max}</span>
+    </div>
+    <h3>每级效果</h3>
+    ${n.ranks.map((t,i)=>`<div class="rankline"><span class="rk">R${i+1}</span><span class="tx">${t}</span></div>`).join("")}
+    <h3>连接（${links.length}）</h3>
+    ${links.map(e=>{
+      const other = e.from === n.id ? byId[e.to] : byId[e.from];
+      const dir = e.from === n.id ? "→" : "←";
+      return `<div class="linkrow"><span class="ty ty-${e.type}">${linkName(e.type)}</span>
+        <span class="lt">${dir} ${other ? other.name : e.to}：${e.text}</span></div>`;
+    }).join("") || '<p class="empty">无连接</p>'}
+    ${sets.length ? `<h3>所属套装</h3><div class="chips">${sets.map(s=>`<span class="chip">${s.name}</span>`).join("")}</div>` : ""}
+    <div style="margin-top:16px">
+      <button class="btn" id="toggle">${build.has(n.id) ? "移出构筑" : "加入构筑"}</button>
+    </div>`;
+  const btn = document.getElementById("toggle");
+  if (btn) btn.addEventListener("click", () => toggleBuild(n.id));
+}
+function overviewHTML(){
+  return `
+    <h2>被动网络 · v3</h2>
+    <p>把 34 张卡连成 6 个星座。点节点看效果与连接，加入构筑后相关连接会亮起。</p>
+    <div class="statgrid">
+      <div class="stat"><b>34</b><span>普通池卡牌</span></div>
+      <div class="stat"><b>37</b><span>显式连接</span></div>
+      <div class="stat"><b>8</b><span>套装</span></div>
+      <div class="stat"><b>6</b><span>进化</span></div>
+    </div>
+    <h3>轴</h3>
+    <div class="legend">
+      ${["blade","star","bulwark","command","bridge"].map(a=>`<div><i style="background:${AXES[a].color}"></i>${AXES[a].label}</div>`).join("")}
+    </div>
+    <h3>职业色</h3>
+    <div class="legend">
+      ${["knight","ranger","mage"].map(a=>`<div><i style="background:${AXES[a].color}"></i>${AXES[a].label}</div>`).join("")}
+    </div>
+    <h3>连接类型</h3>
+    <div class="legend">
+      <div><span class="ln" style="background:#e9c588"></span>强化</div>
+      <div><span class="ln" style="background:#7fd4c1"></span>触发</div>
+      <div><span class="ln" style="background:#b9a7ff"></span>转化</div>
+      <div><span class="ln" style="background:#f2d27a"></span>进化门槛</div>
+    </div>
+    <h3>操作</h3>
+    <p class="muted">悬停节点看第一级效果 · 悬停连线看联动文本 · 拖节点调整位置 · 拖空白平移 · 滚轮或右下角按钮缩放 · 点星座名聚焦该星座 · 点节点加入构筑（最多 11 张）。</p>
+    <div class="foot">快捷键：0 适应画布 · ＋/－ 缩放 · Esc 取消选择。设计稿：docs/DESIGN_PASSIVES_V3_LINKS.md · 数值为设计目标，未实装。</div>`;
+}
+function linkName(t){
+  return {amplify:"强化", trigger:"触发", convert:"转化", require:"门槛"}[t] || t;
+}
+function setHas(s, id){
+  if (s.members) return s.members.includes(id);
+  if (s.axes){
+    const axis = Object.keys(s.axes)[0];
+    return byId[id] && byId[id].axis === axis;
+  }
+  return false;
+}
+function renderBuild(){
+  document.getElementById("bc").textContent = build.size;
+  const box = document.getElementById("buildchips");
+  if (!build.size){ box.innerHTML = '<span class="empty">还没有选卡</span>'; }
+  else {
+    box.innerHTML = [...build].map(id=>`<span class="bchip" data-id="${id}">${byId[id].name} ×</span>`).join("");
+    box.querySelectorAll(".bchip").forEach(el=>el.addEventListener("click", ()=>toggleBuild(el.dataset.id)));
+  }
+  // 激活连接
+  const activeEdges = EDGES.filter(e => build.has(e.from) && build.has(e.to) && e.type !== "require");
+  const activeSets = SETS.filter(s => isSetActive(s));
+  // 再拿一张可激活
+  const pending = [];
+  const seen = new Set();
+  for (const e of EDGES){
+    if (e.type === "require") continue;
+    const hasFrom = build.has(e.from), hasTo = build.has(e.to);
+    if (hasFrom === hasTo) continue;
+    const have = hasFrom ? e.from : e.to;
+    const miss = hasFrom ? e.to : e.from;
+    if (seen.has(miss)) continue;
+    seen.add(miss);
+    pending.push({have, miss, e});
+  }
+  // 套装进度
+  const progress = SETS.filter(s => !s.cross).map(s => {
+    let count = 0, need = 3;
+    if (s.members) count = s.members.filter(id => build.has(id)).length;
+    else { const axis = Object.keys(s.axes)[0]; need = s.axes[axis]; count = [...build].filter(id=>byId[id].axis===axis).length; }
+    return {name:s.name, count, need, on:isSetActive(s)};
+  }).filter(x => x.count > 0 && !x.on);
+  document.getElementById("buildstats").innerHTML = `
+    <div class="muted" style="margin-top:6px">激活连接 <b style="color:#e9c588">${activeEdges.length}</b> 条 ·
+      激活套装 <b style="color:#e9c588">${activeSets.length}</b> 个</div>
+    ${activeSets.length?`<div class="chips" style="margin-top:6px">${activeSets.map(s=>`<span class="chip">${s.name}</span>`).join("")}</div>`:""}
+    ${pending.length?`<div class="muted" style="margin-top:8px">再拿一张可激活</div><div class="chips">${pending.slice(0,5).map(p=>`<span class="chip" title="${p.e.text}">${byId[p.have].name} → ${byId[p.miss].name}</span>`).join("")}</div>`:""}
+    ${progress.length?`<div class="muted" style="margin-top:8px">套装进度</div><div class="chips">${progress.map(s=>`<span class="chip">${s.name} ${s.count}/${s.need}</span>`).join("")}</div>`:""}`;
+}
+function isSetActive(s){
+  if (s.cross){
+    const axes = ["blade","star","bulwark","command"];
+    return axes.filter(a => [...build].filter(id=>byId[id].axis===a).length >= 2).length >= 2;
+  }
+  if (s.members) return s.members.every(id => build.has(id));
+  const axis = Object.keys(s.axes)[0];
+  return [...build].filter(id=>byId[id].axis===axis).length >= s.axes[axis];
+}
+function flashHint(msg){
+  const hint = document.getElementById("buildhint");
+  hint.textContent = msg;
+  setTimeout(()=>hint.textContent = "点卡牌加入，最多 11 张", 1600);
+}
+
+// ---------- 列表与套装 ----------
+function renderFilters(){
+  const af = document.getElementById("axisfilter");
+  af.innerHTML = AXIS_FILTERS.map(([k,l])=>`<button class="fchip ${axisFilter.has(k)?"on":""}" data-k="${k}">${l}</button>`).join("");
+  af.querySelectorAll(".fchip").forEach(b=>b.addEventListener("click", ()=>{
+    const k = b.dataset.k;
+    if (axisFilter.has(k)) axisFilter.delete(k); else axisFilter.add(k);
+    renderFilters(); renderCards(); paint();
+  }));
+  const tf = document.getElementById("typefilter");
+  tf.innerHTML = TYPE_FILTERS.map(([k,l])=>`<button class="fchip ${typeFilter.has(k)?"on":""}" data-k="${k}">${l}</button>`).join("");
+  tf.querySelectorAll(".fchip").forEach(b=>b.addEventListener("click", ()=>{
+    const k = b.dataset.k;
+    if (typeFilter.has(k)) typeFilter.delete(k); else typeFilter.add(k);
+    renderFilters(); paint();
+  }));
+}
+function renderCards(){
+  const box = document.getElementById("cards");
+  const filtered = sim.filter(n => axisOk(n) && (!query || matches(n)));
+  box.innerHTML = filtered.map(n=>{
+    const links = EDGES.filter(e=>e.from===n.id||e.to===n.id).length;
+    return `<div class="card ${build.has(n.id)?"sel":""}" data-id="${n.id}">
+      <div class="top"><span class="axisdot" style="background:${AXES[n.axis].color}"></span>
+        <span class="nm">${n.name}</span>
+        <span class="badge">${RARITY[n.rarity].label}</span>
+        <span class="badge">${AXES[n.axis].label}</span></div>
+      <div class="desc">${n.ranks[0]}</div>
+      <div class="lnk">连接 ${links} 条</div>
+    </div>`;
+  }).join("");
+  box.querySelectorAll(".card").forEach(el=>{
+    el.addEventListener("click", ()=>selectCard(el.dataset.id));
+  });
+}
+function renderSets(){
+  const box = document.getElementById("sets");
+  box.innerHTML = SETS.map(s=>{
+    const on = isSetActive(s);
+    const members = s.members ? s.members.map(id=>byId[id].name).join("、") : "";
+    return `<div class="setcard ${on?"on":""}">
+      <h4>${s.name} ${on?'<span class="chip" style="color:#e9c588;border-color:#6b5a35">已激活</span>':""}</h4>
+      <p>${s.desc}${members?`（${members}）`:""}</p>
+      <p style="color:#d9d3bd">${s.effect}</p>
+    </div>`;
+  }).join("");
+}
+
+// ---------- 视图切换 ----------
+document.querySelectorAll(".tab").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("on", b===btn));
+    const v = btn.dataset.view;
+    document.getElementById("stage").style.display = v==="net" ? "block" : "none";
+    document.getElementById("listview").style.display = v==="list" ? "block" : "none";
+    document.getElementById("setview").style.display = v==="sets" ? "block" : "none";
+  });
+});
+document.getElementById("search").addEventListener("input", e=>{
+  query = e.target.value.trim().toLowerCase();
+  renderCards(); paint();
+});
+
+// ---------- 启动 ----------
+renderFilters();
+fitView();
+renderDetail();
+renderBuild();
+renderCards();
+renderSets();
+paint();
+</script>
+</body>
+</html>

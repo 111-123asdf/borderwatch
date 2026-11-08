@@ -12,6 +12,7 @@ var life:=2.5
 var pierce:=0
 var expose:=false
 var splash:=0.0
+var burn:=0.0
 var target: Node2D
 var hit_ids: Dictionary={}
 var trail: Array[Vector2]=[]
@@ -33,6 +34,8 @@ func _physics_process(delta: float) -> void:
 			hit_ids[enemy.get_instance_id()]=true
 			if splash>0:game.area_damage(enemy.position,splash,damage,damage_type,source)
 			else:enemy.take_hit(damage,damage_type,source)
+			if pierce>0 and source=="hero": game.hero.note_pierce_hit()
+			if burn>0:enemy.ignite(burn,3.0)
 			if expose and is_instance_valid(enemy) and not enemy.dead:enemy.exposure=2.0
 			if pierce<=0:queue_free();return
 			pierce-=1

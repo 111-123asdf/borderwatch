@@ -24,12 +24,14 @@ var windup:=0.0
 var aim:=Vector2.ZERO
 var facing:=Vector2.RIGHT
 var hurt_time:=0.0
+var burn_clock:=0.0
+var burn_dps:=0.0
 var boss_phase:=0
 var visual: ArenaCreature
 var radius:=19.0
 func _ready() -> void:
 	data=ArenaDefinitions.enemy(kind)
-	var scale_hp: float=1.0+0.13*maxi(0,game.cycle-1)
+	var scale_hp: float=1.0+0.11*maxi(0,game.cycle-1)
 	if is_guard:scale_hp=0.75
 	max_health=float(data.health)*scale_hp*(1.65 if elite else 1.0);health=max_health
 	visual=ArenaCreature.new();add_child(visual);visual.configure(kind,{"fox":43.0,"brute":67.0,"wisp":49.0,"spearman":58.0,"spore":51.0,"moth":115.0}.get(kind,50.0))
@@ -39,14 +41,21 @@ func _ready() -> void:
 	add_child(information)
 func center() -> Vector2:return position+Vector2(0,-radius)
 func block_weight() -> int:return maxi(int(data.capacity),2 if elite else 1)
+func damage_scale() -> float:return 1.0+0.06*maxi(0,game.cycle-1)
 func _physics_process(delta: float) -> void:
 	if not game.running or game.game_over or dead:return
+	if burn_clock>0:
+		var tick: float=burndps_pick(delta)
+		health-=tick;game.damage_stats["hero"]=float(game.damage_stats.get("hero",0))+tick
+		burn_clock=maxf(0,burn_clock-delta)
+		if health<=0:
+			dead=true;game.enemy_defeated(self);return
 	stun=maxf(0,stun-delta);slow=maxf(0,slow-delta);exposure=maxf(0,exposure-delta);melee_clock=maxf(0,melee_clock-delta);ranged_clock=maxf(0,ranged_clock-delta);hurt_time=maxf(0,hurt_time-delta)
 	if stun>0:windup=0;melee_windup=0;melee_target=null;visual.pause();queue_redraw();return
 	if melee_windup>0:
 		melee_windup=maxf(0,melee_windup-delta)
 		if melee_windup<=0 and is_instance_valid(melee_target) and melee_target.can_block() and position.distance_to(melee_target.position)<58:
-			melee_target.take_hit(float(data.damage)*(1.25 if elite else 1.0),int(data.type),true)
+			melee_target.take_hit(float(data.damage)*damage_scale()*(1.25 if elite else 1.0),int(data.type),true)
 	if windup>0:
 		windup=maxf(0,windup-delta)
 		if windup<=0:release_ranged()
@@ -87,26 +96,43 @@ func release_ranged() -> void:
 	if game.hero.knocked_out:return
 	match kind:
 		"spore":
-			game.delayed_attack(aim,67,float(data.damage),1,"enemy",0.9,{"origin":center()})
+			game.delayed_attack(aim,67,float(data.damage)*damage_scale()*(1.25 if elite else 1.0),1,"enemy",0.9,{"origin":center()})
 		"moth":
 			for index in range(12):
 				var direction:=Vector2.RIGHT.rotated(TAU*index/12.0)
-				game.fire_projectile(center(),center()+direction*600,float(data.damage),1,"enemy",{"speed":145.0})
+				game.fire_projectile(center(),center()+direction*600,float(data.damage)*damage_scale(),1,"enemy",{"speed":145.0})
 		_:
-			game.fire_projectile(center(),aim,float(data.damage),int(data.type),"enemy",{"speed":460.0 if kind=="spearman" else 175.0,"appearance":"spear" if kind=="spearman" else "magic"})
+			game.fire_projectile(center(),aim,float(data.damage)*damage_scale()*(1.25 if elite else 1.0),int(data.type),"enemy",{"speed":460.0 if kind=="spearman" else 175.0,"appearance":"spear" if kind=="spearman" else "magic"})
 func take_hit(amount: float,damage_type: int,source: String,stagger := 0.0,chill := 0.0) -> float:
 	if dead:return 0
-	var damage:=minf(health,ArenaCombat.resolve(amount,damage_type,float(data.armour),float(data.resistance),0.1 if exposure>0 else 0.0))
+	var low: bool=health<=max_health*game.hero.mod("execute_threshold")
+	var pen:=0.0
+	if source=="hero":
+		pen=game.hero.armor_pen()
+		if exposure>0 and game.hero.has_link("starlight","pierce"): pen+=0.10
+	var damage:=minf(health,ArenaCombat.resolve(amount,damage_type,float(data.armour),float(data.resistance),0.1 if exposure>0 else 0.0,pen))
 	health-=damage;hurt_time=0.12
 	if kind!="moth":stun=maxf(stun,stagger);slow=maxf(slow,chill)
 	game.damage_stats[source]=float(game.damage_stats.get(source,0))+damage
 	game.feedback(center(),damage,damage_type,health<=0)
 	if health<=0:
-		dead=true;game.enemy_defeated(self)
+		dead=true
+		if source=="hero": game.hero.note_kill(low)
+		game.enemy_defeated(self)
 	return damage
 func push_back(amount: float) -> void:
 	if kind=="moth" or is_guard:return
 	progress=maxf(0,progress-amount);position=game.routes[route_id].sample_baked(progress,true)
+func ignite(dps: float,duration: float) -> void:
+	if dead:return
+	burn_dps=maxf(burn_dps,dps);burn_clock=maxf(burn_clock,duration)
+func expose(duration: float) -> void:
+	if dead:return
+	exposure=maxf(exposure,duration)
+func burndps_pick(delta: float) -> float:
+	var tick:=burn_dps*delta
+	if exposure>0 and game.hero.has_link("starlight","burn"): tick*=1.2
+	return minf(tick,health)
 func _draw() -> void:
 	draw_set_transform(Vector2.ZERO,0,Vector2(1,0.4));draw_circle(Vector2.ZERO,radius*0.8,Color(0.07,0.13,0.1,0.25));draw_set_transform(Vector2.ZERO)
 	if health<max_health:

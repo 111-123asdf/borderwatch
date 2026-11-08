@@ -24,9 +24,11 @@ var battle_nodes: Array=[]
 var update_clock:=0.0
 var selected_hero: String="knight"
 var selected_growth: String="knight"
+var codex: ArenaPerkCodex
 const CREAM:=Color("f2e4c5")
 const GOLD:=Color("e9c588")
 const MUTED:=Color("bbbea1")
+const AXIS_NAME:={"blade":"锋刃","star":"星火","bulwark":"壁垒","command":"号令","evo":"进化"}
 func _ready() -> void:
 	process_mode=Node.PROCESS_MODE_ALWAYS
 	root=Control.new();root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT);root.mouse_filter=Control.MOUSE_FILTER_IGNORE;add_child(root)
@@ -73,12 +75,20 @@ func backdrop() -> void:
 	if ResourceLoader.exists(path):image(menu,load(path),Rect2(Vector2.ZERO,Vector2(1600,900)),true).modulate=Color(0.56,0.59,0.5)
 	else:
 		var bg:=ColorRect.new();bg.color=Color("607447");bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT);menu.add_child(bg)
+func show_codex() -> void:
+	if is_instance_valid(codex):
+		return
+	codex = ArenaPerkCodex.new()
+	root.add_child(codex)
+	codex.closed.connect(_on_codex_closed)
+func _on_codex_closed() -> void:
+	codex = null
 func show_entry() -> void:
 	reset_menu();backdrop()
 	var title:=label(menu,"边境守望",Rect2(105,155,700,100),64,GOLD);title.add_theme_constant_override("outline_size",8);title.add_theme_color_override("font_outline_color",Color("243124"))
 	label(menu,"守住微光，走向森林深处。",Rect2(110,265,600,42),24)
 	var y:=355
-	for spec in [["开始守望",show_heroes],["英雄训练",show_growth],["如何游玩",show_guide],["退出游戏",game.quit_game]]:
+	for spec in [["开始守望",show_heroes],["英雄训练",show_growth],["被动图鉴",show_codex],["如何游玩",show_guide],["退出游戏",game.quit_game]]:
 		var node:=button(menu,spec[0],Rect2(110,y,350,70),spec[1]);node.name=str(spec[0]);y+=90
 		if ResourceLoader.exists("res://assets/original/frontier_menu_button.png"):
 			var atlas:=AtlasTexture.new();atlas.atlas=load("res://assets/original/frontier_menu_button.png");atlas.region=Rect2(0,125,2172,470)
@@ -180,13 +190,30 @@ func show_choices(keys: Array[String]) -> void:
 	close_context();game.targeting_slot=-1;game.rally_site=-1
 	var panel:=modal_panel(Vector2(1040,430));label(panel,"选择一份成长",Rect2(360,25,500,50),29,GOLD)
 	for index in range(keys.size()):
-		var key: String=keys[index];var data: Dictionary=ArenaDefinitions.PERKS[key]
+		var key: String=keys[index];var data: Dictionary=ArenaPerks.card(key)
+		var rank:=game.hero.perk(key);var next:=mini(rank+1,int(data.max))
+		var colour: Color=data.get("color",GOLD)
 		var b:=button(panel,"",Rect2(30+index*335,108,310,265),game.choose_perk.bind(key));b.name="Perk_"+key
-		icon(b,data.icon,Rect2(115,28,80,80),GOLD);label(b,data.name+" "+str(game.hero.perk(key)+1),Rect2(30,137,250,40),27,GOLD)
-		var text: String=data.text
-		if key=="small":text={"knight":"震地伤害与眩晕增强","ranger":"翻滚后下一箭额外贯穿","mage":"霜环范围扩大"}[game.hero.class_id]
-		if key=="ultimate":text={"knight":"战吼持续时间延长","ranger":"箭雨增加一轮","mage":"星陨伤害增强"}[game.hero.class_id]
-		label(b,text,Rect2(25,198,285,35),18)
+		icon(b,str(data.icon),Rect2(125,20,60,60),colour)
+		label(b,data.name,Rect2(24,84,262,34),24,colour)
+		label(b,"%s · %d/%d" % [AXIS_NAME.get(str(data.axis),str(data.axis)),next,int(data.max)],Rect2(24,118,262,24),15,MUTED)
+		var lines: Array=data.ranks
+		var effect:=label(b,str(lines[mini(next-1,lines.size()-1)]),Rect2(24,148,262,54),16,CREAM)
+		effect.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+		if str(data.get("hint",""))!="":
+			label(b,str(data.hint),Rect2(24,208,262,24),14,GOLD if bool(data.get("evolution",false)) else MUTED)
+		if bool(data.get("evolution",false)):
+			label(b,"进化",Rect2(238,16,58,24),14,GOLD)
+		var peers: Array[String]=[]
+		for edge in ArenaPerks.LINKS:
+			if edge.from == key or edge.to == key:
+				var other: String = str(edge.to) if edge.from == key else str(edge.from)
+				var owned:=game.hero.perk(other)>0
+				var tag: String=""
+				peers.append(str(ArenaPerks.card(other).get("name",other))+("✓" if owned else "")+tag)
+		if not peers.is_empty():
+			var link_colour:=Color("9fc7b3") if game.hero.perk(key)>0 else MUTED
+			label(b,"联动：%s" % "、".join(peers),Rect2(24,230,262,24),11,link_colour)
 func show_pause() -> void:
 	if game.choice_open or game.game_over:return
 	if has_modal():resume();return

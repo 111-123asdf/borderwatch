@@ -12,3 +12,5 @@ v06_playthrough从正常资源开局，通过移动、按住攻击、建塔、�
 实际完成情况、数据及限制只写入RELEASE_NOTES；未完成的真人试玩不编写。
 
 复现窗口交互可运行tools/verify_window.ps1，截图输出到隔离用户目录v06-review。v06_stress.gd是明确注入状态的活跃压力夹具，需在独立APPDATA下开窗运行，输出均帧／P95和密集场景截图。源码包不携带测试图片。
+
+被动星图（v0.7）从主菜单「被动图鉴」进入；tests/v07_codex_capture.gd 会走一遍“菜单打开→点卡看详情→关闭”，并在 user:// 输出 codex-overview/card/closed 三张截图。v07_perks.gd 是卡牌规则夹具：40 张卡数据完整性、37 条行为联动（含连锁两次弹射）、8 套装、修正器与进化门槛，共 312 项。

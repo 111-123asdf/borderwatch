@@ -13,6 +13,9 @@ var rally_point:=Vector2.ZERO
 var target_mode: String="first"
 var troops: Array=[]
 var body: Sprite2D
+var shot_count:=0
+var streak_target: Node2D
+var streak_count:=0
 static var art_cache: Dictionary={}
 func _ready() -> void:
 	data=ArenaDefinitions.tower(kind);body=Sprite2D.new();body.texture_filter=CanvasItem.TEXTURE_FILTER_LINEAR;add_child(body);refresh_art()
@@ -37,8 +40,10 @@ func refresh_art() -> void:
 		body.texture=art_cache[key]
 		var width: float=(111.0+level*7) if kind in ["archer","mage"] else (120.0+level*11)
 		body.scale=Vector2.ONE*width/body.texture.get_width();body.position.y=-body.texture.get_height()*body.scale.y*ArenaArtAnchors.offset_for("tower_"+kind+"_"+str(level))
-func upgrade_price() -> int:return int(data.cost)*(level+1)/2+35
-func attack_range() -> float:return float(data.reach)+(level-1)*16
+func upgrade_price() -> int:
+	var base:=int(data.cost)*(level+1)/2+35
+	return int(float(base)*(1.0-clampf(game.hero.mod("tower_upgrade"),0.0,0.5)))
+func attack_range() -> float: return (float(data.reach)+(level-1)*16)*(1.0+game.hero.mod("tower_range"))
 func upgrade() -> bool:
 	if level>=3 or destroyed or game.gold<upgrade_price():return false
 	game.gold-=upgrade_price();level+=1;refresh_art()
@@ -47,7 +52,7 @@ func upgrade() -> bool:
 	game.effect(position,65,Color("f4d28b"),"upgrade",0.55);game.audio.play("tower");game.hud.refresh_context();return true
 func sell() -> bool:
 	if destroyed:return false
-	destroyed=true;game.gold+=int(float(data.cost)*0.6+float(level-1)*data.cost*0.25)
+	destroyed=true;game.gold+=int((float(data.cost)*0.6+float(level-1)*data.cost*0.25)*(1.0+game.hero.mod("sell_bonus")))
 	for soldier in troops:
 		if is_instance_valid(soldier):game.blocking.release(soldier);game.soldiers.erase(soldier);soldier.queue_free()
 	game.towers.erase(self);game.rebuild_navigation();queue_free();game.hud.close_context();return true
@@ -63,8 +68,20 @@ func _physics_process(delta: float) -> void:
 	if attack_clock<=0:
 		var enemy: Node2D=game.tower_target(self)
 		if enemy!=null:
-			attack_clock=float(data.interval)/(1+0.14*(level-1))
+			var aura: float=game.hero.command_aura(position)
+			var speed_link:=1.05 if game.hero.has_link("armament","command") and aura>0 else 1.0
+			attack_clock=float(data.interval)/(1+0.14*(level-1))/(1.0+game.hero.mod("tower_speed"))/speed_link
 			var power: float=float(data.damage)*(1+0.6*(level-1))*game.support_scale(position)
+			if game.hero.mod("warcredit")>0:
+				power*=1.0+0.05*float(game.hero.warcredit_stacks())
+			if game.hero.mod("warmachine")>0:
+				if enemy==streak_target: streak_count+=1
+				else: streak_target=enemy;streak_count=1
+				power*=1.0+warmachine_bonus()
+			if game.hero.perk("armament")>0:
+				shot_count+=1
+				if shot_count>=armament_every(): shot_count=0;power*=1.5
+			power*=1.0+aura
 			if kind=="cannon":
 				game.delayed_attack(enemy.position,64+(level-1)*12,power,0,"tower",0.45,{"origin":position+Vector2(0,-45),"cannon":true})
 			else:
@@ -76,3 +93,5 @@ func _draw() -> void:
 	draw_set_transform(Vector2.ZERO,0,Vector2(1,0.38));draw_circle(Vector2.ZERO,35,Color(0.1,0.13,0.07,0.26));draw_set_transform(Vector2.ZERO)
 	if game.selected_site==site_id:
 		draw_arc(Vector2.ZERO,attack_range(),0,TAU,72,Color(data.colour,0.3),2,true)
+func armament_every() -> int: return 4 if game.hero.has_link("command","armament") else 5
+func warmachine_bonus() -> float: return 0.2*float(mini(2,int(streak_count/3)))

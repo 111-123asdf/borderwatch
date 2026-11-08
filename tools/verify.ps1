@@ -1,4 +1,4 @@
-﻿$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot 'godot_path.ps1')
 $enginePath = Resolve-GodotBinary $projectRoot
@@ -13,7 +13,7 @@ try {
     $jobs = @()
     $jobs += ,@('--headless','--editor','--path',$projectRoot,'--import','--quit')
     $names = @('import')
-    foreach ($test in @('v06_rules','v06_layout','v06_combat','v06_progression','v06_assets','v06_outcome')) {
+    foreach ($test in @('v06_rules','v06_layout','v06_combat','v06_progression','v06_assets','v06_outcome','v07_perks')) {
         $testArgs = @('--headless','--path',$projectRoot,'--script',"res://tests/$test.gd")
         if ($test -eq 'v06_outcome') { $testArgs += @('--fixed-fps','60') }
         $jobs += ,$testArgs

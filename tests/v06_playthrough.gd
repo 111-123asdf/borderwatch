@@ -30,7 +30,10 @@ func _process(delta: float) -> bool:
 	if stopping or game==null or not game.started:return false
 	timer+=delta
 	if game.choice_open:
-		var priorities: Array=["power","rapid","command","ultimate","small","vitality","focus","haste"]
+		var priorities: Array=[]
+		for card in ArenaPerks.CARDS:
+			var only:=str(card.get("hero",""))
+			if only=="" or only==hero_id: priorities.append(str(card.id))
 		for key in priorities:
 			if key in game.choices:game.choose_perk(key);release_and_hold();break
 		return false

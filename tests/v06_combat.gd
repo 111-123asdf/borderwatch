@@ -29,8 +29,9 @@ func run() -> void:
 		check(h.cast(1,h.position+Vector2.LEFT*150),"ultimate casts "+identity);h.release_action();h.cancel_action()
 		if identity=="knight":check(game.war_cry_clock>0,"warcry enhances nearby combat")
 		else:check(not game.delayed.is_empty(),"ranged ult schedules actual damage")
-		for key in ArenaDefinitions.PERKS:
-			for rank in range(3):check(h.apply_perk(key),"valid perk "+identity+" "+key)
+		for card in ArenaPerks.CARDS:
+			var key:=str(card.id)
+			for rank in range(int(card.max)):check(h.apply_perk(key),"valid perk "+identity+" "+key)
 			check(not h.apply_perk(key),"perk cap "+key)
 		h.meta_cooldown=0.1
 		check(is_equal_approx(h.cooldown_scale(),0.7),"CD reduction hard cap thirty percent")

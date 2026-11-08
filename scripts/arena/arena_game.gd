@@ -155,21 +155,28 @@ func site_tower(index: int) -> ArenaTower:
 	return null
 func build_tower(index: int,kind: String) -> bool:
 	if not running or game_over or index<0 or index>=level_definition.sites.size() or kind not in available_towers() or site_tower(index)!=null:return false
-	var cost: int=ArenaDefinitions.TOWERS[kind].cost
+	var cost: int=int(float(ArenaDefinitions.TOWERS[kind].cost)*(1.0-clampf(hero.mod("tower_cost")+(0.05 if hero.has_link("spoils","works") else 0.0),0.0,0.5)))
 	if gold<cost:return false
 	gold-=cost;var tower:=ArenaTower.new();tower.game=self;tower.kind=kind;tower.site_id=index;tower.position=level_definition.sites[index]
 	actors.add_child(tower);towers.append(tower);built+=1;rebuild_navigation();audio.play("tower");hud.refresh_context();return true
 func start_rest(duration: float) -> void:
-	phase="rest";phase_clock=duration;rest_duration=duration;wave_preview=false;rewarded=false
+	phase="rest";phase_clock=maxf(8.0,duration-hero.mod("rest_reduce"));rest_duration=phase_clock;wave_preview=false;rewarded=false
 	hud.announce_unlock()
 func request_wave() -> void:
 	if not running or game_over or phase!="rest" or get_tree().paused:return
 	if not wave_preview:wave_preview=true;return
-	if not rewarded:gold+=mini(12,int(floor(12.0*clampf(phase_clock/rest_duration,0,1))));rewarded=true
+	if not rewarded:
+		var early:=maxf(0.0,rest_duration-phase_clock)
+		var bonus:=12.0*(1.0+hero.mod("rest_bonus"))*clampf(phase_clock/rest_duration,0,1)
+		if hero.has_link("horn","spoils"): bonus+=3.0*floor(early/5.0)
+		if hero.has_link("spoils","horn"): bonus*=1.5
+		gold+=int(floor(bonus));rewarded=true
 	begin_wave()
 func begin_wave() -> void:
 	if phase!="rest":return
 	phase="spawn";wave_preview=false;spawn_queue.clear();spawn_clock=0;wave_elapsed=0
+	gold+=int(hero.mod("wave_gold"))
+	if hero.has_link("works","spoils"): gold+=5
 	var pattern:=ArenaLevelCatalog.wave(level_id,cycle)
 	var index:=0
 	for group in pattern.units:
@@ -203,7 +210,10 @@ func remove_enemy(enemy: ArenaEnemy) -> void:
 	enemy.dead=true;blocking.release_enemy(enemy);enemies.erase(enemy);enemy.queue_free()
 func enemy_defeated(enemy: ArenaEnemy) -> void:
 	blocking.release_enemy(enemy);enemies.erase(enemy);kills+=1
-	gold+=int(enemy.data.gold);hero.add_xp(int(enemy.data.xp))
+	gold+=int(enemy.data.gold)+int(hero.mod("gold_kill"));hero.add_xp(int(enemy.data.xp));hero.heal_on_kill()
+	if hero.mod("frostfire")>0 and enemy.burn_clock>0:
+		var radius:=60.0*(1.3 if hero.has_link("chain","burn") else 1.0)
+		area_damage(enemy.position,radius,60.0,1,"hero")
 	if enemy.is_guard:
 		camps[enemy.camp_id].remaining-=1
 		if int(camps[enemy.camp_id].remaining)<=0 and not camps[enemy.camp_id].cleared:
@@ -219,12 +229,11 @@ func core_hit(amount: float) -> void:
 	if core_health<=0:finish(false)
 func support_scale(point: Vector2) -> float:
 	var result:=1.0
-	if not hero.knocked_out and hero.position.distance_to(point)<240:result+=hero.perk("command")*0.1
-	if war_cry_clock>0 and point.distance_to(war_cry_position)<240:result+=0.3
+	if war_cry_clock>0 and point.distance_to(war_cry_position)<hero.war_cry_radius():result+=0.3+(0.15 if hero.mod("war_cry_bonus")>0 else 0.0)
 	return result
 func fire_projectile(origin: Vector2,target: Vector2,amount: float,kind: int,source: String,options: Dictionary={}) -> ArenaProjectile:
 	var shot:=ArenaProjectile.new();shot.game=self;shot.position=origin;shot.direction=(target-origin).normalized();shot.damage=amount;shot.damage_type=kind;shot.source=source
-	shot.speed=float(options.get("speed",590.0));shot.appearance=options.get("appearance","magic" if kind==1 else "arrow");shot.pierce=int(options.get("pierce",0));shot.expose=bool(options.get("expose",false));shot.target=options.get("target");shot.splash=float(options.get("splash",0))
+	shot.speed=float(options.get("speed",590.0));shot.appearance=options.get("appearance","magic" if kind==1 else "arrow");shot.pierce=int(options.get("pierce",0));shot.expose=bool(options.get("expose",false));shot.target=options.get("target");shot.splash=float(options.get("splash",0));shot.burn=float(options.get("burn",0))
 	shot.z_index=20;actors.add_child(shot)
 	if source=="enemy":shot.add_to_group("hostile_projectile")
 	return shot
@@ -249,13 +258,36 @@ func feedback(point: Vector2,damage: float,kind: int,kill: bool) -> void:
 func queue_choice() -> void:
 	choice_queue+=1
 	if not choice_open:_open_choice.call_deferred()
+func _card_available(key: String) -> bool:
+	var card: Dictionary=ArenaPerks.card(key)
+	if card.is_empty() or hero.perk(key)>=int(card.max): return false
+	var hero_only:=str(card.get("hero",""))
+	if hero_only!="" and hero_only!=hero.class_id: return false
+	if bool(card.get("evolution",false)):
+		var req: Dictionary=card.get("requires",{})
+		for req_key in req:
+			if hero.perk(str(req_key))<int(req[req_key]): return false
+	return true
+func _card_weight(key: String) -> float:
+	match str(ArenaPerks.card(key).get("rarity","common")):
+		"rare": return 2.0
+		"evo": return 6.0
+		_: return 3.0
 func _open_choice() -> void:
 	if choice_open or choice_queue<=0 or game_over:return
 	choices.clear()
-	var pool: Array=ArenaDefinitions.PERKS.keys()
+	var pool: Array=[]
+	for card in ArenaPerks.CARDS:
+		if _card_available(str(card.id)): pool.append(str(card.id))
 	while not pool.is_empty() and choices.size()<3:
-		var index:=rng.randi_range(0,pool.size()-1);var key: String=pool[index];pool.remove_at(index)
-		if hero.perk(key)<int(ArenaDefinitions.PERKS[key].max):choices.append(key)
+		var total:=0.0
+		for key in pool: total+=_card_weight(str(key))
+		var roll:=rng.randf()*total
+		var picked: String=str(pool[0])
+		for key in pool:
+			roll-=_card_weight(str(key))
+			if roll<=0: picked=str(key);break
+		choices.append(picked);pool.erase(picked)
 	if choices.is_empty():choice_queue=0;gold+=40;return
 	choice_open=true;get_tree().paused=true;hud.show_choices(choices)
 func choose_perk(key: String) -> bool:
