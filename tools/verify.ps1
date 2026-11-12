@@ -13,7 +13,7 @@ try {
     $jobs = @()
     $jobs += ,@('--headless','--editor','--path',$projectRoot,'--import','--quit')
     $names = @('import')
-    foreach ($test in @('v06_rules','v06_layout','v06_combat','v06_progression','v06_assets','v06_outcome','v07_perks')) {
+    foreach ($test in @('v06_rules','v06_layout','v06_combat','v06_progression','v06_assets','v06_outcome','v07_perks','v08_doctrines','v08_camp','v08_economy','v08_waves')) {
         $testArgs = @('--headless','--path',$projectRoot,'--script',"res://tests/$test.gd")
         if ($test -eq 'v06_outcome') { $testArgs += @('--fixed-fps','60') }
         $jobs += ,$testArgs
@@ -27,7 +27,9 @@ try {
         $code = $LASTEXITCODE
         $ErrorActionPreference = $previous
         $output | Set-Content -LiteralPath (Join-Path $logs ($names[$index] + '.log')) -Encoding utf8
-        $errors = $output | Where-Object { "$_" -match 'SCRIPT ERROR:|Parse Error|FAIL:|FAILURES: [1-9]|instances were leaked' -or "$_" -match '^ERROR:' }
+        # Godot prints a benign "Failed to read the root certificate store" warning on stderr
+        # in restricted Windows sessions; it is not produced by project code.
+        $errors = $output | Where-Object { "$_" -match 'SCRIPT ERROR:|Parse Error|FAIL:|FAILURES: [1-9]|instances were leaked' -or ("$_" -match '^ERROR:' -and "$_" -notmatch 'Failed to read the root certificate store') }
         if ($code -ne 0 -or $errors) { $output | Write-Output; throw "Verification failed: $($names[$index])" }
         $output | Select-String 'CHECKS' | Write-Output
     }

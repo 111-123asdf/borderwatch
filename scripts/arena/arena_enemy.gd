@@ -15,6 +15,11 @@ var home:=Vector2.ZERO
 var blocker: Node2D
 var stun:=0.0
 var slow:=0.0
+var slow_amount:=0.45
+var frost_stacks:=0
+var marked:=0.0
+var mark_bonus:=0.0
+var last_tower: Node2D
 var exposure:=0.0
 var melee_clock:=0.0
 var melee_windup:=0.0
@@ -31,17 +36,22 @@ var visual: ArenaCreature
 var radius:=19.0
 func _ready() -> void:
 	data=ArenaDefinitions.enemy(kind)
-	var scale_hp: float=1.0+0.11*maxi(0,game.cycle-1)
-	if is_guard:scale_hp=0.75
+	var scale_hp: float=1.0 if is_guard else 1.0+0.11*maxi(0,game.cycle-1)
 	max_health=float(data.health)*scale_hp*(1.65 if elite else 1.0);health=max_health
-	visual=ArenaCreature.new();add_child(visual);visual.configure(kind,{"fox":43.0,"brute":67.0,"wisp":49.0,"spearman":58.0,"spore":51.0,"moth":115.0}.get(kind,50.0))
+	visual=ArenaCreature.new();add_child(visual)
+	var look: String="brute" if kind=="captain" else kind
+	visual.configure(look,{"fox":43.0,"brute":67.0,"wisp":49.0,"spearman":58.0,"spore":51.0,"moth":115.0,"captain":82.0}.get(kind,50.0))
 	if kind=="moth":radius=40
+	if kind=="captain":radius=26
 	var information:=Control.new();information.position=Vector2(-25,-visual.base_height);information.size=Vector2(50,visual.base_height);information.mouse_filter=Control.MOUSE_FILTER_PASS
 	information.tooltip_text=data.name+" · "+ArenaCombat.label(data.type)+"\n物理抗性 "+str(int(float(data.armour)*100))+"%\n法术抗性 "+str(int(float(data.resistance)*100))+"%"
 	add_child(information)
 func center() -> Vector2:return position+Vector2(0,-radius)
 func block_weight() -> int:return maxi(int(data.capacity),2 if elite else 1)
-func damage_scale() -> float:return 1.0+0.06*maxi(0,game.cycle-1)
+func camp_aura() -> Dictionary:
+	return game.camp_aura(center()) if game.has_method("camp_aura") else {}
+func speed_scale() -> float:return 1.0+float(camp_aura().get("speed",0.0))
+func damage_scale() -> float:return (1.0+0.06*maxi(0,game.cycle-1))*(1.0+float(camp_aura().get("damage",0.0)))
 func _physics_process(delta: float) -> void:
 	if not game.running or game.game_over or dead:return
 	if burn_clock>0:
@@ -50,7 +60,7 @@ func _physics_process(delta: float) -> void:
 		burn_clock=maxf(0,burn_clock-delta)
 		if health<=0:
 			dead=true;game.enemy_defeated(self);return
-	stun=maxf(0,stun-delta);slow=maxf(0,slow-delta);exposure=maxf(0,exposure-delta);melee_clock=maxf(0,melee_clock-delta);ranged_clock=maxf(0,ranged_clock-delta);hurt_time=maxf(0,hurt_time-delta)
+	stun=maxf(0,stun-delta);slow=maxf(0,slow-delta);marked=maxf(0,marked-delta);exposure=maxf(0,exposure-delta);melee_clock=maxf(0,melee_clock-delta);ranged_clock=maxf(0,ranged_clock-delta);hurt_time=maxf(0,hurt_time-delta)
 	if stun>0:windup=0;melee_windup=0;melee_target=null;visual.pause();queue_redraw();return
 	if melee_windup>0:
 		melee_windup=maxf(0,melee_windup-delta)
@@ -63,18 +73,18 @@ func _physics_process(delta: float) -> void:
 		var target: Vector2=home
 		if not game.hero.knocked_out and game.hero.position.distance_to(home)<165:target=game.hero.position
 		var move: Vector2=target-position
-		if move.length()>27 and windup<=0 and melee_windup<=0:position+=move.normalized()*float(data.speed)*delta;facing=move.normalized();visual.show_pose("walk",facing);visual.match_stride(float(data.speed))
+		if move.length()>27 and windup<=0 and melee_windup<=0:position+=move.normalized()*float(data.speed)*speed_scale()*delta;facing=move.normalized();visual.show_pose("walk",facing);visual.match_stride(float(data.speed)*speed_scale())
 		if position.distance_to(game.hero.position)<38:melee(game.hero)
 	elif is_instance_valid(blocker) and blocker.can_block():
 		facing=(blocker.position-position).normalized();visual.show_pose("attack",facing);melee(blocker)
 	else:
 		blocker=null
 		if windup<=0 and melee_windup<=0:
-			var distance: float=float(data.speed)*(0.55 if slow>0 else 1.0)*delta
+			var distance: float=float(data.speed)*speed_scale()*(1.0-slow_amount if slow>0 else 1.0)*delta
 			progress+=distance
 			var road: Curve2D=game.routes[route_id]
 			if progress>=road.get_baked_length():
-				game.core_hit(game.core_max if kind=="moth" else (36 if kind=="brute" else 14));game.remove_enemy(self);return
+				game.core_hit(game.core_max if kind=="moth" else ArenaDefinitions.leak_damage(kind,elite));game.remove_enemy(self);return
 			var next: Vector2=road.sample_baked(progress,true)
 			facing=(next-position).normalized();position=next;visual.show_pose("walk",facing);visual.match_stride(distance/delta)
 	if not game.hero.knocked_out and position.distance_to(game.hero.position)<(610 if kind=="moth" else 350) and ranged_clock<=0 and kind in ["wisp","spearman","spore","moth"]:
@@ -103,16 +113,19 @@ func release_ranged() -> void:
 				game.fire_projectile(center(),center()+direction*600,float(data.damage)*damage_scale(),1,"enemy",{"speed":145.0})
 		_:
 			game.fire_projectile(center(),aim,float(data.damage)*damage_scale()*(1.25 if elite else 1.0),int(data.type),"enemy",{"speed":460.0 if kind=="spearman" else 175.0,"appearance":"spear" if kind=="spearman" else "magic"})
-func take_hit(amount: float,damage_type: int,source: String,stagger := 0.0,chill := 0.0) -> float:
+func take_hit(amount: float,damage_type: int,source: String,stagger := 0.0,chill_time := 0.0,pen_bonus := 0.0) -> float:
 	if dead:return 0
 	var low: bool=health<=max_health*game.hero.mod("execute_threshold")
-	var pen:=0.0
+	var pen:=pen_bonus
 	if source=="hero":
-		pen=game.hero.armor_pen()
+		pen+=game.hero.armor_pen()
 		if exposure>0 and game.hero.has_link("starlight","pierce"): pen+=0.10
-	var damage:=minf(health,ArenaCombat.resolve(amount,damage_type,float(data.armour),float(data.resistance),0.1 if exposure>0 else 0.0,pen))
+	var damage:=ArenaCombat.resolve(amount,damage_type,float(data.armour),float(data.resistance),0.1 if exposure>0 else 0.0,pen)
+	if marked>0:damage*=1.0+mark_bonus
+	damage=minf(health,damage)
 	health-=damage;hurt_time=0.12
-	if kind!="moth":stun=maxf(stun,stagger);slow=maxf(slow,chill)
+	if is_guard and damage>0:game.note_camp_engaged(camp_id)
+	if kind!="moth":stun=maxf(stun,stagger);slow=maxf(slow,chill_time)
 	game.damage_stats[source]=float(game.damage_stats.get(source,0))+damage
 	game.feedback(center(),damage,damage_type,health<=0)
 	if health<=0:
@@ -120,6 +133,17 @@ func take_hit(amount: float,damage_type: int,source: String,stagger := 0.0,chill
 		if source=="hero": game.hero.note_kill(low)
 		game.enemy_defeated(self)
 	return damage
+func apply_mark(time: float,bonus: float) -> void:
+	if dead:return
+	marked=maxf(marked,time);mark_bonus=maxf(mark_bonus,bonus)
+func chill(amount: float,time: float) -> void:
+	if dead:return
+	slow_amount=amount;slow=maxf(slow,time)
+func frost_hit(amount: float,time: float,stacks: int,freeze: float) -> void:
+	if dead:return
+	chill(amount,time);frost_stacks+=1
+	if frost_stacks>=maxi(stacks,1):
+		frost_stacks=0;stun=maxf(stun,freeze);game.effect(center(),24,Color("bfe6ff"),"hit",0.32)
 func push_back(amount: float) -> void:
 	if kind=="moth" or is_guard:return
 	progress=maxf(0,progress-amount);position=game.routes[route_id].sample_baked(progress,true)
@@ -138,5 +162,6 @@ func _draw() -> void:
 	if health<max_health:
 		draw_rect(Rect2(-18,-visual.base_height-5,36,3),Color("25372b"));draw_rect(Rect2(-18,-visual.base_height-5,36*health/max_health,3),Color("ce8274"))
 	if elite:draw_arc(Vector2(0,-visual.base_height),7,PI,TAU,12,Color("f6cc79"),2)
+	if marked>0:draw_arc(Vector2(0,-visual.base_height*0.45),radius+7,0,TAU,28,Color(0.86,0.95,0.72,0.45),2,true)
 	if windup>0 and kind=="spearman":draw_line(Vector2(0,-20),aim-position,Color(1,0.55,0.22,0.75),2,true)
 	if windup>0 and kind=="moth":draw_arc(Vector2(0,-35),56,0,TAU,32,Color(1,0.4,0.45,0.6),3,true)

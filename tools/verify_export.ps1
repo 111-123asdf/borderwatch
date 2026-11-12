@@ -37,7 +37,9 @@ try {
         $ErrorActionPreference=$previous
         $logName='export-'+$name+('-'+($job[1] -join '-')).Replace('--','').Replace('=','-')+'.log'
         $output | Set-Content -LiteralPath (Join-Path $projectRoot ('test-results\'+$logName)) -Encoding utf8
-        if($code -ne 0 -or ($output -match 'SCRIPT ERROR:|^ERROR:|FAILURES: [1-9]|FAIL:|instances were leaked')) {$output | Write-Output;throw ('Export validation failed: '+$name)}
+        # Ignore only the OS certificate-store warning; game and script errors still fail.
+        $errors=$output | Where-Object { "$_" -match 'SCRIPT ERROR:|Parse Error|FAILURES: [1-9]|FAIL:|instances were leaked' -or ("$_" -match '^ERROR:' -and "$_" -notmatch 'Failed to read the root certificate store') }
+        if($code -ne 0 -or $errors) {$output | Write-Output;throw ('Export validation failed: '+$name)}
         foreach($line in $output) {if("$line" -match 'CHECKS|NORMAL '){Write-Output "$line"}}
     }
 } finally {

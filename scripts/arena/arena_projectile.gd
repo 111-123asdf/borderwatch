@@ -13,6 +13,15 @@ var pierce:=0
 var expose:=false
 var splash:=0.0
 var burn:=0.0
+var pen:=0.0
+var mark:=0.0
+var mark_bonus:=0.0
+var slow_amount:=0.0
+var slow_time:=0.0
+var freeze_stacks:=0
+var freeze_time:=0.0
+var knockback:=0.0
+var tower: Node2D
 var target: Node2D
 var hit_ids: Dictionary={}
 var trail: Array[Vector2]=[]
@@ -32,8 +41,14 @@ func _physics_process(delta: float) -> void:
 			if not is_instance_valid(enemy) or enemy.dead or hit_ids.has(enemy.get_instance_id()):continue
 			if Geometry2D.get_closest_point_to_segment(enemy.center(),old,position).distance_to(enemy.center())>enemy.radius+5:continue
 			hit_ids[enemy.get_instance_id()]=true
-			if splash>0:game.area_damage(enemy.position,splash,damage,damage_type,source)
-			else:enemy.take_hit(damage,damage_type,source)
+			if is_instance_valid(tower) and not enemy.dead:enemy.last_tower=tower
+			if splash>0:game.area_damage(enemy.position,splash,damage,damage_type,source,0.0,0.0,pen,knockback)
+			else:enemy.take_hit(damage,damage_type,source,0.0,0.0,pen)
+			if is_instance_valid(enemy) and not enemy.dead:
+				if mark>0:enemy.apply_mark(mark,mark_bonus)
+				if freeze_stacks>0:enemy.frost_hit(slow_amount,slow_time,freeze_stacks,freeze_time)
+				elif slow_amount>0:enemy.chill(slow_amount,slow_time)
+				if knockback>0 and splash<=0:enemy.push_back(knockback)
 			if pierce>0 and source=="hero": game.hero.note_pierce_hit()
 			if burn>0:enemy.ignite(burn,3.0)
 			if expose and is_instance_valid(enemy) and not enemy.dead:enemy.exposure=2.0

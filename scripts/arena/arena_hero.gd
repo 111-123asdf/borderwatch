@@ -391,6 +391,7 @@ func take_hit(amount: float, damage_type: int, melee := false) -> float:
 	var absorbed:=minf(overheal_shield,incoming);overheal_shield-=absorbed
 	var taken:=incoming
 	health-=(incoming-absorbed);combat_delay=5;hurt_time=0.24
+	if incoming-absorbed>0 and game.has_method("note_hero_damage"):game.note_hero_damage(incoming-absorbed,position)
 	if melee and mod("reflect")>0:
 		var reflect:=mod("reflect")
 		if has_link("ironwall","reflect"): reflect*=1.5

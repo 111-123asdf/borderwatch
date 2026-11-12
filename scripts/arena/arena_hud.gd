@@ -16,6 +16,9 @@ var coins: Label
 var wave_label: Label
 var hero_level: Label
 var revival: Label
+var tokens: Label
+var token_glyph: ArenaGlyph
+var debuff: Label
 var unlock_hint: Panel
 var unlock_clock:=0.0
 var skills: Array[Button]=[]
@@ -122,6 +125,8 @@ func show_battle() -> void:
 	hero_health=meter(bar,Rect2(84,22,180,13),Color("d87d73"));experience=meter(bar,Rect2(84,58,180,5),Color("c6d899"));hero_level=label(bar,"1",Rect2(271,20,40,32),21,GOLD)
 	icon(bar,"heart",Rect2(84,38,15,15),Color("d87d73"));revival=label(bar,"",Rect2(27,25,55,35),24,GOLD)
 	icon(bar,"coin",Rect2(315,23,36,36));coins=label(bar,str(game.gold),Rect2(356,25,96,32),24,GOLD)
+	token_glyph=icon(bar,"upgrade",Rect2(622,25,30,34));tokens=label(bar,"",Rect2(658,27,110,32),20,GOLD)
+	debuff=label(bar,"",Rect2(980,28,205,30),20,Color("e7a28a"))
 	for slot in range(2):
 		var b:=button(bar,"",Rect2(465+slot*78,10,64,64),game.request_skill.bind(slot));b.name="Skill_"+str(slot);skills.append(b)
 		var kind: String={"knight":["physical","flag"],"ranger":["move","rain"],"mage":["frost","meteor"]}[game.hero.class_id][slot]
@@ -132,7 +137,7 @@ func show_battle() -> void:
 	wave_glyph=icon(wave_button,"wave",Rect2(12,10,36,36));wave_label=label(bar,"1 / 8",Rect2(850,24,130,36),23)
 	icon(bar,"core",Rect2(1195,22,34,40),Color("9de0cf"));core_health=meter(bar,Rect2(1240,29,225,13),Color("96c8a0"))
 	var pause:=button(bar,"Ⅱ",Rect2(1516,18,55,50),show_pause);pause.name="Pause"
-	preview=Panel.new();preview.position=Vector2(665,98);preview.size=Vector2(320,75);panel_style(preview);preview.hide();root.add_child(preview)
+	preview=Panel.new();preview.position=Vector2(665,98);preview.size=Vector2(320,104);panel_style(preview);preview.hide();root.add_child(preview)
 	root.move_child(context,root.get_child_count()-1)
 func show_context(index: int) -> void:
 	game.selected_site=index;refresh_context()
@@ -142,10 +147,19 @@ func refresh_context() -> void:
 	if game.selected_site<0:return
 	clear_children(context);context.show()
 	var tower: ArenaTower=game.site_tower(game.selected_site)
-	context.size=Vector2(365,165) if tower==null else Vector2(300,225)
+	if tower!=null and tower.awaiting_doctrine:
+		doctrine_context(tower);return
+	var locked:=tower==null and game.site_locked(game.selected_site)
+	context.size=Vector2(320,170) if locked else (Vector2(365,165) if tower==null else Vector2(300,225))
 	var point: Vector2=game.level_definition.sites[game.selected_site]
 	context.position=Vector2(clampf(point.x-context.size.x*0.5,12,1600-context.size.x-12),clampf(point.y+38,100,900-context.size.y-15))
-	if tower==null:
+	if locked:
+		var price:=game.unlock_price(game.selected_site)
+		label(context,"锁定塔位",Rect2(15,10,280,30),20,GOLD)
+		var unlock:=button(context,"解锁    %d  ◉"%price,Rect2(15,48,290,48),game.unlock_site.bind(game.selected_site));unlock.name="UnlockSite";unlock.disabled=game.gold<price
+		label(context,"本图仅 1 个额外火力点",Rect2(15,104,290,26),14,MUTED)
+		label(context,"解锁后可正常建造或出售",Rect2(15,128,290,26),14,MUTED)
+	elif tower==null:
 		label(context,"建造",Rect2(15,8,250,28),19,GOLD)
 		for column in range(4):
 			var key: String=ArenaDefinitions.TOWER_IDS[column];var data: Dictionary=ArenaDefinitions.TOWERS[key]
@@ -153,20 +167,47 @@ func refresh_context() -> void:
 			image(b,tower_image(key),Rect2(4,1,70,70));icon(b,"coin",Rect2(11,78,18,18));label(b,str(data.cost),Rect2(33,77,40,22),16,GOLD)
 			b.tooltip_text=data.name+" · "+ArenaCombat.label(data.type)+"\n"+data.description+("\n第"+str(game.level_definition.towers[key])+"波开放" if key not in game.available_towers() else "")
 	else:
+		var subtitle:=str(tower.data.description)
+		if tower.doctrine_id!="":
+			var entry: Dictionary=ArenaDoctrines.by_id(tower.doctrine_id)
+			subtitle=str(entry.name)+" · "+str(entry.role)
 		label(context,str(tower.data.name)+"  "+str(tower.level)+"/3",Rect2(17,10,260,32),21,GOLD)
-		icon(context,"physical" if tower.data.type==0 else "magic",Rect2(18,49,23,23),ArenaCombat.colour(tower.data.type));label(context,ArenaCombat.label(tower.data.type)+" · "+tower.data.description,Rect2(50,47,245,28),15,MUTED)
-		var up:=button(context,"↑    "+str(tower.upgrade_price())+"  ◉" if tower.level<3 else "已满级",Rect2(15,87,268,45),tower.upgrade)
-		up.name="Upgrade";up.disabled=tower.level>=3 or game.gold<tower.upgrade_price()
+		icon(context,"physical" if tower.data.type==0 else "magic",Rect2(18,49,23,23),ArenaCombat.colour(tower.data.type));label(context,ArenaCombat.label(tower.data.type)+" · "+subtitle,Rect2(50,47,245,28),15,MUTED)
+		var price:=tower.upgrade_price();var token:=game.doctrine_tokens>0 and tower.level==2
+		var caption: String="免费 L3 改造（剩 %d）"%game.doctrine_tokens if token else ("↑    %d  ◉"%price if tower.level<3 else "已满级")
+		var up:=button(context,caption,Rect2(15,87,268,45),tower.upgrade.bind("",true) if token else tower.upgrade)
+		up.name="Upgrade";up.disabled=tower.level>=3 or (not token and game.gold<price)
 		var target:=button(context,"⚑" if tower.kind=="barracks" else "◎",Rect2(15,148,76,44),_rally if tower.kind=="barracks" else _target);target.tooltip_text="调整集结点" if tower.kind=="barracks" else "切换优先目标"
 		button(context,"出售",Rect2(105,148,80,44),tower.sell)
 		button(context,"×",Rect2(205,148,78,44),close_context)
+func doctrine_context(tower: ArenaTower) -> void:
+	var options: Array=ArenaDoctrines.for_tower(tower.kind)
+	context.size=Vector2(500,304)
+	var point: Vector2=game.level_definition.sites[tower.site_id]
+	context.position=Vector2(clampf(point.x-context.size.x*0.5,12,1600-context.size.x-12),clampf(point.y+38,100,900-context.size.y-15))
+	label(context,"L3 改造 · 三选一",Rect2(15,7,300,30),20,GOLD)
+	label(context,"选择后永久生效，不随机、不重掷",Rect2(250,12,238,22),12,MUTED)
+	for index in range(options.size()):
+		var entry: Dictionary=options[index]
+		var card:=button(context,"",Rect2(12+index*162,42,150,246),game.choose_doctrine.bind(tower.site_id,str(entry.id)))
+		card.name="Doctrine_"+str(entry.id)
+		label(card,str(entry.name),Rect2(10,8,130,30),19,GOLD)
+		label(card,str(entry.role),Rect2(10,38,130,22),12,Color("9fc7b3"))
+		var body:=label(card,str(entry.summary),Rect2(10,64,130,120),13,CREAM)
+		body.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+		label(card,"代价："+str(entry.drawback),Rect2(10,188,130,46),12,Color("e7a28a"))
 func _build(key: String) -> void:
 	if game.build_tower(game.selected_site,key):refresh_context()
 func _rally() -> void:game.rally_site=game.selected_site;close_context()
 func _target() -> void:
 	var tower:=game.site_tower(game.selected_site)
-	if tower!=null:tower.target_mode="strongest" if tower.target_mode=="first" else "first";refresh_context()
+	if tower!=null and tower.forced_target()=="":
+		tower.target_mode="strongest" if tower.target_mode=="first" else "first";refresh_context()
 func close_context() -> void:context.hide();game.selected_site=-1
+func refresh_tokens() -> void:
+	if not is_instance_valid(tokens):return
+	tokens.text="改造 "+str(game.doctrine_tokens) if game.doctrine_tokens>0 else ""
+	if is_instance_valid(token_glyph):token_glyph.modulate.a=1.0 if game.doctrine_tokens>0 else 0.25
 func announce_unlock() -> void:
 	if not game.started:return
 	var unlocked: Array=[]
@@ -214,8 +255,26 @@ func show_choices(keys: Array[String]) -> void:
 		if not peers.is_empty():
 			var link_colour:=Color("9fc7b3") if game.hero.perk(key)>0 else MUTED
 			label(b,"联动：%s" % "、".join(peers),Rect2(24,230,262,24),11,link_colour)
+func show_camp_reward(id: int) -> void:
+	close_context();get_tree().paused=true
+	var panel:=modal_panel(Vector2(1080,470))
+	label(panel,"营地已清 · 三选一",Rect2(380,24,420,50),30,GOLD)
+	label(panel,"不自动给金币或英雄卡，选一项带走",Rect2(400,74,400,26),15,MUTED)
+	var l2:=game.l2_count()
+	var options: Array=[
+		{"key":"hero","title":"英雄","body":"获得一次英雄成长三选一。\n保持 40 张卡池与即时选择。","foot":"英雄等级 "+str(game.hero.level)},
+		{"key":"token","title":"防御","body":"获得 1 枚免费 L3 改造 token，可保存。\n任意 L2 塔升级时免费使用。","foot":"当前 L2 塔 "+str(l2)+" 座"+("" if l2>0 else " · 可留到之后使用")},
+		{"key":"gold","title":"经济","body":"立即获得 100 金币。\n可建造、升级或留作 L3。","foot":"当前金币 "+str(game.gold)}]
+	for index in range(options.size()):
+		var option: Dictionary=options[index]
+		var card:=button(panel,"",Rect2(40+index*340,108,320,310),game.choose_camp_reward.bind(id,str(option.key)))
+		card.name="CampReward_"+str(option.key)
+		label(card,str(option.title),Rect2(22,16,276,42),26,GOLD)
+		var body:=label(card,str(option.body),Rect2(22,74,276,160),16,CREAM)
+		body.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+		label(card,str(option.foot),Rect2(22,250,276,40),14,Color("9fc7b3"))
 func show_pause() -> void:
-	if game.choice_open or game.game_over:return
+	if game.choice_open or game.camp_reward_open or game.game_over:return
 	if has_modal():resume();return
 	get_tree().paused=true;close_context();game.targeting_slot=-1;game.rally_site=-1
 	var panel:=modal_panel(Vector2(760,510));label(panel,"守望手册",Rect2(280,27,450,50),32,GOLD)
@@ -255,6 +314,12 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 		return
 	if not game.started:return
+	if game.camp_reward_open:
+		if event.keycode in [KEY_1,KEY_2,KEY_3]:
+			var keys:=["hero","token","gold"]
+			game.choose_camp_reward(game.open_camp_id,keys[event.keycode-KEY_1])
+		get_viewport().set_input_as_handled()
+		return
 	if event.keycode==KEY_H or (event.keycode==KEY_ESCAPE and has_modal() and not game.game_over):
 		if has_modal():resume()
 		else:show_pause()
@@ -271,6 +336,8 @@ func _process(delta: float) -> void:
 	experience.max_value=h.xp_target;experience.value=h.xp;hero_level.text=str(h.level)
 	core_health.max_value=game.core_max;core_health.value=game.core_health;core_health.tooltip_text=str(int(game.core_health))+" / "+str(int(game.core_max))
 	coins.text=str(game.gold);revival.text=str(int(ceil(h.revive_clock))) if h.knocked_out else "";hero_badge.modulate=Color(0.6,0.6,0.6) if h.knocked_out else Color.WHITE
+	refresh_tokens();var siege:=game.overdue_camps()
+	debuff.text=("图腾压制 ×%d"%siege) if siege>0 else ""
 	for slot in range(2):
 		skills[slot].disabled=h.knocked_out or h.cooldowns[slot]>0 or game.game_over
 		skills[slot].text=str(int(ceil(h.cooldowns[slot]))) if h.cooldowns[slot]>0 else ""
@@ -289,3 +356,5 @@ func _process(delta: float) -> void:
 				var path: String="res://assets/v06/creature_"+pool[index]+".png"
 				if ResourceLoader.exists(path):
 					var sheet: Texture2D=load(path);var frame:=AtlasTexture.new();frame.atlas=sheet;frame.region=Rect2(0,0,sheet.get_width()/6.0,sheet.get_height()/3.0);image(preview,frame,Rect2(8+index*61,5,58,62))
+			var profile:=ArenaLevelCatalog.wave_profile(game.level_id,game.cycle)
+			label(preview,"重甲 %d%% · 高法抗 %d%% · 精英 %d" % [int(round(profile.heavy*100.0)),int(round(profile.high_res*100.0)),int(profile.elites)],Rect2(10,72,300,26),14,MUTED)

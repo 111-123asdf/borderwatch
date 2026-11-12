@@ -12,9 +12,11 @@ var enemies: Array=[]
 var towers: Array=[]
 var soldiers: Array=[]
 var camps: Array=[]
+var unlocked_sites: Array=[]
 var corpses: Array=[]
 var effects: Array=[]
 var delayed: Array=[]
+var zones: Array=[]
 var numbers: Array=[]
 var audio: ArenaAudio
 var hud: ArenaHUD
@@ -40,6 +42,7 @@ var spawn_queue: Array=[]
 var spawn_clock:=0.0
 var wave_elapsed:=0.0
 var selected_site:=-1
+var pending_doctrine_site:=-1
 var targeting_slot:=-1
 var rally_site:=-1
 var suppress_primary:=false
@@ -51,6 +54,13 @@ var war_cry_position:=Vector2.ZERO
 var kills:=0
 var built:=0
 var camps_cleared:=0
+var doctrine_tokens:=0
+var wave_started_at:=0.0
+var wave_kills:=0
+var wave_log: Array=[]
+var camp_reward_open:=false
+var open_camp_id:=-1
+var pending_camp_rewards: Array=[]
 var elapsed:=0.0
 var growth_reward:=0
 var damage_stats: Dictionary={"hero":0.0,"tower":0.0,"soldier":0.0}
@@ -81,7 +91,7 @@ func _input_map() -> void:
 	if not InputMap.action_has_event("shoot",event):InputMap.action_add_event("shoot",event)
 func start_run(hero_id: String,stage: String) -> void:
 	if started or hero_id not in ArenaDefinitions.HERO_IDS or stage not in ArenaLevelCatalog.IDS:return
-	level_id=stage;level_definition=ArenaLevelCatalog.definition(stage);routes.clear()
+	level_id=stage;level_definition=ArenaLevelCatalog.definition(stage);routes.clear();zones.clear();pending_doctrine_site=-1
 	for points in level_definition.routes:routes.append(ArenaLevelCatalog.curve(points))
 	var floor_path: String="res://assets/v06/map_"+level_id+".png"
 	if ResourceLoader.exists(floor_path):
@@ -92,11 +102,8 @@ func start_run(hero_id: String,stage: String) -> void:
 	hero=ArenaHero.new();hero.game=self;hero.position=level_definition.hero_spawn;actors.add_child(hero);hero.configure(hero_id)
 	started=true;running=true
 	for index in range(level_definition.camps.size()):
-		var point: Vector2=level_definition.camps[index]
-		camps.append({"point":point,"remaining":3,"cleared":false})
-		for unit in range(3):
-			var enemy:=ArenaEnemy.new();enemy.game=self;enemy.kind="fox" if unit<2 else "wisp";enemy.is_guard=true;enemy.camp_id=index;enemy.home=point+Vector2.RIGHT.rotated(unit*TAU/3)*35;enemy.position=enemy.home
-			actors.add_child(enemy);enemies.append(enemy)
+		var camp:=ArenaCamp.new();camp.game=self;camp.id=index;camp.point=level_definition.camps[index]
+		camps.append(camp)
 	rebuild_navigation();start_rest(20);hud.show_battle();queue_redraw()
 func _collision(rect: Rect2) -> void:
 	var body:=StaticBody2D.new();body.position=rect.get_center();body.collision_layer=1;body.collision_mask=2
@@ -153,12 +160,79 @@ func site_tower(index: int) -> ArenaTower:
 	for tower in towers:
 		if is_instance_valid(tower) and not tower.destroyed and tower.site_id==index:return tower
 	return null
+func site_locked(index: int) -> bool:
+	var locked: Array=level_definition.get("locked_sites",[])
+	return index in locked and index not in unlocked_sites
+func unlock_price(_index: int) -> int: return int(level_definition.get("locked_site_price",200))
+func unlock_site(index: int) -> bool:
+	if not running or game_over or not site_locked(index):return false
+	var price:=unlock_price(index)
+	if gold<price:return false
+	gold-=price;unlocked_sites.append(index)
+	effect(level_definition.sites[index],60,Color("f4d28b"),"upgrade",0.6);audio.play("tower")
+	if is_instance_valid(hud):hud.refresh_context()
+	return true
 func build_tower(index: int,kind: String) -> bool:
-	if not running or game_over or index<0 or index>=level_definition.sites.size() or kind not in available_towers() or site_tower(index)!=null:return false
+	if not running or game_over or index<0 or index>=level_definition.sites.size() or kind not in available_towers() or site_tower(index)!=null or site_locked(index):return false
 	var cost: int=int(float(ArenaDefinitions.TOWERS[kind].cost)*(1.0-clampf(hero.mod("tower_cost")+(0.05 if hero.has_link("spoils","works") else 0.0),0.0,0.5)))
 	if gold<cost:return false
 	gold-=cost;var tower:=ArenaTower.new();tower.game=self;tower.kind=kind;tower.site_id=index;tower.position=level_definition.sites[index]
 	actors.add_child(tower);towers.append(tower);built+=1;rebuild_navigation();audio.play("tower");hud.refresh_context();return true
+func note_camp_engaged(id: int) -> void:
+	if id>=0 and id<camps.size():camps[id].engage()
+func note_hero_damage(amount: float,at: Vector2) -> void:
+	for camp in camps:
+		if camp.state=="active" and not camp.cleared() and camp.point.distance_to(at)<=260.0:camp.hero_damage+=amount
+func telemetry() -> Dictionary:
+	var camps_data: Array=[]
+	for camp in camps:camps_data.append({"id":camp.id,"state":camp.state,"time":camp.clear_time(),"wait":camp.engage_time(),"damage":camp.hero_damage})
+	return {"camps":camps_data,"waves":wave_log.duplicate(true)}
+func camp_aura(point: Vector2) -> Dictionary:
+	for camp in camps:
+		if camp.covers(point):return {"speed":camp.enemy_speed,"damage":camp.enemy_damage}
+	return {}
+func overdue_camps() -> int:
+	var total:=0
+	for camp in camps:
+		if camp.overdue and not camp.cleared():total+=1
+	return total
+func l2_count() -> int:
+	var total:=0
+	for tower in towers:
+		if is_instance_valid(tower) and not tower.destroyed and tower.level==2:total+=1
+	return total
+func _camp_raid(camp: ArenaCamp) -> void:
+	var road: Dictionary=nearest_road(camp.point)
+	var length: float=routes[road.route].get_baked_length()
+	var start: float=minf(float(road.progress),length*0.6)
+	effect(camp.point,80,Color("e08a5a"),"blast",0.7)
+	for index in range(3):spawn_enemy("fox",int(road.route),maxf(0.0,start-24.0-index*14.0))
+func queue_camp_reward(id: int) -> void:
+	pending_camp_rewards.append(id)
+	_pump_modals.call_deferred()
+func pump_modals() -> void:_pump_modals.call_deferred()
+func _pump_modals() -> void:
+	if game_over or choice_open or camp_reward_open:return
+	if not pending_camp_rewards.is_empty():
+		open_camp_id=int(pending_camp_rewards.pop_front());camp_reward_open=true
+		get_tree().paused=true;hud.show_camp_reward(open_camp_id)
+	elif choice_queue>0:_open_choice()
+func choose_camp_reward(id: int,kind: String) -> bool:
+	if not camp_reward_open or id!=open_camp_id or kind not in ["hero","token","gold"]:return false
+	camp_reward_open=false;get_tree().paused=false;hud.close_modal();suppress_primary=true
+	match kind:
+		"hero":queue_choice()
+		"token":doctrine_tokens+=1
+		"gold":gold+=100
+	if is_instance_valid(hud):hud.refresh_tokens()
+	_pump_modals.call_deferred()
+	return true
+func choose_doctrine(site: int,id: String) -> bool:
+	var tower:=site_tower(site)
+	if tower==null or not tower.choose_doctrine(id):return false
+	pending_doctrine_site=-1
+	if is_instance_valid(hud):hud.refresh_context()
+	return true
 func start_rest(duration: float) -> void:
 	phase="rest";phase_clock=maxf(8.0,duration-hero.mod("rest_reduce"));rest_duration=phase_clock;wave_preview=false;rewarded=false
 	hud.announce_unlock()
@@ -179,14 +253,20 @@ func begin_wave() -> void:
 	if hero.has_link("works","spoils"): gold+=5
 	var pattern:=ArenaLevelCatalog.wave(level_id,cycle)
 	var index:=0
+	wave_started_at=elapsed;wave_kills=0
 	for group in pattern.units:
-		for unit in range(group[1]):
+		var amount:=int(group[1]);var elite_count:=int(group[2]) if group.size()>2 else 0
+		for unit in range(amount):
 			var lane:=0
 			if routes.size()>1:lane=index%2 if pattern.lead<0 else (int(pattern.lead) if index%4<3 else 1-int(pattern.lead))
 			var at: float=index*(0.68 if cycle<4 else 0.5)+(4.5 if level_id=="creek" and cycle==1 and lane==1 else 0.0)
-			spawn_queue.append({"kind":group[0],"route":lane,"elite":cycle>=4 and index%9==8,"at":at});index+=1
+			spawn_queue.append({"kind":group[0],"route":lane,"elite":unit>=amount-elite_count,"at":at});index+=1
 	if bool(level_definition.boss) and cycle==8:spawn_queue.append({"kind":"moth","route":0,"elite":false,"at":index*0.5+2})
 	spawn_queue.sort_custom(func(a,b):return a.at<b.at)
+	for camp in camps:
+		camp.activate(cycle)
+		if cycle>=ArenaCamp.DEADLINE_WAVE:camp.overdue=true
+		if camp.needs_raid(cycle):camp.raid_sent=true;_camp_raid(camp)
 func spawn_enemy(kind: String,lane: int,offset := 0.0,elite := false) -> ArenaEnemy:
 	if lane<0 or lane>=routes.size():return null
 	var enemy:=ArenaEnemy.new();enemy.game=self;enemy.kind=kind;enemy.route_id=lane;enemy.progress=offset;enemy.elite=elite;enemy.position=routes[lane].sample_baked(offset,true)
@@ -209,15 +289,21 @@ func tower_target(tower: ArenaTower) -> ArenaEnemy:
 func remove_enemy(enemy: ArenaEnemy) -> void:
 	enemy.dead=true;blocking.release_enemy(enemy);enemies.erase(enemy);enemy.queue_free()
 func enemy_defeated(enemy: ArenaEnemy) -> void:
-	blocking.release_enemy(enemy);enemies.erase(enemy);kills+=1
+	blocking.release_enemy(enemy);enemies.erase(enemy);kills+=1;wave_kills+=1
 	gold+=int(enemy.data.gold)+int(hero.mod("gold_kill"));hero.add_xp(int(enemy.data.xp));hero.heal_on_kill()
 	if hero.mod("frostfire")>0 and enemy.burn_clock>0:
 		var radius:=60.0*(1.3 if hero.has_link("chain","burn") else 1.0)
 		area_damage(enemy.position,radius,60.0,1,"hero")
+	var killer:=enemy.last_tower as ArenaTower
+	if is_instance_valid(killer) and not killer.destroyed and killer.doc_mod("explode_radius")>0.0:
+		area_damage(enemy.position,killer.doc_mod("explode_radius"),killer.base_power()*killer.doc_mod("explode_mult",1.0),int(killer.data.type),"tower")
 	if enemy.is_guard:
-		camps[enemy.camp_id].remaining-=1
-		if int(camps[enemy.camp_id].remaining)<=0 and not camps[enemy.camp_id].cleared:
-			camps[enemy.camp_id].cleared=true;camps_cleared+=1;gold+=60;queue_choice();effect(camps[enemy.camp_id].point,65,Color("f6d68d"),"upgrade",0.9)
+		var camp: ArenaCamp=camps[enemy.camp_id]
+		camp.on_guard_down()
+		if camp.remaining<=0 and not camp.cleared():
+			camp.state="cleared";camp.cleared_at=elapsed;camps_cleared+=1
+			effect(camp.point,65,Color("f6d68d"),"upgrade",0.9)
+			queue_camp_reward(camp.id)
 	if kind_has_visual(enemy):
 		var ghost: ArenaCreature=enemy.visual;ghost.reparent(actors,true);ghost.show_pose("down",enemy.facing);corpses.append({"node":ghost,"life":0.65})
 	enemy.queue_free()
@@ -234,6 +320,10 @@ func support_scale(point: Vector2) -> float:
 func fire_projectile(origin: Vector2,target: Vector2,amount: float,kind: int,source: String,options: Dictionary={}) -> ArenaProjectile:
 	var shot:=ArenaProjectile.new();shot.game=self;shot.position=origin;shot.direction=(target-origin).normalized();shot.damage=amount;shot.damage_type=kind;shot.source=source
 	shot.speed=float(options.get("speed",590.0));shot.appearance=options.get("appearance","magic" if kind==1 else "arrow");shot.pierce=int(options.get("pierce",0));shot.expose=bool(options.get("expose",false));shot.target=options.get("target");shot.splash=float(options.get("splash",0));shot.burn=float(options.get("burn",0))
+	shot.pen=float(options.get("pen",0));shot.mark=float(options.get("mark",0));shot.mark_bonus=float(options.get("mark_bonus",0))
+	shot.slow_amount=float(options.get("slow_amount",0));shot.slow_time=float(options.get("slow_time",0))
+	shot.freeze_stacks=int(options.get("freeze_stacks",0));shot.freeze_time=float(options.get("freeze_time",0))
+	shot.knockback=float(options.get("knockback",0));shot.tower=options.get("tower")
 	shot.z_index=20;actors.add_child(shot)
 	if source=="enemy":shot.add_to_group("hostile_projectile")
 	return shot
@@ -242,11 +332,15 @@ func cone_damage(point: Vector2,direction: Vector2,radius: float,amount: float,k
 		if not is_instance_valid(enemy) or enemy.dead:continue
 		var offset: Vector2=enemy.position-point
 		if offset.length()<radius and (offset.length()<25 or offset.normalized().dot(direction)>0.3):enemy.take_hit(amount,kind,source,stagger);enemy.push_back(6 if stagger>0 else 0)
-func area_damage(point: Vector2,radius: float,amount: float,kind: int,source: String,stagger:=0.0,chill:=0.0) -> void:
+func area_damage(point: Vector2,radius: float,amount: float,kind: int,source: String,stagger:=0.0,chill:=0.0,pen:=0.0,knockback:=0.0) -> void:
 	for enemy in enemies.duplicate():
-		if is_instance_valid(enemy) and not enemy.dead and enemy.position.distance_to(point)<=radius:enemy.take_hit(amount,kind,source,stagger,chill)
+		if is_instance_valid(enemy) and not enemy.dead and enemy.position.distance_to(point)<=radius:
+			enemy.take_hit(amount,kind,source,stagger,chill,pen)
+			if knockback>0:enemy.push_back(knockback)
 func delayed_attack(point: Vector2,radius: float,amount: float,kind: int,source: String,delay: float,options: Dictionary={}) -> void:
 	delayed.append({"point":point,"radius":radius,"damage":amount,"type":kind,"source":source,"life":delay,"duration":delay,"options":options})
+func add_zone(point: Vector2,radius: float,dps: float,duration: float,kind: int,source: String) -> void:
+	zones.append({"point":point,"radius":radius,"dps":dps,"life":duration,"duration":duration,"tick":0.0,"type":kind,"source":source})
 func effect(point: Vector2,radius: float,colour: Color,kind: String,duration: float,direction:=Vector2.RIGHT) -> void:
 	if effects.size()>90:effects.pop_front()
 	effects.append({"point":point,"radius":radius,"colour":colour,"kind":kind,"life":duration,"duration":duration,"direction":direction})
@@ -257,7 +351,7 @@ func feedback(point: Vector2,damage: float,kind: int,kill: bool) -> void:
 	audio.play("kill" if kill else "hit",-16 if not kill else -12)
 func queue_choice() -> void:
 	choice_queue+=1
-	if not choice_open:_open_choice.call_deferred()
+	_pump_modals.call_deferred()
 func _card_available(key: String) -> bool:
 	var card: Dictionary=ArenaPerks.card(key)
 	if card.is_empty() or hero.perk(key)>=int(card.max): return false
@@ -274,7 +368,7 @@ func _card_weight(key: String) -> float:
 		"evo": return 6.0
 		_: return 3.0
 func _open_choice() -> void:
-	if choice_open or choice_queue<=0 or game_over:return
+	if choice_open or camp_reward_open or choice_queue<=0 or game_over:return
 	choices.clear()
 	var pool: Array=[]
 	for card in ArenaPerks.CARDS:
@@ -293,7 +387,7 @@ func _open_choice() -> void:
 func choose_perk(key: String) -> bool:
 	if not choice_open or key not in choices or not hero.apply_perk(key):return false
 	choice_queue-=1;choice_open=false;get_tree().paused=false;hud.close_modal();suppress_primary=true
-	if choice_queue>0:_open_choice.call_deferred()
+	_pump_modals.call_deferred()
 	return true
 func finish(won: bool) -> void:
 	if game_over:return
@@ -360,6 +454,7 @@ func _physics_process(delta: float) -> void:
 			for enemy in enemies:
 				if is_instance_valid(enemy) and not enemy.dead and not enemy.is_guard:live+=1
 			if live==0:
+				wave_log.append({"wave":cycle,"time":snappedf(elapsed-wave_started_at,0.1),"kills":wave_kills,"core":core_health,"gold":gold})
 				if cycle>=8:finish(true)
 				else:cycle+=1;start_rest(16)
 	var finished: Array=[]
@@ -368,9 +463,18 @@ func _physics_process(delta: float) -> void:
 		if attack.life<=0:
 			if attack.source=="enemy":
 				if not hero.knocked_out and hero.center().distance_to(attack.point)<attack.radius:hero.take_hit(attack.damage,attack.type)
-			else:area_damage(attack.point,attack.radius,attack.damage,attack.type,attack.source,float(attack.options.get("stun",0)))
+			else:
+				area_damage(attack.point,attack.radius,attack.damage,attack.type,attack.source,float(attack.options.get("stun",0)),0.0,float(attack.options.get("pen",0)),float(attack.options.get("knockback",0)))
+				if float(attack.options.get("burn_dps",0))>0:
+					add_zone(attack.point,float(attack.options.get("burn_radius",64)),float(attack.options.get("burn_dps",0)),float(attack.options.get("burn_time",4.0)),attack.type,attack.source)
 			effect(attack.point,attack.radius,ArenaCombat.colour(attack.type),"blast",0.45);audio.play("explode",-14);finished.append(attack)
 	for attack in finished:delayed.erase(attack)
+	for zone in zones:
+		zone.life-=delta;zone.tick+=delta
+		if zone.tick>=0.25:
+			zone.tick-=0.25
+			area_damage(zone.point,zone.radius,float(zone.dps)*0.25,zone.type,zone.source)
+	zones=zones.filter(func(zone):return float(zone.life)>0)
 func _process(delta: float) -> void:
 	if not started:return
 	for item in effects:item.life-=delta
@@ -393,9 +497,22 @@ func _draw() -> void:
 		for road in routes:
 			draw_polyline(road.get_baked_points(),Color("667344"),80,true);draw_polyline(road.get_baked_points(),Color("d9bb7b"),67,true)
 		for rect in level_definition.blocked:draw_rect(rect,Color("466947"))
+	for zone in zones:
+		draw_circle(zone.point,zone.radius,Color(1.0,0.55,0.2,0.05+0.05*clampf(float(zone.life)/maxf(0.1,float(zone.duration)),0.0,1.0)))
+	for camp in camps:
+		if camp.cleared():continue
+		var aura_colour:=Color("e0574f") if camp.overdue else Color("d98a5a")
+		draw_circle(camp.point,camp.aura_radius,Color(aura_colour,0.05))
+		draw_arc(camp.point,camp.aura_radius,0,TAU,48,Color(aura_colour,0.5),3,true)
+		draw_circle(camp.point,11,Color(aura_colour,0.55))
 	for index in range(level_definition.sites.size()):
 		if site_tower(index)!=null:continue
 		var point: Vector2=level_definition.sites[index]
+		if site_locked(index):
+			draw_circle(point,31,Color(0.08,0.09,0.06,0.45));draw_arc(point,30,0,TAU,36,Color("7d7350"),3,true)
+			draw_rect(Rect2(point+Vector2(-9,-1),Vector2(18,14)),Color("b9a271"))
+			draw_arc(point+Vector2(0,-1),7,PI,TAU,16,Color("b9a271"),3,true)
+			continue
 		draw_circle(point+Vector2(0,4),30,Color(0.2,0.22,0.11,0.18));draw_arc(point,29,0,TAU,36,Color("e1ce9b"),3,true)
 		draw_line(point-Vector2(8,0),point+Vector2(8,0),Color("faf1cc"),2);draw_line(point-Vector2(0,8),point+Vector2(0,8),Color("faf1cc"),2)
 	if wave_preview:

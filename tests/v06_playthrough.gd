@@ -37,8 +37,15 @@ func _process(delta: float) -> bool:
 		for key in priorities:
 			if key in game.choices:game.choose_perk(key);release_and_hold();break
 		return false
+	if game.camp_reward_open:
+		var reward: String="hero"
+		if game.doctrine_tokens==0 and game.l2_count()>0:reward="token"
+		elif game.gold<120:reward="gold"
+		game.choose_camp_reward(game.open_camp_id,reward)
+		return false
 	if game.game_over:
-		print("NORMAL ",hero_id," ",stage," won=",game.victory," wave=",game.cycle," kills=",game.kills," core=",game.core_health," camps=",game.camps_cleared," casts=",casts," KO=",knockouts," simulated seconds=",snappedf(game.elapsed,0.1)," damage=",game.damage_stats)
+		print("TELEMETRY ",JSON.stringify(game.telemetry()))
+		print("NORMAL ",hero_id," ",stage," won=",game.victory," wave=",game.cycle," kills=",game.kills," core=",game.core_health," camps=",game.camps_cleared," l3=",l3_count()," doctrines=",doctrine_count()," casts=",casts," KO=",knockouts," simulated seconds=",snappedf(game.elapsed,0.1)," damage=",game.damage_stats)
 		passed=game.victory and game.cycle==8 and game.built>=4 and casts>0
 		stopping=true;finish.call_deferred();return false
 	if timer>1100:push_error("NORMAL TIMEOUT "+hero_id+" "+stage);stopping=true;finish.call_deferred();return false
@@ -76,12 +83,32 @@ func _process(delta: float) -> bool:
 	if game.phase=="rest" and game.camps_cleared==2 and game.hero.health>game.hero.max_health*0.85:
 		game.request_wave()
 	return false
+func l3_count() -> int:
+	var total:=0
+	for tower in game.towers:
+		if is_instance_valid(tower) and tower.level>=3:total+=1
+	return total
+func doctrine_count() -> int:
+	var total:=0
+	for tower in game.towers:
+		if is_instance_valid(tower) and tower.doctrine_id!="":total+=1
+	return total
 func manage_towers() -> void:
 	var order: Array=[0,1,3,2,4,5,6,7] if stage=="forest" else [0,5,1,6,3,7,4,8,2,9]
 	var plan: Array=["archer","barracks","mage","archer","cannon","mage","archer","cannon"] if stage=="forest" else ["archer","mage","mage","barracks","archer","archer","cannon","mage","cannon","archer"]
+	if game.cycle>=6:
+		for index in order:
+			if game.site_locked(index) and game.gold>=game.unlock_price(index)+120:game.unlock_site(index);return
 	for index in order:
 		var kind: String=plan[index]
 		if game.site_tower(index)==null and kind in game.available_towers() and game.gold>=ArenaDefinitions.TOWERS[kind].cost:game.build_tower(index,kind);return
+	for tower in game.towers:
+		if tower.awaiting_doctrine:
+			var options: Array=ArenaDoctrines.for_tower(tower.kind)
+			if not options.is_empty():tower.choose_doctrine(str(options[(tower.site_id+game.cycle)%options.size()].id))
+			return
+	for tower in game.towers:
+		if tower.level==2 and game.doctrine_tokens>0:tower.upgrade("",true);return
 	for tower in game.towers:
 		if tower.level<3 and game.gold>=tower.upgrade_price():tower.upgrade();return
 func finish() -> void:

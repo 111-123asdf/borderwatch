@@ -19,6 +19,7 @@ const ENEMIES := {
 	"wisp":{"name":"林间幽光","health":95.0,"speed":49.0,"damage":10.0,"type":1,"armour":0.0,"resistance":0.5,"capacity":1,"gold":17,"xp":11},
 	"spearman":{"name":"棘木投矛手","health":105.0,"speed":52.0,"damage":15.0,"type":0,"armour":0.15,"resistance":0.0,"capacity":1,"gold":17,"xp":12},
 	"spore":{"name":"孢囊兽","health":150.0,"speed":45.0,"damage":16.0,"type":1,"armour":0.0,"resistance":0.2,"capacity":1,"gold":20,"xp":14},
+	"captain":{"name":"营地队长","health":420.0,"speed":58.0,"damage":25.0,"type":0,"armour":0.25,"resistance":0.25,"capacity":99,"gold":45,"xp":30},
 	"moth":{"name":"暮林巨蛾","health":3100.0,"speed":26.0,"damage":17.0,"type":1,"armour":0.15,"resistance":0.15,"capacity":99,"gold":150,"xp":100}
 }
 static func hero(key: String) -> Dictionary:
@@ -27,6 +28,10 @@ static func tower(key: String) -> Dictionary:
 	return TOWERS.get(key,TOWERS.archer).duplicate(true)
 static func enemy(key: String) -> Dictionary:
 	return ENEMIES.get(key,ENEMIES.fox).duplicate(true)
+static func leak_damage(kind: String,elite := false) -> int:
+	# Core damage is tiered by threat, not by raw spawn index; elites at least 24.
+	var base: int=int({"fox":14,"wisp":14,"spearman":18,"spore":18,"brute":36,"captain":0,"moth":0}.get(kind,14))
+	return maxi(base,24) if elite else base
 static func skill_text(hero_id: String, slot: int) -> String:
 	if slot==0: return {"knight":"扇形重斩，短暂眩晕","ranger":"朝移动方向翻滚，短暂无敌","mage":"霜环造成法术伤害并减速"}[hero_id]
 	return {"knight":"战吼强化附近英雄、士兵与塔","ranger":"向指定区域降下物理箭雨","mage":"星陨轰击指定区域，造成法术伤害"}[hero_id]

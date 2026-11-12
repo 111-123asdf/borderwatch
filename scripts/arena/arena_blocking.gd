@@ -26,6 +26,13 @@ func update() -> void:
 		if is_instance_valid(soldier): blockers.append(soldier)
 	for enemy in game.enemies:
 		if not is_instance_valid(enemy) or enemy.dead or enemy.is_guard or enemy.kind=="moth" or assignments.has(enemy): continue
+		# Taunting soldiers pull nearby attackers before the normal hero-first order.
+		for blocker in blockers:
+			if not is_instance_valid(blocker) or not blocker.has_method("taunt") or not blocker.taunt(): continue
+			if not blocker.can_block() or enemy.position.distance_to(blocker.position)>60: continue
+			if load_for(blocker)+enemy.block_weight()>blocker.block_capacity(): continue
+			assignments[enemy]=blocker;enemy.blocker=blocker;break
+		if assignments.has(enemy): continue
 		for blocker in blockers:
 			if not is_instance_valid(blocker) or not blocker.can_block(): continue
 			if enemy.position.distance_to(blocker.position)>49: continue
