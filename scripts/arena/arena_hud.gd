@@ -18,6 +18,14 @@ var hero_level: Label
 var revival: Label
 var unlock_hint: Panel
 var unlock_clock:=0.0
+var objective: Panel
+var objective_step: Label
+var objective_title: Label
+var objective_body: Label
+var phase_label: Label
+var xp_label: Label
+var build_label: Label
+var last_objective:=""
 var skills: Array[Button]=[]
 var skill_glyphs: Array[ArenaGlyph]=[]
 var battle_nodes: Array=[]
@@ -27,13 +35,15 @@ const CREAM:=Color("f2e4c5")
 const GOLD:=Color("e9c588")
 const MUTED:=Color("bbbea1")
 const INK:=Color("17241e")
+const COPPER:=Color("b88943")
+const PANEL:=Color("1c3027f2")
 func _ready() -> void:
 	process_mode=Node.PROCESS_MODE_ALWAYS
 	root=Control.new();root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT);root.mouse_filter=Control.MOUSE_FILTER_IGNORE;add_child(root)
 	context=Panel.new();context.hide();context.mouse_filter=Control.MOUSE_FILTER_STOP;root.add_child(context);panel_style(context)
 func panel_style(node: Control,light:=false) -> void:
-	var style:=StyleBoxFlat.new();style.bg_color=Color("ead8b3") if light else Color("25392def");style.border_color=Color("957c50")
-	style.set_border_width_all(2);style.set_corner_radius_all(10);style.shadow_color=Color(0,0,0,0.25);style.shadow_size=5
+	var style:=StyleBoxFlat.new();style.bg_color=Color("ead8b3") if light else PANEL;style.border_color=Color("ad9362")
+	style.set_border_width_all(1);style.set_corner_radius_all(12);style.shadow_color=Color(0,0,0,0.32);style.shadow_size=8
 	node.add_theme_stylebox_override("panel",style)
 func label(parent: Node,message: String,rect: Rect2,size:=18,colour:=CREAM) -> Label:
 	var node:=Label.new();node.position=rect.position;node.size=rect.size;node.text=message;node.mouse_filter=Control.MOUSE_FILTER_IGNORE
@@ -105,29 +115,40 @@ func show_entry() -> void:
 	colour_block(menu,Rect2(650,780,850,1),Color("e9c58899"))
 	label(menu,"守望者集结",Rect2(970,798,280,36),22,GOLD)
 func show_heroes() -> void:
-	reset_menu();backdrop();label(menu,"选择守望者",Rect2(605,75,500,70),40,GOLD)
+	reset_menu();backdrop();colour_block(menu,Rect2(0,0,1600,900),Color("101a1588"));label(menu,"选择守望者",Rect2(605,48,500,58),40,GOLD)
+	label(menu,"每位英雄拥有固定攻击方式与两项技能 · 本局成长会强化你的战斗风格",Rect2(410,108,800,34),18,CREAM)
 	button(menu,"‹",Rect2(70,60,72,48),show_entry)
 	for index in range(3):
 		var key: String=ArenaDefinitions.HERO_IDS[index];var data: Dictionary=ArenaDefinitions.HEROES[key]
-		var card:=button(menu,"",Rect2(180+index*425,180,390,590),show_levels.bind(key));card.name="Hero_"+key
-		image(card,hero_portrait(key),Rect2(25,12,340,330))
-		label(card,data.name,Rect2(30,355,330,38),28,GOLD)
-		icon(card,"physical" if data.type==0 else "magic",Rect2(29,411,26,26),ArenaCombat.colour(data.type));label(card,ArenaCombat.label(data.type)+" · "+str(int(data.health))+" 生命",Rect2(65,410,290,28),18)
-		label(card,data.small+"  /  "+data.ultimate,Rect2(30,463,330,34),19)
-		label(card,data.trait,Rect2(30,514,330,28),17,MUTED)
+		var card:=button(menu,"",Rect2(180+index*425,158,390,650),show_levels.bind(key));card.name="Hero_"+key
+		image(card,hero_portrait(key),Rect2(25,8,340,292))
+		label(card,["前线 · 坚韧","机动 · 点杀","控场 · 爆发"][index],Rect2(28,307,330,25),15,MUTED)
+		label(card,data.name,Rect2(28,337,330,42),29,GOLD)
+		icon(card,"physical" if data.type==0 else "magic",Rect2(28,389,25,25),ArenaCombat.colour(data.type));label(card,ArenaCombat.label(data.type)+"伤害",Rect2(61,389,125,27),17)
+		icon(card,"heart",Rect2(210,389,24,24),Color("d87d73"));label(card,str(int(data.health))+" 生命",Rect2(241,389,112,27),17)
+		colour_block(card,Rect2(28,429,332,1),Color("e9c58855"))
+		label(card,"Q  "+data.small,Rect2(28,449,330,27),18,GOLD);label(card,ArenaDefinitions.skill_text(key,0),Rect2(28,477,330,26),15,MUTED)
+		label(card,"SPACE  "+data.ultimate,Rect2(28,516,330,27),18,GOLD);label(card,ArenaDefinitions.skill_text(key,1),Rect2(28,544,330,27),15,MUTED)
+		label(card,"特性 · "+data.trait,Rect2(28,592,335,30),16,CREAM)
 func show_levels(key: String) -> void:
-	selected_hero=key;reset_menu();backdrop();label(menu,"选择防线",Rect2(640,80,450,64),40,GOLD);button(menu,"‹",Rect2(70,60,72,48),show_heroes)
+	selected_hero=key;reset_menu();backdrop();colour_block(menu,Rect2(0,0,1600,900),Color("101a1577"));label(menu,"选择防线",Rect2(640,55,450,64),40,GOLD);button(menu,"‹",Rect2(70,60,72,48),show_heroes)
+	var hero_data: Dictionary=ArenaDefinitions.HEROES[key]
+	var strip:=Panel.new();strip.position=Vector2(505,122);strip.size=Vector2(590,58);strip.mouse_filter=Control.MOUSE_FILTER_IGNORE;menu.add_child(strip);panel_style(strip)
+	image(strip,hero_badge_image(key),Rect2(8,3,52,52));label(strip,"出战 · "+hero_data.name,Rect2(72,15,225,30),19,GOLD);label(strip,hero_data.trait,Rect2(285,16,285,28),15,MUTED)
 	for index in range(2):
 		var stage: String=ArenaLevelCatalog.IDS[index];var data:=ArenaLevelCatalog.definition(stage)
-		var card:=button(menu,"",Rect2(265+index*560,205,510,480),game.start_run.bind(selected_hero,stage));card.name="Level_"+stage
+		var card:=button(menu,"",Rect2(265+index*560,210,510,500),game.start_run.bind(selected_hero,stage));card.name="Level_"+stage
 		var path: String="res://assets/v06/map_"+stage+".png"
 		if ResourceLoader.exists(path):image(card,load(path),Rect2(15,15,480,270),true)
-		label(card,data.name,Rect2(30,318,450,50),30,GOLD);label(card,data.story,Rect2(30,375,450,35),21);label(card,"8 波 · "+("单路防守" if stage=="forest" else "双桥回防"),Rect2(30,425,450,28),17,MUTED)
+		label(card,"推荐起点" if stage=="forest" else "进阶防线",Rect2(30,304,160,25),15,MUTED)
+		label(card,data.name,Rect2(30,333,450,44),30,GOLD);label(card,data.story,Rect2(30,382,450,35),20)
+		label(card,"8 波  ·  "+("单路防守  ·  暮林首领" if stage=="forest" else "双路调度  ·  交替施压"),Rect2(30,439,450,28),17,MUTED)
 func show_battle() -> void:
 	if is_instance_valid(menu):menu.queue_free()
 	var bar:=Panel.new();bar.position=Vector2.ZERO;bar.size=Vector2(1600,86);bar.mouse_filter=Control.MOUSE_FILTER_IGNORE;panel_style(bar);root.add_child(bar);battle_nodes.append(bar)
 	hero_badge=image(bar,hero_badge_image(game.hero.class_id),Rect2(8,3,68,78))
-	hero_health=meter(bar,Rect2(84,22,180,13),Color("d87d73"));experience=meter(bar,Rect2(84,58,180,5),Color("c6d899"));hero_level=label(bar,"1",Rect2(271,20,40,32),21,GOLD)
+	hero_health=meter(bar,Rect2(84,22,180,13),Color("d87d73"));experience=meter(bar,Rect2(84,58,180,5),Color("c6d899"));hero_level=label(bar,"Lv.1",Rect2(271,18,58,32),18,GOLD)
+	xp_label=label(bar,"0 / 80",Rect2(176,62,90,17),11,MUTED);xp_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT
 	icon(bar,"heart",Rect2(84,38,15,15),Color("d87d73"));revival=label(bar,"",Rect2(27,25,55,35),24,GOLD)
 	icon(bar,"coin",Rect2(315,23,36,36));coins=label(bar,str(game.gold),Rect2(356,25,96,32),24,GOLD)
 	for slot in range(2):
@@ -137,10 +158,17 @@ func show_battle() -> void:
 		label(b,"Q" if slot==0 else "Space",Rect2(9,45,55,17),12,MUTED)
 		b.tooltip_text=str(game.hero.data.small if slot==0 else game.hero.data.ultimate)+"\n"+ArenaDefinitions.skill_text(game.hero.class_id,slot)
 	wave_button=button(bar,"",Rect2(770,7,60,60),game.request_wave);wave_button.name="CallWave";wave_button.tooltip_text="预览下一波；再点提前开始"
-	wave_glyph=icon(wave_button,"wave",Rect2(12,10,36,36));wave_label=label(bar,"1 / 8",Rect2(850,24,130,36),23)
+	wave_glyph=icon(wave_button,"wave",Rect2(12,10,36,36));wave_label=label(bar,"第 1 / 8 波",Rect2(850,17,150,30),22)
+	phase_label=label(bar,"整备阶段",Rect2(850,48,180,22),14,MUTED)
 	icon(bar,"core",Rect2(1195,22,34,40),Color("9de0cf"));core_health=meter(bar,Rect2(1240,29,225,13),Color("96c8a0"))
 	var pause:=button(bar,"Ⅱ",Rect2(1516,18,55,50),show_pause);pause.name="Pause"
 	preview=Panel.new();preview.position=Vector2(665,98);preview.size=Vector2(320,75);panel_style(preview);preview.hide();root.add_child(preview)
+	objective=Panel.new();objective.position=Vector2(28,112);objective.size=Vector2(355,132);objective.mouse_filter=Control.MOUSE_FILTER_IGNORE;root.add_child(objective);panel_style(objective)
+	objective_step=label(objective,"守望指引",Rect2(20,13,115,22),14,GOLD)
+	objective_title=label(objective,"部署第一座防御塔",Rect2(20,39,315,29),21,CREAM)
+	objective_body=label(objective,"点击道路旁的金色塔位，然后选择建筑。",Rect2(20,75,315,45),15,MUTED);objective_body.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+	var build:=Panel.new();build.position=Vector2(1260,106);build.size=Vector2(306,54);build.mouse_filter=Control.MOUSE_FILTER_IGNORE;root.add_child(build);panel_style(build)
+	icon(build,"upgrade",Rect2(12,12,28,28),GOLD);build_label=label(build,"本局成长 · 尚未获得",Rect2(50,14,240,25),15,MUTED)
 	root.move_child(context,root.get_child_count()-1)
 func show_context(index: int) -> void:
 	game.selected_site=index;refresh_context()
@@ -196,33 +224,68 @@ func close_modal() -> void:
 func has_modal() -> bool:return is_instance_valid(modal)
 func show_choices(keys: Array[String]) -> void:
 	close_context();game.targeting_slot=-1;game.rally_site=-1
-	var panel:=modal_panel(Vector2(1040,430));label(panel,"选择一份成长",Rect2(360,25,500,50),29,GOLD)
+	var panel:=modal_panel(Vector2(1040,470));label(panel,"选择一份成长",Rect2(360,22,500,45),29,GOLD)
+	label(panel,"本局生效 · 每次升级或清理营地可选择一项",Rect2(329,65,520,28),16,MUTED)
 	for index in range(keys.size()):
 		var key: String=keys[index];var data: Dictionary=ArenaDefinitions.PERKS[key]
-		var b:=button(panel,"",Rect2(30+index*335,108,310,265),game.choose_perk.bind(key));b.name="Perk_"+key
-		icon(b,data.icon,Rect2(115,28,80,80),GOLD);label(b,data.name+" "+str(game.hero.perk(key)+1),Rect2(30,137,250,40),27,GOLD)
+		var rank: int=game.hero.perk(key)
+		var b:=button(panel,"",Rect2(30+index*335,112,310,300),game.choose_perk.bind(key));b.name="Perk_"+key
+		label(b,str(index+1),Rect2(18,16,28,28),16,MUTED)
+		icon(b,data.icon,Rect2(115,24,80,80),GOLD);label(b,data.name,Rect2(30,122,250,40),27,GOLD)
 		var text: String=data.text
 		if key=="small":text={"knight":"震地伤害与眩晕增强","ranger":"翻滚后下一箭额外贯穿","mage":"霜环范围扩大"}[game.hero.class_id]
 		if key=="ultimate":text={"knight":"战吼持续时间延长","ranger":"箭雨增加一轮","mage":"星陨伤害增强"}[game.hero.class_id]
-		label(b,text,Rect2(25,198,285,35),18)
+		label(b,text,Rect2(25,173,260,50),17);colour_block(b,Rect2(25,232,260,1),Color("e9c58844"))
+		label(b,"当前 "+str(rank)+" / "+str(data.max)+"   →   获得后 "+str(rank+1)+" / "+str(data.max),Rect2(25,251,270,25),15,MUTED)
 func show_pause() -> void:
 	if game.choice_open or game.game_over:return
 	if has_modal():resume();return
 	get_tree().paused=true;close_context();game.targeting_slot=-1;game.rally_site=-1
 	var panel:=modal_panel(Vector2(760,510));label(panel,"守望手册",Rect2(280,27,450,50),32,GOLD)
-	label(panel,"WASD / 右键移动 · 按住左键普攻\nQ 小技能 · Space 大招\n点塔位建造 · 点建筑升级与调度\n英雄倒下15秒后复活 · 基地失守才失败",Rect2(65,112,650,230),23)
+	label(panel,"移动与战斗",Rect2(65,96,300,30),18,GOLD)
+	label(panel,"WASD / 右键移动   ·   按住左键普攻\nQ 小技能   ·   Space 大招",Rect2(65,132,650,82),21)
+	label(panel,"防线与成长",Rect2(65,232,300,30),18,GOLD)
+	label(panel,"点塔位建造，点建筑升级与调度\n清理营地、积累经验，三选一强化本局英雄",Rect2(65,268,650,84),20)
 	button(panel,"继续",Rect2(55,400,280,55),resume);button(panel,"返回主菜单",Rect2(420,400,280,55),game.return_to_menu)
 func resume() -> void:get_tree().paused=false;close_modal();game.suppress_primary=true
 func show_guide() -> void:
-	var panel:=modal_panel(Vector2(800,510));label(panel,"守住防线",Rect2(275,27,500,50),32,GOLD)
-	label(panel,"弓箭与火炮：物理伤害\n法师塔：法术伤害，克制重甲\n兵营：派士兵在路上拦住敌人\n英雄可拦截、施法、躲弹；离开战斗后回血",Rect2(65,115,670,220),22)
-	button(panel,"明白了",Rect2(240,410,320,55),close_modal)
+	var panel:=modal_panel(Vector2(800,540));label(panel,"新任守望者指南",Rect2(238,27,500,50),32,GOLD)
+	label(panel,"1  部署",Rect2(65,102,150,30),18,GOLD);label(panel,"在固定塔位建设防线，金币用于建造与升级。",Rect2(210,102,520,30),19)
+	label(panel,"2  出战",Rect2(65,158,150,30),18,GOLD);label(panel,"英雄亲自拦截、躲避投射物，用双技能救场。",Rect2(210,158,520,30),19)
+	label(panel,"3  成长",Rect2(65,214,150,30),18,GOLD);label(panel,"升级与清营会触发三选一，本局内持续生效。",Rect2(210,214,520,30),19)
+	colour_block(panel,Rect2(65,269,670,1),Color("e9c58855"))
+	label(panel,"物理",Rect2(65,295,90,28),18,ArenaCombat.colour(0));label(panel,"弓箭、火炮、骑士、游侠与士兵",Rect2(160,295,520,28),18)
+	label(panel,"法术",Rect2(65,337,90,28),18,ArenaCombat.colour(1));label(panel,"法师与法师塔；适合对付重甲敌人",Rect2(160,337,520,28),18)
+	label(panel,"英雄倒下会在 15 秒后复活；只有基地失守才会失败。",Rect2(65,390,670,30),17,MUTED)
+	button(panel,"开始守望",Rect2(240,453,320,55),close_modal)
 func show_result() -> void:
-	close_context();var panel:=modal_panel(Vector2(660,410));label(panel,"防线守住了" if game.victory else "信标失守",Rect2(205,35,500,60),36,GOLD)
-	label(panel,"第 "+str(game.cycle)+" 波 · 击败 "+str(game.kills)+" · 建塔 "+str(game.built),Rect2(100,133,500,40),24)
-	label(panel,"清理营地 "+str(game.camps_cleared)+" / 2 · 英雄等级 "+str(game.hero.level),Rect2(100,190,520,35),21,MUTED)
-	var retry:=button(panel,"再守一次",Rect2(50,290,260,60),game.restart_run);retry.name="RetryRun"
-	button(panel,"返回主菜单",Rect2(350,290,260,60),game.return_to_menu)
+	close_context();var panel:=modal_panel(Vector2(700,455));label(panel,"防线守住了" if game.victory else "信标失守",Rect2(225,30,500,60),36,GOLD)
+	label(panel,"本局战报",Rect2(70,110,160,30),17,GOLD);colour_block(panel,Rect2(70,145,560,1),Color("e9c58855"))
+	label(panel,"抵达波次",Rect2(70,165,140,25),15,MUTED);label(panel,str(game.cycle)+" / 8",Rect2(70,191,140,32),23)
+	label(panel,"击败敌人",Rect2(255,165,140,25),15,MUTED);label(panel,str(game.kills),Rect2(255,191,140,32),23)
+	label(panel,"英雄等级",Rect2(440,165,140,25),15,MUTED);label(panel,"Lv."+str(game.hero.level),Rect2(440,191,140,32),23)
+	label(panel,"建造 "+str(game.built)+" 座防御塔   ·   清理营地 "+str(game.camps_cleared)+" / 2",Rect2(70,247,560,30),18,MUTED)
+	var retry:=button(panel,"再次出战",Rect2(50,335,280,60),game.restart_run);retry.name="RetryRun"
+	button(panel,"返回主菜单",Rect2(370,335,280,60),game.return_to_menu)
+
+func objective_state() -> Dictionary:
+	if game.built==0:return {"step":"守望指引 · 1 / 3","title":"部署第一座防御塔","body":"点击道路旁的金色塔位，然后选择建筑。"}
+	if game.phase=="rest" and game.cycle==1:return {"step":"守望指引 · 2 / 3","title":"侦察第一波敌人","body":"点击顶部怪物图标预览，再点一次提前开波。"}
+	if game.cycle==1:return {"step":"守望指引 · 3 / 3","title":"英雄加入防守","body":"WASD / 右键移动，按住左键攻击；Q 与 Space 施放技能。"}
+	if game.camps_cleared==0:return {"step":"当前目标","title":"清理林中营地","body":"休整期寻找地图上的守卫营地，清理后获得一次成长。"}
+	if game.phase=="rest":return {"step":"整备阶段","title":"升级防线，准备第 "+str(game.cycle)+" 波","body":"利用金币升级塔；提前开波最多额外获得 12 金币。"}
+	return {"step":"防守阶段","title":"守住第 "+str(game.cycle)+" 波","body":"观察敌人抗性，英雄随时回防；基地失守才会失败。"}
+
+func refresh_objective() -> void:
+	if not is_instance_valid(objective):return
+	var state:=objective_state();var signature: String=str(state.step)+str(state.title)
+	if signature==last_objective:return
+	last_objective=signature;objective_step.text=state.step;objective_title.text=state.title;objective_body.text=state.body
+	var summary: Array[String]=[]
+	for key in ArenaDefinitions.PERKS:
+		var rank: int=game.hero.perk(key)
+		if rank>0:summary.append(str(ArenaDefinitions.PERKS[key].name)+" "+str(rank))
+	build_label.text="本局成长 · "+("尚未获得" if summary.is_empty() else "  ".join(summary.slice(0,3)))
 func _input(event: InputEvent) -> void:
 	if not (event is InputEventKey and event.pressed and not event.echo):return
 	if game.choice_open:
@@ -245,7 +308,7 @@ func _process(delta: float) -> void:
 	update_clock=0.08
 	var h: ArenaHero=game.hero
 	hero_health.max_value=h.max_health;hero_health.value=h.health;hero_health.tooltip_text=str(int(h.health))+" / "+str(int(h.max_health))
-	experience.max_value=h.xp_target;experience.value=h.xp;hero_level.text=str(h.level)
+	experience.max_value=h.xp_target;experience.value=h.xp;hero_level.text="Lv."+str(h.level);xp_label.text=str(h.xp)+" / "+str(h.xp_target)
 	core_health.max_value=game.core_max;core_health.value=game.core_health;core_health.tooltip_text=str(int(game.core_health))+" / "+str(int(game.core_max))
 	coins.text=str(game.gold);revival.text=str(int(ceil(h.revive_clock))) if h.knocked_out else "";hero_badge.modulate=Color(0.6,0.6,0.6) if h.knocked_out else Color.WHITE
 	for slot in range(2):
@@ -253,8 +316,10 @@ func _process(delta: float) -> void:
 		skills[slot].text=str(int(ceil(h.cooldowns[slot]))) if h.cooldowns[slot]>0 else ""
 		var maximum: float=float(h.data.small_cd if slot==0 else h.data.ultimate_cd)*h.cooldown_scale()
 		skill_glyphs[slot].progress=1.0-h.cooldowns[slot]/maximum;skill_glyphs[slot].modulate.a=0.45 if h.cooldowns[slot]>0 else 1.0;skill_glyphs[slot].queue_redraw()
-	wave_label.text=str(game.cycle)+" / 8";wave_button.disabled=game.phase!="rest" or game.game_over
+	wave_label.text="第 "+str(game.cycle)+" / 8 波";wave_button.disabled=game.phase!="rest" or game.game_over
+	phase_label.text=("整备 · "+str(int(ceil(game.phase_clock)))+" 秒" if game.phase=="rest" else "敌军来袭")
 	wave_glyph.progress=game.phase_clock/game.rest_duration if game.phase=="rest" else 1.0;wave_glyph.tint=GOLD if game.wave_preview else CREAM;wave_glyph.queue_redraw()
+	refresh_objective()
 	if preview.visible!=game.wave_preview:
 		preview.visible=game.wave_preview
 		if preview.visible:

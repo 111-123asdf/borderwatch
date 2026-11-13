@@ -17,6 +17,10 @@ func key(code: Key) -> void:
 	var event:=InputEventKey.new();event.keycode=code;event.pressed=true;root.push_input(event,true);await frames();event=event.duplicate();event.pressed=false;root.push_input(event,true);await frames()
 func press(name: String) -> void:
 	var button: Button=game.hud.root.find_child(name,true,false)
+	for attempt in range(10):
+		if button!=null:break
+		await process_frame
+		button=game.hud.root.find_child(name,true,false)
 	check(button!=null,"button exists "+name)
 	if button!=null:await click(button.get_global_rect().get_center())
 func snapshot(name: String) -> void:
