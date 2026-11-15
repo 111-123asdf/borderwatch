@@ -1,0 +1,7 @@
+Selected recordings only. All CC0-1.0.
+Vehicle / Jan Schupke: https://opengameart.org/content/fantasy-sound-effects-tinysized-sfx
+Kenney: https://kenney.nl/assets/impact-sounds
+bart; original recordings Stephan / pdsounds: https://opengameart.org/content/ice-spells
+https://creativecommons.org/publicdomain/zero/1.0/
+Kenney license also retained in ../kenney_audio.
+Foley is adapted for bow/cloth/star/ice cues; no claim of original bow-string recording.

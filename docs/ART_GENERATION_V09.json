@@ -1,0 +1,122 @@
+{
+  "version": "0.9.0",
+  "date": "2026-11-15",
+  "tool": "OpenAI built-in image_gen.imagegen",
+  "format": "PNG raster artwork; not actual 3D models or layered source files",
+  "prompt_record": "Condensed production briefs, not verbatim transcripts. Project art used as visual reference; user commercial reference sheets are not shipped.",
+  "originals": "Original tool outputs retained in the Codex generated_images session directory.",
+  "assets": [
+    {
+      "asset": "assets/v09/knight_side.png",
+      "generated_output": "exec-3fc43d6b-7d9c-415e-b84b-cce5b7fb13b3.png",
+      "mode": "generation_or_reference_edit",
+      "prompt_brief": "Original youthful fantasy hero, refined sculpted 3D-looking 2D sprite with soft directional lighting, transparent background. Keep costume and weapon integrated. Exact 12 columns by 7 rows; rows idle, walk, basic attack, small skill, ultimate, hurt, down. Fixed cell grid, consistent foot contact and framing. knight side view; coherent anticipation, release and recovery across each row.",
+      "sha256": "6e9f9aa50fab14192567667f145f4f8be50401f6168a41b79deb87f86bef745e"
+    },
+    {
+      "asset": "assets/v09/knight_down.png",
+      "generated_output": "exec-82818861-72bf-4d45-8658-ab25209bebb0.png",
+      "mode": "generation_or_reference_edit",
+      "prompt_brief": "Original youthful fantasy hero, refined sculpted 3D-looking 2D sprite with soft directional lighting, transparent background. Keep costume and weapon integrated. Exact 12 columns by 7 rows; rows idle, walk, basic attack, small skill, ultimate, hurt, down. Fixed cell grid, consistent foot contact and framing. knight down view; coherent anticipation, release and recovery across each row.",
+      "sha256": "011b0bad3bdb4b3bb891e7f0d7ed04e2ff2ca28f1c811958777164d01633b930"
+    },
+    {
+      "asset": "assets/v09/knight_up.png",
+      "generated_output": "exec-bba49f4b-68df-4c97-b014-4becda35156f.png",
+      "mode": "generation_or_reference_edit",
+      "prompt_brief": "Original youthful fantasy hero, refined sculpted 3D-looking 2D sprite with soft directional lighting, transparent background. Keep costume and weapon integrated. Exact 12 columns by 7 rows; rows idle, walk, basic attack, small skill, ultimate, hurt, down. Fixed cell grid, consistent foot contact and framing. knight up view; coherent anticipation, release and recovery across each row.",
+      "sha256": "9851f8ec9fe3b07a79ffaa83404f37f0f8dc0487812ff422dba8bd51c8557849"
+    },
+    {
+      "asset": "assets/v09/ranger_side.png",
+      "generated_output": "exec-4ae036fe-6153-4834-98ff-2d5b9a1d81c7.png",
+      "mode": "generation_or_reference_edit",
+      "prompt_brief": "Original youthful fantasy hero, refined sculpted 3D-looking 2D sprite with soft directional lighting, transparent background. Keep costume and weapon integrated. Exact 12 columns by 7 rows; rows idle, walk, basic attack, small skill, ultimate, hurt, down. Fixed cell grid, consistent foot contact and framing. ranger side view; coherent anticipation, release and recovery across each row.",
+      "sha256": "2431ab9df96e6a53b6a750845efac99c176548bfb9488332b6fe9f70e2a735f3"
+    },
+    {
+      "asset": "assets/v09/ranger_down.png",
+      "generated_output": "exec-d66f7680-5c08-4fac-8cfc-3f6054ba7f0f.png",
+      "mode": "generation_or_reference_edit",
+      "prompt_brief": "Original youthful fantasy hero, refined sculpted 3D-looking 2D sprite with soft directional lighting, transparent background. Keep costume and weapon integrated. Exact 12 columns by 7 rows; rows idle, walk, basic attack, small skill, ultimate, hurt, down. Fixed cell grid, consistent foot contact and framing. ranger down view; coherent anticipation, release and recovery across each row.",
+      "sha256": "2a2feb6770351344734d426eb4348f66fd3f9db17df24fa6a46b210632cf7cd0"
+    },
+    {
+      "asset": "assets/v09/ranger_up.png",
+      "generated_output": "exec-88ec2fe8-c543-4370-88c4-0924a7436388.png",
+      "mode": "generation_or_reference_edit",
+      "prompt_brief": "Original youthful fantasy hero, refined sculpted 3D-looking 2D sprite with soft directional lighting, transparent background. Keep costume and weapon integrated. Exact 12 columns by 7 rows; rows idle, walk, basic attack, small skill, ultimate, hurt, down. Fixed cell grid, consistent foot contact and framing. ranger up view; coherent anticipation, release and recovery across each row.",
+      "sha256": "0806ce1389f1cc7f5cae75f0f1df578e4a701940764bc6888227124623560dbb"
+    },
+    {
+      "asset": "assets/v09/mage_side.png",
+      "generated_output": "exec-2b2a4c9f-a761-4096-9265-39499e3b48ad.png",
+      "mode": "generation_or_reference_edit",
+      "prompt_brief": "Original youthful fantasy hero, refined sculpted 3D-looking 2D sprite with soft directional lighting, transparent background. Keep costume and weapon integrated. Exact 12 columns by 7 rows; rows idle, walk, basic attack, small skill, ultimate, hurt, down. Fixed cell grid, consistent foot contact and framing. mage side view; coherent anticipation, release and recovery across each row.",
+      "sha256": "8bb8d9297e38505b6e39785a73cbc975ab9982c52b3b5e606aeea64882161ea0"
+    },
+    {
+      "asset": "assets/v09/mage_down.png",
+      "generated_output": "exec-9f5475b8-f8d3-4a9b-8abe-39bfb4c73b75.png",
+      "mode": "generation_or_reference_edit",
+      "prompt_brief": "Original youthful fantasy hero, refined sculpted 3D-looking 2D sprite with soft directional lighting, transparent background. Keep costume and weapon integrated. Exact 12 columns by 7 rows; rows idle, walk, basic attack, small skill, ultimate, hurt, down. Fixed cell grid, consistent foot contact and framing. mage down view; coherent anticipation, release and recovery across each row.",
+      "sha256": "3c0cfffb6b00d6ea8eda886c8255fb5b7f1a8b6d3b2e27149bc7d4c5595a073a"
+    },
+    {
+      "asset": "assets/v09/mage_up.png",
+      "generated_output": "exec-799f78d1-f1c8-4295-9a56-7b7b7695bdaf.png",
+      "mode": "generation_or_reference_edit",
+      "prompt_brief": "Original youthful fantasy hero, refined sculpted 3D-looking 2D sprite with soft directional lighting, transparent background. Keep costume and weapon integrated. Exact 12 columns by 7 rows; rows idle, walk, basic attack, small skill, ultimate, hurt, down. Fixed cell grid, consistent foot contact and framing. mage up view; coherent anticipation, release and recovery across each row.",
+      "sha256": "ca4ad98f95d89f74f71339e233ed4e2d9e4091b367e698eb53e0e80b9376b975"
+    },
+    {
+      "asset": "assets/v09/towers.png",
+      "generated_output": "exec-eb44f1a7-c8aa-42e6-ad6a-40658d8bad7d.png",
+      "mode": "reference_edit",
+      "prompt_brief": "Transparent 4-column by 3-row tower atlas: archer wooden platform, mage stone crystal tower, low broad cannon, barracks with red roof. Levels grow visibly in structure; consistent high top-down perspective and common shallow foundation. Root contact and ground light must match forest map.",
+      "sha256": "e95815c09f7c0dcdf6766ca0c4581c6515b11ed190c9398dbaaa87211f63d8df"
+    },
+    {
+      "asset": "assets/v09/map_creek.png",
+      "generated_output": "exec-c911f450-a839-4ad0-8e13-f2adf8e5b7cc.png",
+      "mode": "reference_edit",
+      "prompt_brief": "Remove only baked construction pads and crosses from the existing forest battlefield, reconstructing matching grass. Preserve roads, bridges, camps, scenery, perspective, light, and all map geometry.",
+      "sha256": "5c28a50c3f796a61b4ab0da6d9332529aebba75bf245ce1fa5bb8e2263603980"
+    },
+    {
+      "asset": "assets/v09/map_forest.png",
+      "generated_output": "exec-c2a49481-49a1-4f6e-8e8f-6c77c60b7a16.png",
+      "mode": "reference_edit",
+      "prompt_brief": "Remove only baked construction pads and crosses from the existing forest battlefield, reconstructing matching grass. Preserve roads, bridges, camps, scenery, perspective, light, and all map geometry.",
+      "sha256": "df47aa0368725f6bfbc88a423236bf1e1adf4108fd7bd398b35a300cad888a8f"
+    },
+    {
+      "asset": "assets/v09/site_pad.png",
+      "generated_output": "exec-0f22e1de-663f-4004-a9a6-cc0edcf9addb.png",
+      "mode": "reference_edit",
+      "prompt_brief": "Single shallow circular stone-and-earth construction foundation in top-down three-quarter perspective; soft contact shadow, grass blending, transparent background. Empty center, no building, no UI.",
+      "sha256": "6f9dfc3a5b0d4a4e7433773f6dbc2c3e784a53e4e7650608453b4c862c1019b2"
+    },
+    {
+      "asset": "assets/v09/portrait_knight.png",
+      "generated_output": "exec-31487e6c-df62-49ef-b7f0-602e849576e1.png",
+      "mode": "reference_edit",
+      "prompt_brief": "Refined attractive youthful original fantasy knight full-body portrait, sculpted dimensional 2D game illustration, expressive confident face, integrated signature weapon and costume matching battlefield sprites. Soft warm top-left light, clean silhouette, transparent background, no text or frame.",
+      "sha256": "355aba04e138d697d5afad85d773939b6b7695494010b5c1826510533ffe4938"
+    },
+    {
+      "asset": "assets/v09/portrait_ranger.png",
+      "generated_output": "exec-7566c018-5468-478a-840b-a03911e4423b.png",
+      "mode": "reference_edit",
+      "prompt_brief": "Refined attractive youthful original fantasy ranger full-body portrait, sculpted dimensional 2D game illustration, expressive confident face, integrated signature weapon and costume matching battlefield sprites. Soft warm top-left light, clean silhouette, transparent background, no text or frame.",
+      "sha256": "3b6453d84fb2e82db1e3541ec82146bcf1e31e33d09556b73def48dee6d5b212"
+    },
+    {
+      "asset": "assets/v09/portrait_mage.png",
+      "generated_output": "exec-a88d41a3-da99-4c94-800a-dfec155a952c.png",
+      "mode": "reference_edit",
+      "prompt_brief": "Refined attractive youthful original fantasy mage full-body portrait, sculpted dimensional 2D game illustration, expressive confident face, integrated signature weapon and costume matching battlefield sprites. Soft warm top-left light, clean silhouette, transparent background, no text or frame.",
+      "sha256": "ea3cdc747efb67a882dc2747321f276ea7a5b4c7e50e9bd5c0c181006e146189"
+    }
+  ]
+}

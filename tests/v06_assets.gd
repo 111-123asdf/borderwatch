@@ -12,10 +12,11 @@ func run() -> void:
 		for view in ["side","up","down"]:
 			for state in ArenaActor.STATES:
 				var name: String=state+"_"+view
-				check(actor.sprite_frames.get_frame_count(name)==6,"six animation frames "+name)
+				var count:=ArenaMotion.frame_count(state)
+				check(actor.sprite_frames.get_frame_count(name)==count,"authored animation frame count "+name)
 				var weight:=0.0
-				for i in range(6):weight+=actor.sprite_frames.get_frame_duration(name,i)
-				check(is_equal_approx(weight,6.0),"phase holds preserve total action duration "+name)
+				for i in range(count):weight+=actor.sprite_frames.get_frame_duration(name,i)
+				check(is_equal_approx(weight,float(count)),"phase holds preserve total action duration "+name)
 				var frame: Texture2D=actor.sprite_frames.get_frame_texture(name,2)
 				check(not frame.get_image().is_invisible(),"nonempty hero state "+hero+name)
 		actor.queue_free()
@@ -24,9 +25,10 @@ func run() -> void:
 		for name in ["walk","attack","down"]:
 			check(creature.sprite_frames.has_animation(name) and creature.sprite_frames.get_frame_count(name)==6,"creature sequence "+key+name)
 		creature.queue_free()
-	for path in ["map_forest","map_creek","props","towers"]:
-		check(ResourceLoader.exists("res://assets/v06/"+path+".png"),"final asset "+path)
-	var atlas: Texture2D=load("res://assets/v06/towers.png")
+	check(ResourceLoader.exists("res://assets/v06/props.png"),"current forest props")
+	for path in ["map_forest","map_creek","towers","site_pad","portrait_knight","portrait_ranger","portrait_mage"]:
+		check(ResourceLoader.exists("res://assets/v09/"+path+".png"),"final asset "+path)
+	var atlas: Texture2D=load(ArenaBattleArt.towers_path())
 	for x in range(4):
 		var previous:=PackedByteArray()
 		for y in range(3):

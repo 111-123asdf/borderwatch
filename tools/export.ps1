@@ -1,4 +1,4 @@
-﻿$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot 'godot_path.ps1')
 $enginePath = Resolve-GodotBinary $projectRoot
@@ -17,6 +17,7 @@ if ($code -ne 0 -or ($output -match 'SCRIPT ERROR:|^ERROR:')) { $output | Write-
 Copy-Item -LiteralPath (Join-Path $projectRoot 'docs\playtest.txt') -Destination (Join-Path $buildDirectory 'playtest.txt') -Force
 Copy-Item -LiteralPath (Join-Path $projectRoot 'docs\credits.txt') -Destination (Join-Path $buildDirectory 'credits.txt') -Force
 Copy-Item -LiteralPath (Join-Path $projectRoot 'docs\godot-copyright.txt') -Destination (Join-Path $buildDirectory 'godot-copyright.txt') -Force
-$zipPath = Join-Path $projectRoot 'builds\Borderwatch-v0.6-Windows.zip'
-Compress-Archive -LiteralPath (Join-Path $buildDirectory 'Borderwatch.exe'), (Join-Path $buildDirectory 'playtest.txt'), (Join-Path $buildDirectory 'credits.txt'), (Join-Path $buildDirectory 'godot-copyright.txt') -DestinationPath $zipPath -Force
+[IO.File]::WriteAllText((Join-Path $buildDirectory 'Play.bat'), "@echo off`r`nstart `"`" `"%~dp0Borderwatch.exe`" -- --playtest`r`n", [Text.Encoding]::ASCII)
+$zipPath = Join-Path $projectRoot 'builds\Borderwatch-v0.13-Windows.zip'
+Compress-Archive -LiteralPath (Join-Path $buildDirectory 'Borderwatch.exe'), (Join-Path $buildDirectory 'Play.bat'), (Join-Path $buildDirectory 'playtest.txt'), (Join-Path $buildDirectory 'credits.txt'), (Join-Path $buildDirectory 'godot-copyright.txt') -DestinationPath $zipPath -Force
 Get-Item -LiteralPath (Join-Path $buildDirectory 'Borderwatch.exe'), $zipPath | Select-Object FullName, Length

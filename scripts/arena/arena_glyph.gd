@@ -9,6 +9,11 @@ func _draw() -> void:
 	var r := minf(size.x,size.y)*0.37
 	var dark := Color("162f31")
 	match kind:
+		"diamond":
+			draw_colored_polygon(PackedVector2Array([c+Vector2(-r,-r*0.35),c+Vector2(-r*0.5,-r),c+Vector2(r*0.5,-r),c+Vector2(r,-r*0.35),c+Vector2(0,r)]),tint)
+			draw_polyline(PackedVector2Array([c+Vector2(-r,-r*0.35),c+Vector2(r,-r*0.35),c+Vector2(0,r),c+Vector2(-r*0.35,-r*0.35),c+Vector2(-r*0.5,-r)]),Color("e1ffff"),1.5,true)
+		"lock":
+			draw_arc(c+Vector2(0,-r*0.25),r*0.55,PI,TAU,16,tint,2.5,true);draw_rect(Rect2(c+Vector2(-r*0.8,-r*0.15),Vector2(r*1.6,r*1.15)),tint,false,2.5)
 		"coin":
 			draw_circle(c,r+2,dark); draw_circle(c,r,tint); draw_arc(c,r*0.7,0,TAU,24,Color("fff1a9"),2); draw_line(c-Vector2(0,r*0.5),c+Vector2(0,r*0.5),dark,2)
 		"heart":

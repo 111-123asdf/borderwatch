@@ -1,10 +1,11 @@
 # 边境守望开发约定
-唯一运行工程为本目录，Godot4.7.2 Standard / Compatibility，入口scenes/arena.tscn。先读README、docs/CURRENT_SLICE.md、ARCHITECTURE.md、DEVELOPMENT.md、TESTING.md及CONTRIBUTING.md。最新负责人需求优先。
+当前v0.13为局外界面重构：assets/v013原创卡通背景、控件与图标；英雄大厅/塔工坊同页更新已有节点，禁止重建背景或全屏闪入。技能Q/E，等级星槽为展示控件；三英雄战斗表现与数值保持。--playtest使用独立playtest_v013.cfg，初始LV.1和9999钻石，重进补足，正常campaign_v3.cfg不读写。--feel-lab仍为不持久化5级夹具。
+唯一运行工程为本目录，Godot4.7.2 Standard / Compatibility，入口scenes/arena.tscn。先读README、docs/CURRENT_SLICE.md、docs/ARCHITECTURE.md、docs/DEVELOPMENT.md、docs/TESTING.md及CONTRIBUTING.md。最新负责人需求优先。
 
-当前v0.6：固定道路和塔位、两关各八轮、三职业固定攻击与双技能、四塔三级、兵营士兵和真实拦截、营地与三选一。旧独立武器、背包、能量、护盾与自由建塔退出运行。塔无血量，只有基地失守才整局失败；英雄15秒复活。所有攻击明确物理或法术，不混用抗性。
+当前v0.10：标题→世界地图→关卡侧面板→直接出战。底栏独立管理单英雄、四塔配置和40卡图鉴，选择会保存。世界可容纳不同地貌，当前两关在森林区域；新地区的故事、世界节点和场景图片由ArenaLevelCatalog配置，不把整个游戏锁为绿色主题。保留固定道路、四塔三级与改造、兵营拦截、营地、英雄1—5级与钻石；2级Q、4级大招。旧独立武器、背包、能量、旧护盾训练与自由建塔退出运行。卡牌临时吸收保留。塔无血量，英雄15秒复活，只有基地失守才失败。所有攻击明确物理或法术。
 
-人物武器画在完整动作帧中，伤害按实际出手帧触发；节奏配置在ArenaMotion。运行美术在assets/v06，怪物全部为生成的森林生物，不能恢复最初Tiny Swords占位怪。参考图留在工程外。
+人物武器画在完整动作帧中，伤害按实际出手帧触发；节奏配置在ArenaMotion。局外美术使用assets/v013，英雄、地表、塔与地基使用assets/v09，生成的森林怪物和道具继续使用assets/v06。ArenaBattleArt统一建筑接触中心与地基占地，开火不能摆动整座塔。不能恢复最初Tiny Swords占位怪。参考图和录像留在工程外。
 
-保留Git历史、素材来源与课程资料。正常用户存档不清理；旧v1档不改写，v2验证后迁移。测试隔离APPDATA；夹具不冒充正常资源通关或真人体验；失败先查原因，不删断言求绿。
+保留Git历史、素材来源与课程资料。正常用户存档不清理；旧v1/v2训练档不读取、不迁移、不改写，新养成另存campaign_v3.cfg。测试隔离APPDATA；夹具不冒充正常资源通关或真人体验；失败先查原因，不删断言求绿。
 
 不自动登录、提交、推送或创建PR。引擎、缓存、测试输出、发行包、ZIP、密钥及未审课程草稿不入Git。

@@ -11,9 +11,11 @@ func cleanup() -> void:
 	paused=false;game.choice_queue=0;game.choice_open=false;game.running=false;game.audio.shutdown();await process_frame;OS.delay_msec(150);game.queue_free();await process_frame
 func run() -> void:
 	for identity in ArenaDefinitions.HERO_IDS:
-		game=load("res://scenes/arena.tscn").instantiate();root.add_child(game);await process_frame
+		game=load("res://scenes/arena.tscn").instantiate();game.campaign=ArenaCampaign.new("",false);root.add_child(game);await process_frame
 		game.start_run(identity,"creek")
 		var h: ArenaHero=game.hero
+		# Isolate combat skill tests at base stats; campaign bonuses are tested in v09_campaign.
+		h.meta_level=5
 		check(h.max_health==ArenaDefinitions.HEROES[identity].health,"class health "+identity)
 		check(h.cooldowns==[0.0,0.0],"skills start ready")
 		game.request_skill(1)
@@ -29,8 +31,9 @@ func run() -> void:
 		check(h.cast(1,h.position+Vector2.LEFT*150),"ultimate casts "+identity);h.release_action();h.cancel_action()
 		if identity=="knight":check(game.war_cry_clock>0,"warcry enhances nearby combat")
 		else:check(not game.delayed.is_empty(),"ranged ult schedules actual damage")
-		for key in ArenaDefinitions.PERKS:
-			for rank in range(3):check(h.apply_perk(key),"valid perk "+identity+" "+key)
+		for card in ArenaPerks.CARDS:
+			var key:=str(card.id)
+			for rank in range(int(card.max)):check(h.apply_perk(key),"valid perk "+identity+" "+key)
 			check(not h.apply_perk(key),"perk cap "+key)
 		h.meta_cooldown=0.1
 		check(is_equal_approx(h.cooldown_scale(),0.7),"CD reduction hard cap thirty percent")
@@ -42,11 +45,12 @@ func run() -> void:
 		var enemy:=game.spawn_enemy("fox",0,400);h.position=enemy.position+Vector2(20,0);h.attack_cooldown=0;h.cancel_action();h.rolling=0;Input.action_release("shoot");h._physics_process(0.016)
 		check(h.action=="","no click means no primary attack")
 		check(h.begin_attack(enemy),"primary starts from a valid target")
-		var shot_count:=h.shots;h.visual.frame=2
+		var release:=ArenaMotion.release_frame("attack",identity)
+		var shot_count:=h.shots;h.visual.frame=release-1
 		check(not h.action_released and h.shots==shot_count,"anticipation cannot deal early damage")
-		h.visual.frame=3
-		check(h.action_released and h.shots==shot_count+1,"fourth frame releases exactly once")
-		h.visual.frame=4
+		h.visual.frame=release
+		check(h.action_released and h.shots==shot_count+1,"authored contact frame releases exactly once")
+		h.visual.frame=release+1
 		check(h.shots==shot_count+1,"recovery cannot repeat the attack")
 		# Enemy projectile can pass a tower and a soldier without hitting either.
 		game.gold=1000;game.build_tower(0,"barracks");var s: ArenaSoldier=game.soldiers[0]
