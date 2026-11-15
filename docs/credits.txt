@@ -1,7 +1,7 @@
-边境守望 v0.6 · 资源说明
-人物立绘、三方向完整动作、森林生物、四塔三级、两张地表和场景道具，使用OpenAI内置图像生成工具为本项目制作。角色与场内动作按同一职业服装、配色与轮廓简化。
-菜单木牌沿用项目前期生成素材。所有成品资源在assets/v06及assets/original/frontier_menu_button.png，生成提示和记录见docs/ASSET_SOURCES.md。
-声音为本项目程序合成的短音效，未使用外部录音。运行字体由系统／引擎提供，不分发Windows字体。
-用户提供的元气骑士参考图与公开商业游戏截图用于设计研究，不作为运行贴图分发。未使用这些游戏的代码、录音或直接复制的角色图片。
-旧Tiny Swords与CC0武器图已退出v0.6工作区，历史授权声明继续保留在third_party及Git历史。
-引擎Godot4.7.2，MIT License。完整引擎及第三方声明见godot-copyright.txt。
+边境守望 v0.13 · 资源说明
+局外卡通标题、世界地图、室内战术厅、控件、技能徽章与40个成长图标位于assets/v013，由OpenAI内置imagegen为本项目原创生成。负责人授权脚本做透明边缘清理及控件裁切归一化；原始输出与提示记录在docs/ART_GENERATION_V013.json。
+三英雄使用assets/v011骑士与assets/v012游侠/法师的原创生成立绘和完整动作；地表、四塔与地基沿用assets/v09，生成的森林生物和道具沿用assets/v06。人物为2D逐帧精灵，不是实际3D模型。
+16个动作/接触音效来自Kenney RPG Audio与Impact Sounds，作者Kenney，CC0-1.0：https://kenney.nl/assets/rpg-audio 、 https://kenney.nl/assets/impact-sounds 。逐文件记录在docs/AUDIO_V011.json，原始许可在third_party/kenney_audio。
+11个英雄采样为CC0：Kenney Impact Sounds；Vehicle/Jan Schupke的Tinysized SFX（https://opengameart.org/content/fantasy-sound-effects-tinysized-sfx）；bart（原Stephan/pdsounds）的Ice Spells（https://opengameart.org/content/ice-spells）。逐文件处理在docs/AUDIO_V012.json，许可在third_party/hero_audio_v012。UI点击复用其中短晶体采样；其余类别保留程序合成。
+用户提供的商业角色参考图与录像只用于研究，不作为游戏资源、录音或源码图片分发。旧v010局外资源保留在源码历史，退出当前发行。未使用参考游戏的代码。
+运行字体由系统/引擎提供，不分发Windows字体。Godot4.7.2采用MIT License，完整引擎及第三方声明见godot-copyright.txt。历史CC0许可保留在third_party与Git历史。

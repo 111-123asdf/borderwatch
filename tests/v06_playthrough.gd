@@ -13,14 +13,23 @@ var knockouts:=0
 var was_down:=false
 var timer:=0.0
 var stopping:=false
+var hero_level:=1
+var preview:=false
 func _initialize() -> void:call_deferred("run")
 func run() -> void:
 	for arg in OS.get_cmdline_user_args():
+		if arg=="--preview":preview=true
 		if arg.begins_with("--hero="):hero_id=arg.trim_prefix("--hero=")
 		if arg.begins_with("--level="):stage=arg.trim_prefix("--level=")
+		if arg.begins_with("--hero-level="):hero_level=int(arg.trim_prefix("--hero-level="))
 	if hero_id not in ArenaDefinitions.HERO_IDS or stage not in ArenaLevelCatalog.IDS:push_error("Invalid playthrough arguments");quit(1);return
-	game=load("res://scenes/arena.tscn").instantiate();root.add_child(game);current_scene=game;await process_frame
+	game=load("res://scenes/arena.tscn").instantiate();game.campaign=ArenaCampaign.new("",false)
+	# Optional pre-existing hero-level profile is a labelled meta fixture. Run resources stay normal.
+	game.campaign.data.levels[hero_id]=clampi(hero_level,1,5)
+	root.add_child(game);current_scene=game;await process_frame
 	game.rng.seed=60406;game.start_run(hero_id,stage);Input.action_press("shoot")
+	if preview:
+		var caption:=Label.new();caption.position=Vector2(30,810);caption.size=Vector2(1500,70);caption.text=game.hero.data.name+"首关前三波 · 自动操作实战摘录\n正常局内资源 · 永久5级既有档夹具 · 非真人试玩";caption.add_theme_font_size_override("font_size",25);caption.add_theme_color_override("font_shadow_color",Color.BLACK);caption.add_theme_constant_override("shadow_offset_y",2);game.hud.root.add_child(caption)
 func release_and_hold() -> void:
 	Input.action_release("shoot")
 	var event:=InputEventMouseButton.new();event.button_index=MOUSE_BUTTON_LEFT;event.pressed=false;game._input(event)
@@ -28,14 +37,27 @@ func release_and_hold() -> void:
 func _process(delta: float) -> bool:
 	if stopping or game==null or not game.started:return false
 	timer+=delta
+	if preview and game.cycle>=4:
+		print("PREVIEW FIRST THREE WAVES PASSED: ",JSON.stringify(game.wave_log)," casts=",casts)
+		passed=game.core_health>0 and casts>0;stopping=true;finish.call_deferred();return false
 	if game.choice_open:
-		var priorities: Array=["power","rapid","command","ultimate","small","vitality","focus","haste"]
+		var priorities: Array=[]
+		for card in ArenaPerks.CARDS:
+			var only:=str(card.get("hero",""))
+			if only=="" or only==hero_id: priorities.append(str(card.id))
 		for key in priorities:
 			if key in game.choices:game.choose_perk(key);release_and_hold();break
 		return false
+	if game.camp_reward_open:
+		var reward: String="hero"
+		if game.doctrine_tokens==0 and game.l2_count()>0:reward="token"
+		elif game.gold<120:reward="gold"
+		game.choose_camp_reward(game.open_camp_id,reward)
+		return false
 	if game.game_over:
-		print("NORMAL ",hero_id," ",stage," won=",game.victory," wave=",game.cycle," kills=",game.kills," core=",game.core_health," camps=",game.camps_cleared," casts=",casts," KO=",knockouts," simulated seconds=",snappedf(game.elapsed,0.1)," damage=",game.damage_stats)
-		passed=game.victory and game.cycle==8 and game.built>=4 and casts>0
+		print("TELEMETRY ",JSON.stringify(game.telemetry()))
+		print("NORMAL ",hero_id," ",stage," won=",game.victory," wave=",game.cycle," kills=",game.kills," core=",game.core_health," camps=",game.camps_cleared," l3=",l3_count()," doctrines=",doctrine_count()," casts=",casts," KO=",knockouts," simulated seconds=",snappedf(game.elapsed,0.1)," damage=",game.damage_stats)
+		passed=game.victory and game.cycle==8 and game.built>=4 and (casts>0 if hero_level>=2 else casts==0)
 		stopping=true;finish.call_deferred();return false
 	if timer>1100:push_error("NORMAL TIMEOUT "+hero_id+" "+stage);stopping=true;finish.call_deferred();return false
 	decision-=delta
@@ -45,6 +67,7 @@ func _process(delta: float) -> bool:
 	was_down=game.hero.knocked_out
 	if last_wave!=game.cycle:print("WAVE ",game.cycle," core=",game.core_health," gold=",game.gold," elapsed=",int(game.elapsed));last_wave=game.cycle
 	manage_towers()
+	if preview and timer>3 and game.phase=="rest" and game.hero.health>game.hero.max_health*0.85:game.request_wave()
 	if game.hero.knocked_out:return false
 	var target: ArenaEnemy
 	var greatest:=-INF
@@ -72,12 +95,32 @@ func _process(delta: float) -> bool:
 	if game.phase=="rest" and game.camps_cleared==2 and game.hero.health>game.hero.max_health*0.85:
 		game.request_wave()
 	return false
+func l3_count() -> int:
+	var total:=0
+	for tower in game.towers:
+		if is_instance_valid(tower) and tower.level>=3:total+=1
+	return total
+func doctrine_count() -> int:
+	var total:=0
+	for tower in game.towers:
+		if is_instance_valid(tower) and tower.doctrine_id!="":total+=1
+	return total
 func manage_towers() -> void:
 	var order: Array=[0,1,3,2,4,5,6,7] if stage=="forest" else [0,5,1,6,3,7,4,8,2,9]
 	var plan: Array=["archer","barracks","mage","archer","cannon","mage","archer","cannon"] if stage=="forest" else ["archer","mage","mage","barracks","archer","archer","cannon","mage","cannon","archer"]
+	if game.cycle>=6:
+		for index in order:
+			if game.site_locked(index) and game.gold>=game.unlock_price(index)+120:game.unlock_site(index);return
 	for index in order:
 		var kind: String=plan[index]
 		if game.site_tower(index)==null and kind in game.available_towers() and game.gold>=ArenaDefinitions.TOWERS[kind].cost:game.build_tower(index,kind);return
+	for tower in game.towers:
+		if tower.awaiting_doctrine:
+			var options: Array=ArenaDoctrines.for_tower(tower.kind)
+			if not options.is_empty():tower.choose_doctrine(str(options[(tower.site_id+game.cycle)%options.size()].id))
+			return
+	for tower in game.towers:
+		if tower.level==2 and game.doctrine_tokens>0:tower.upgrade("",true);return
 	for tower in game.towers:
 		if tower.level<3 and game.gold>=tower.upgrade_price():tower.upgrade();return
 func finish() -> void:

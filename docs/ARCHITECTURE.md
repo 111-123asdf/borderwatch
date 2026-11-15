@@ -3,10 +3,20 @@ ArenaGame组装唯一战斗场景、地图、固定相机、按脚底排序的Ac
 
 ArenaBlocking集中维护敌人与英雄／士兵的拦截关系、容量与释放。塔无生命且不接收敌弹；兵营士兵独立承受近战，阵亡10秒补员。敌人未被拦截就沿道路前进，击退只改变道路进度。营地守卫在home附近行动。
 
-ArenaDefinitions为英雄、敌人、四塔、八类成长的唯一配置。ArenaCombat统一物理／法术与两类抗性；Area、Cone、Projectile、Delayed均显式传伤害类型。魔法易伤只影响法术。漏怪损失由关卡规则计算。
+ArenaDefinitions配置英雄、敌人和四塔。ArenaPerks管理40张成长卡、联动和套装，ArenaPerkNetwork保留图鉴的布局与连线，卡牌详情合并实际运行配置。ArenaDoctrines管理四塔的十二种三级改造；ArenaCamp管理营地激活、光环扩散、突袭和奖励。ArenaCombat统一物理／法术与两类抗性；Area、Cone、Projectile、Delayed均显式传伤害类型。魔法易伤只影响法术。漏怪损失由关卡规则计算。
 
-ArenaHero管理职业状态、双技能、经验、被动、脱战回血、倒下复活。ArenaActor使用完整人物与武器动作帧；ArenaMotion配置预备、出手、恢复节奏，动作帧事件与低帧率时钟后备使用同一释放比例。步频随速度变化。ArenaCreature统一敌人与士兵动画；ArenaArtAnchors按图片真实透明范围对齐脚底和建筑接触面。
+ArenaHero管理职业状态、双技能、经验、被动、脱战回血、倒下复活。ArenaHeroArt集中管理骑士v011与游侠/法师v012资源。ArenaActor按实际区域、脚底与出手点使用完整人物与武器动作帧；ArenaMotion配置预备、出手、恢复节奏，动作帧事件与低帧率时钟后备使用同一释放比例。步频随速度变化。ArenaCreature统一敌人与士兵动画；ArenaArtAnchors按图片真实透明范围对齐脚底和建筑接触面。
 
-ArenaHUD负责入口、图卡、图标HUD、固定塔位菜单、开波预览、局内成长与结算。模态和建造屏蔽普攻；右键／Esc优先取消选点。工程没有跨局英雄训练，历史训练存档保持原样且不再读取。ArenaAudio程序生成短音效并显式释放播放器。
+ArenaHUD负责图标HUD、固定塔位菜单、开波预览、局内成长与结算，ArenaFrontEnd组织主菜单、选关、出战准备、英雄养成及设置。图鉴保留打开前的暂停状态；奖励按营地、成长的顺序排队，不覆盖手册或图鉴，关闭手册后继续处理。模态和建造屏蔽普攻；右键／Esc优先取消选点。战场点击使用事件坐标，避免光标查询与窗口事件不同步。ArenaAudio加载选定CC0采样并保留旧合成对照，普通/重要声部分池，退出显式释放播放器。
+
+ArenaCampaign管理钻石、各英雄永久等级、首胜、已结算run_id集合、教程、设置及selected_hero/equipped_towers。select_hero与equip_towers验证ID、去重和槽数，写盘成功才替换内存；缺少新字段的旧v3档只在内存补默认。异常存档锁定保留原件。ArenaGame开局快照run_towers，available_towers取快照、关卡与波次交集，重开保留该快照。ArenaHero快照永久加成，重算卡牌不重复叠加，技能执行与卡池均检查解锁等级。
+
+ArenaFrontEnd管理title/world/heroes/towers状态、世界地标与侧面板，保存配置与浏览状态分离。ArenaMenuArt集中提供原始生成材质的AtlasTexture、九宫格样式和功能图标。世界背景不复用战场截图，管理场景为中性前哨庭院。ArenaLevelCatalog.WORLD_NODES配置世界地理；关卡map_art、可选preview_art、world_region、biome与story分别提供场内地表、预览和地区叙事，界面不固定绿色主题。ArenaPerkCodex用可筛选40卡图鉴展示运行配置与联动，保持原暂停恢复信号，无新增永久升级。
+
+ArenaBattleArt管理v09地表、空地基、四类三级建筑接触中心和固定96×48占地。地图不再烘焙塔位；建成时不重复绘制空地基，升级只改变上部形体。ArenaTower发射反馈位于muzzle，根部不旋转。旧v010局外图、早期按钮/像素样图、木牌及旧v06人物/地图/塔图移出工程，原件外层保留；生成的v06森林怪物与道具仍在运行。ArenaArtAnchors只生成这七种生物及八个道具的15项当前锚点，v09建筑与现代英雄使用各自元数据。
+
+投射物每个物理帧共享敌人快照，增删敌人使缓存失效，先做扫掠包围盒再做精确线段碰撞；穿透和击杀顺序不变。拦截每步复用有效拦截者列表。
 
 所有运行资源在res://，存档在user://。编辑器、测试、导出和外层入口均指向唯一正式工程，不复制第二套玩法脚本。
+
+v0.13：ArenaMenuArt使用assets/v013区域元数据和独立归一化控件，按大板/内衬/小框/主按钮分开。ArenaFrontEnd持有卡框、属性、技能说明和路线预览节点，同页修改内容，背景/顶栏不重建。ArenaPerkCodex使用独立40格图标与构筑轴边框，详情/筛选只更新局部。ArenaCampaign.playtest显式使用独立PLAYTEST_PATH并补足试玩钻石，正常存档路径保持。按键E统一释放职业大招。

@@ -1,0 +1,50 @@
+{
+  "version": "0.10.0",
+  "date": "2026-11-15",
+  "format": "Original generated PNG bitmap artwork; no commercial recording or UI images shipped.",
+  "direction": "Multi-biome continent world; current woodland stages occupy only one region. Neutral stone, leather and parchment interface.",
+  "assets": [
+    {
+      "asset": "assets/v010/title.png",
+      "generated_output": "exec-da294044-3f37-4df0-a044-f1d49ac0301d.png",
+      "tool": "image_gen.imagegen",
+      "prompt": "Use case: illustration-story. Production full-bleed 16:9 title-screen background for ORIGINAL hand-painted fantasy tower defense Borderwatch. Reference image is our own knight identity only; create a unified newly composed illustration, not a collage. Young handsome chestnut-haired silver/blue armored knight with deep red cape and integrated greatsword stands confidently on a forest stone path at left third; a green hooded ranger and purple star-hat mage are smaller supporting figures deeper in the scene. Wooden archer tower and red-roof barracks are grounded into sunlit grass in middle distance. Cute dangerous ember foxes, moss-armored forest beast and distant tiny glowing moth threaten from right midground. Warm golden sunlight through emerald leaves, depth, detailed soft brushwork, storybook painted materials, refined faces, readable silhouettes. Every subject belongs to SAME landscape and lighting, strong foreground/midground/background. Upper central 35% is softly lit atmospheric sky/tree opening suitable for title overlay; lower center 15% is calm path shadow suitable for start button. No text, logo, typography, interface, border, standalone character cutouts or photorealism.",
+      "sha256": "31d9e7fade1dc0a0cc4c0d4252b0cbcabb6c9a511ca5dabe2eeaaa91095a9932"
+    },
+    {
+      "asset": "assets/v010/world_atlas.png",
+      "generated_output": "exec-e94bf103-5613-4a78-9d1d-0e535cf07c2f.png",
+      "tool": "image_gen.imagegen",
+      "prompt": "Use case: stylized-concept. Production 16:9 landscape illustrated WORLD ATLAS background for an ORIGINAL multi-biome fantasy tower-defense campaign. This is a LARGE CONTINENT, not a single green forest. Sophisticated hand-painted high-end game map, raised miniature terrain, soft painterly detail, warm neutral parchment/stone map language. Natural organic land transitions, absolutely no quadrant borders: lush emerald forest occupies lower LEFT quarter, sunlit creek valley center-left; snowy icy alpine peaks occupy upper-right, ochre desert mesas and dry red canyons fill middle-right, misty violet ancient ruined highlands occupy lower-right, blue coastal sea at far left and distant horizons. Mountain passes and rivers geographically connect biomes. TWO currently playable landmarks only: forest village with tiny cream/red roofs at normalized (0.25,0.62), and a stone twin-bridge creek outpost at (0.43,0.48), connected by winding narrow travel road inside the forest/valley area. Future regions have interesting distant scenery but NO level markers. Rich landmarks, varying elevations, balanced warm/cold palette, snow whites and desert amber clearly as prominent as greens. Keep bottom 13% quiet neutral coastal rock/plain for a small UI dock; upper corners open for tiny UI. NO UI, text, numerals, flags, buttons, logos, borders, characters or watermark.",
+      "sha256": "f82b0df9c42e221e3c7377f8fea1544c9931315cc02efb914a791b275e8270a5"
+    },
+    {
+      "asset": "assets/v010/headquarters.png",
+      "generated_output": "exec-89da3499-ca86-4ac2-9b24-8e5a56825aea.png",
+      "tool": "image_gen.imagegen",
+      "prompt": "Use case: stylized-concept. Production full-bleed 16:9 HERO/TOWER MANAGEMENT background for an ORIGINAL multi-biome fantasy strategy game. A NEUTRAL medieval adventurer headquarters stone courtyard, NOT a forest-themed interface. Hand-painted warm limestone floor, weathered dark timber and neutral tan canvas, restrained brass and slate-blue pennants. Left half features a spacious empty stone presentation platform with clearly grounded surface at y85%, suitable for a full-body hero or tower. Right half is low-contrast cream plaster and softly shadowed workshop alcove for parchment UI overlays. Atmospheric distant blue mountains above the courtyard wall, tiny forge and training gear around far edges, soft warm directional light and detailed natural brushwork. Palette: warm cream, brown leather, dark bronze, slate, muted blue. Minimal plants only at extreme corners, no dominant green, no forest canopy. No heroes, installed towers, text, UI, logos, buttons, frames or watermark. Refined high-end hand-painted fantasy game scene.",
+      "sha256": "1fec0637415335b0d4b8cbc86f8080afb8324adba1e7f94973db69a02de8819a"
+    },
+    {
+      "asset": "assets/v010/icons.png",
+      "generated_output": "exec-9e15c91a-a2f6-47bc-96e1-ddc0bf32cb45.png",
+      "tool": "image_gen.imagegen",
+      "prompt": "Use case: stylized-concept. A production UI icon atlas for an ORIGINAL lush hand-painted fantasy tower-defense game. Transparent background, EXACTLY 4 columns and 2 rows of equal square cells, 8 icons. Each icon centered with generous 12% padding, no overlap. ROW1: handsome knight helmet with small red plume (hero); miniature wooden arrow watchtower with green banner (defense towers); open leather-bound glowing leaf grimoire (growth codex); small bronze gear (settings). ROW2: red wax seal/checkmark on parchment (deployed/equipped); blue faceted diamond in bronze claw (currency); green leather back arrow (back); red pennant on short bronze pole (battle). Warm gold rims and forest-green inset circular medallions, detailed painterly texture, cream highlights, soft three-quarter depth and consistent top-left light, legible at 64 pixels. Full true alpha background outside each circular medallion. No text, numbers, labels, white boxes, commercial logos or watermark.",
+      "sha256": "fafa5e0a037ed093a90d9dcf22f5367895359f0966002e3d0b688f47fc3608e2"
+    },
+    {
+      "asset": "assets/v010/skin.png",
+      "generated_output": "exec-d0b1ff98-422a-488e-9702-636420be04ca.png",
+      "tool": "image_gen.imagegen",
+      "prompt": "Use case: stylized-concept. Production fantasy game UI 9-slice skin atlas, true transparent background. EXACTLY TWO COLUMNS by TWO ROWS, four separate equal 4:3 rectangular cells in a regular 2x2 grid. Each cell contains ONE centered rectangular panel within its own cell, generous 8% transparent exterior padding, nothing crosses cell boundaries. TOP LEFT: warm cream parchment panel, thin weathered bronze corners and fine brown leather edging, calm paper interior, no decoration in center. TOP RIGHT: dark walnut and charcoal leather panel, restrained antique bronze rim, subtle hand-painted material, dark calm interior. BOTTOM LEFT: antique golden-brown wood primary button/panel, beveled bronze border, warm honey-brown interior with gentle inset highlights. BOTTOM RIGHT: neutral slate-blue dark leather secondary button/panel with bronze trim. All rectangles have modest softly chamfered corners and clear thin edges; precise nine-slice usable straight borders. Neutral classic adventure interface, no green tint, no glowing sci-fi frame. Real detailed painterly materials but restrained, clear at small UI sizes. No text, glyphs, icons, screws in centers, white or checkerboard backdrop, watermark.",
+      "sha256": "aebaf3d398d929dab8f3d066e804139f254ac216470d6ed725ad92a4444843c8"
+    },
+    {
+      "asset": "assets/v010/title_logo.png",
+      "generated_output": "exec-a4b7e848-b163-47af-93e2-120ae24b5363.png",
+      "tool": "image_gen.imagegen",
+      "prompt": "Use case: logo-brand. Create an ORIGINAL polished hand-painted fantasy strategy-game TITLE LOGO on a genuinely transparent background. Reference is our own generated four-screen visual board; use ONLY the title logo in its top-left screen as a design reference. Exact Chinese text must be 边境守望, four characters in this order, perfectly legible, no other writing. Bold artisan-cut golden Chinese lettering with subtle ivory edge, weathered bronze dimensional rim, dark warm brown extrusion, a small medieval watchtower crest above center and a restrained deep-red cloth banner behind. Neutral adventure identity suitable for forests, snowy mountains, deserts and ancient ruins; no leafy green frame. Refined, premium, confident, harmonious, readable when displayed at 650 pixels wide. Wide horizontal compact lockup, symmetrical balanced crest, no surrounding scene, no characters, no giant plaque, no mockup screens, no watermarks, no white or checkerboard background. Retain real alpha transparency and close framing around the logo.",
+      "sha256": "2ea3065138284ca19c09a1e1cf5dcf055d8fbe24c80405df7ef44e18a490871d"
+    }
+  ]
+}

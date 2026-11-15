@@ -5,13 +5,40 @@ var players: Array[AudioStreamPlayer] = []
 var streams := {}
 var cursor := 0
 var last_play := {}
+var sampled:=true
+var banks: Dictionary={}
+var variants: Dictionary={}
+const HERO_CUES:=["ranger_draw","ranger_release","ranger_hit","ranger_roll","ranger_rain","mage_gather","mage_cast","mage_hit","mage_frost","mage_meteor_charge","mage_meteor_hit"]
+const FILES:={
+	"blade":["knifeSlice","knifeSlice2"],
+	"hit":["impactPunch_medium_000","impactPunch_medium_001","impactPunch_medium_002"],
+	"heavy_hit":["impactPunch_heavy_000","impactPunch_heavy_001"],
+	"kill":["impactSoft_heavy_000","impactSoft_heavy_001"],
+	"explode":["impactWood_heavy_000","impactWood_heavy_001"],
+	"phase":["impactBell_heavy_000","impactBell_heavy_001"],
+	"footstep":["footstep_grass_000","footstep_grass_001","footstep_grass_002"]}
 
 func _ready() -> void:
-	for index in range(8):
+	for label in ["Combat","Interface"]:
+		if AudioServer.get_bus_index(label)<0:
+			AudioServer.add_bus();AudioServer.set_bus_name(AudioServer.bus_count-1,label)
+			var compressor:=AudioEffectCompressor.new();compressor.threshold=-6.0;compressor.ratio=8.0
+			AudioServer.add_bus_effect(AudioServer.get_bus_index(label),compressor)
+	for index in range(16):
 		var player := AudioStreamPlayer.new()
 		player.volume_db = -8.0
 		add_child(player)
 		players.append(player)
+	for kind in FILES:
+		var bank: Array=[]
+		for file in FILES[kind]:
+			var path: String="res://assets/v011/audio/"+str(file)+".ogg"
+			if ResourceLoader.exists(path):bank.append(load(path))
+		if not bank.is_empty():banks[kind]=bank
+	for kind in HERO_CUES:
+		var path: String="res://assets/v012/audio/"+kind+".ogg"
+		if ResourceLoader.exists(path):banks[kind]=[load(path)]
+	banks.ui_click=[load("res://assets/v012/audio/mage_cast.ogg")]
 	_make("blade",0.12,340.0,0.88,0.7)
 	_make("bow",0.09,760.0,0.15,0.55)
 	_make("rocket",0.22,95.0,0.85,0.8)
@@ -26,14 +53,28 @@ func _ready() -> void:
 	_make("phase", 0.4, 80.0, 0.8, 1.0)
 
 func play(kind: String, volume_db := -8.0, pitch := 1.0) -> void:
-	if not streams.has(kind): return
+	if not streams.has(kind) and not banks.has(kind): return
 	var now := Time.get_ticks_msec()
 	if last_play.has(kind) and now - int(last_play[kind]) < 45: return
 	last_play[kind] = now
-	var index: int=6+cursor%2 if kind in ["hurt","phase"] else cursor%6
+	var important: bool=kind in ["hurt","phase","heavy_hit","explode","mage_frost","mage_meteor_charge","mage_meteor_hit","ranger_rain"]
+	var index: int=12+cursor%4 if important else cursor%12
+	# Ordinary effects use a free voice and cannot cut off a skill or injury cue.
+	if not important:
+		var found:=false
+		for offset in range(12):
+			var candidate: int=(cursor+offset)%12
+			if not players[candidate].playing:index=candidate;found=true;break
+		if not found:return
 	var player: AudioStreamPlayer=players[index]
 	cursor += 1
-	player.stream = streams[kind]
+	if sampled and banks.has(kind):
+		var variant: int=(int(variants.get(kind,-1))+1)%banks[kind].size()
+		variants[kind]=variant;player.stream=banks[kind][variant]
+	else:
+		if not streams.has(kind):return
+		player.stream=streams[kind]
+	player.bus="Interface" if kind in ["tower","ui_click"] else "Combat"
 	player.volume_db = volume_db
 	player.pitch_scale = pitch * randf_range(0.94, 1.06)
 	player.play()
@@ -70,3 +111,4 @@ func shutdown() -> void:
 		player.stop()
 		player.stream = null
 	streams.clear()
+	banks.clear()

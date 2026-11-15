@@ -3,6 +3,7 @@ extends AnimatedSprite2D
 var identity: String="fox"
 var direction:=Vector2.RIGHT
 var base_height:=50.0
+var feedback:=ArenaVisualFeedback.new()
 static var frame_cache: Dictionary={}
 func configure(key: String, height := 50.0) -> void:
 	identity=key;base_height=height;texture_filter=CanvasItem.TEXTURE_FILTER_LINEAR
@@ -24,9 +25,14 @@ func show_pose(state: String, facing: Vector2) -> void:
 	flip_h=direction.x<0
 	if not sprite_frames.has_animation(state):return
 	var image: Texture2D=sprite_frames.get_frame_texture(state,0)
-	scale=Vector2.ONE*base_height/(image.get_height()*0.78);offset=Vector2(0,-image.get_height()*ArenaArtAnchors.offset_for("creature_"+identity))
-	speed_scale=1.0
+	feedback.base_scale=Vector2.ONE*base_height/(image.get_height()*0.78);scale=feedback.base_scale;offset=Vector2(0,-image.get_height()*ArenaArtAnchors.offset_for("creature_"+identity))
+	feedback.base_speed=1.0;speed_scale=feedback.base_speed
+	if animation!=state:feedback.stop_left=0.0
 	if animation!=state or (state=="walk" and not is_playing()):play(state)
 func match_stride(speed: float) -> void:
 	if identity in ["wisp","moth"]:return
-	speed_scale=clampf(speed*6.0/(base_height*0.85*9.0),0.45,1.8)
+	feedback.base_speed=clampf(speed*6.0/(base_height*0.85*9.0),0.45,1.8);speed_scale=feedback.base_speed
+func _process(delta: float) -> void:
+	var owner_node:=get_parent()
+	if owner_node is ArenaEnemy and owner_node.stun>0:feedback.base_speed=0.0
+	feedback.tick(self,delta)

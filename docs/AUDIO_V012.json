@@ -1,0 +1,115 @@
+{
+  "format": "mono Vorbis, 44.1kHz",
+  "assets": [
+    {
+      "cue": "ranger_draw",
+      "file": "assets/v012/audio/ranger_draw.ogg",
+      "source_file": "arrow-grab-from-quiver-01.wav",
+      "author": "Vehicle / Jan Schupke",
+      "source": "https://opengameart.org/content/fantasy-sound-effects-tinysized-sfx",
+      "license": "CC0-1.0",
+      "processing": "silenceremove=start_periods=1:start_threshold=-48dB,aresample=44100,asetrate=44100*1,aresample=44100,atrim=duration=0.24,afade=t=out:st=0.185:d=0.055,loudnorm=I=-20:TP=-3:LRA=7",
+      "sha256": "ada9493566ed2b3a5506489f7f3bb1ab6bc7c82cc6af3be964bd46a9738bf06b"
+    },
+    {
+      "cue": "ranger_release",
+      "file": "assets/v012/audio/ranger_release.ogg",
+      "source_file": "arrow-feathers-01.wav",
+      "author": "Vehicle / Jan Schupke",
+      "source": "https://opengameart.org/content/fantasy-sound-effects-tinysized-sfx",
+      "license": "CC0-1.0",
+      "processing": "silenceremove=start_periods=1:start_threshold=-48dB,aresample=44100,asetrate=44100*1.15,aresample=44100,atrim=duration=0.24,afade=t=out:st=0.185:d=0.055,loudnorm=I=-20:TP=-3:LRA=7",
+      "sha256": "9d42742dbc38ef08f0d1d800c571cc6e56838fbc8999a0bbc182f39864a7d1c9"
+    },
+    {
+      "cue": "ranger_hit",
+      "file": "assets/v012/audio/ranger_hit.ogg",
+      "source_file": "wood-twigs-break-01.wav",
+      "author": "Vehicle / Jan Schupke",
+      "source": "https://opengameart.org/content/fantasy-sound-effects-tinysized-sfx",
+      "license": "CC0-1.0",
+      "processing": "silenceremove=start_periods=1:start_threshold=-48dB,aresample=44100,asetrate=44100*1,aresample=44100,atrim=duration=0.22,afade=t=out:st=0.165:d=0.055,loudnorm=I=-20:TP=-3:LRA=7",
+      "sha256": "4f15ded1c31f798fa2a78825fc206d505bed99da6f9a110dd691fa20329042d8"
+    },
+    {
+      "cue": "ranger_roll",
+      "file": "assets/v012/audio/ranger_roll.ogg",
+      "source_file": "cloth-pouch-shake-01.wav",
+      "author": "Vehicle / Jan Schupke",
+      "source": "https://opengameart.org/content/fantasy-sound-effects-tinysized-sfx",
+      "license": "CC0-1.0",
+      "processing": "silenceremove=start_periods=1:start_threshold=-48dB,aresample=44100,asetrate=44100*0.85,aresample=44100,atrim=duration=0.3,afade=t=out:st=0.245:d=0.055,loudnorm=I=-20:TP=-3:LRA=7",
+      "sha256": "fdd7b4b5216ff7c5f0b0feae111a2bc8e3b54dc624299646dc84d350ef3b17f9"
+    },
+    {
+      "cue": "ranger_rain",
+      "file": "assets/v012/audio/ranger_rain.ogg",
+      "source_file": "wood-twigs-break-02.wav",
+      "author": "Vehicle / Jan Schupke",
+      "source": "https://opengameart.org/content/fantasy-sound-effects-tinysized-sfx",
+      "license": "CC0-1.0",
+      "processing": "silenceremove=start_periods=1:start_threshold=-48dB,aresample=44100,asetrate=44100*1.15,aresample=44100,atrim=duration=0.28,afade=t=out:st=0.22500000000000003:d=0.055,loudnorm=I=-20:TP=-3:LRA=7",
+      "sha256": "1b1d0fead310b1be0ccb3475e0aca8a9ec6db000f9d7f334bc9f009efc9c2183"
+    },
+    {
+      "cue": "mage_gather",
+      "file": "assets/v012/audio/mage_gather.ogg",
+      "source_file": "impactBell_heavy_000.ogg",
+      "author": "Kenney",
+      "source": "https://kenney.nl/assets/impact-sounds",
+      "license": "CC0-1.0",
+      "processing": "silenceremove=start_periods=1:start_threshold=-48dB,aresample=44100,asetrate=44100*0.75,aresample=44100,atrim=duration=0.28,afade=t=out:st=0.22500000000000003:d=0.055,loudnorm=I=-20:TP=-3:LRA=7",
+      "sha256": "e2ae8c475359b3dd231e72141ba6db934d9339bb78b8a0d5d612c3a5f9daf3a4"
+    },
+    {
+      "cue": "mage_cast",
+      "file": "assets/v012/audio/mage_cast.ogg",
+      "source_file": "impactGlass_light_000.ogg",
+      "author": "Kenney",
+      "source": "https://kenney.nl/assets/impact-sounds",
+      "license": "CC0-1.0",
+      "processing": "silenceremove=start_periods=1:start_threshold=-48dB,aresample=44100,asetrate=44100*1.15,aresample=44100,atrim=duration=0.25,afade=t=out:st=0.195:d=0.055,loudnorm=I=-20:TP=-3:LRA=7",
+      "sha256": "0b785f238fe6032df1420c09b44304685363e9ec364a7ad4a71e55b43af71056"
+    },
+    {
+      "cue": "mage_hit",
+      "file": "assets/v012/audio/mage_hit.ogg",
+      "source_file": "impactGlass_light_001.ogg",
+      "author": "Kenney",
+      "source": "https://kenney.nl/assets/impact-sounds",
+      "license": "CC0-1.0",
+      "processing": "silenceremove=start_periods=1:start_threshold=-48dB,aresample=44100,asetrate=44100*1,aresample=44100,atrim=duration=0.26,afade=t=out:st=0.20500000000000002:d=0.055,loudnorm=I=-20:TP=-3:LRA=7",
+      "sha256": "ef2af36dcba0c58ff5389f1b092318732536e0c4a50fcb20cdd989a5df59efe5"
+    },
+    {
+      "cue": "mage_frost",
+      "file": "assets/v012/audio/mage_frost.ogg",
+      "source_file": "coldsnap.wav",
+      "author": "bart; original recordings Stephan / pdsounds",
+      "source": "https://opengameart.org/content/ice-spells",
+      "license": "CC0-1.0",
+      "processing": "silenceremove=start_periods=1:start_threshold=-48dB,aresample=44100,asetrate=44100*1,aresample=44100,atrim=duration=0.65,afade=t=out:st=0.595:d=0.055,loudnorm=I=-20:TP=-3:LRA=7",
+      "sha256": "bf86cfcf0bbbc5e113fde1372503c176955d7328069a28edc4c3bffad6467c83"
+    },
+    {
+      "cue": "mage_meteor_charge",
+      "file": "assets/v012/audio/mage_meteor_charge.ogg",
+      "source_file": "ice.wav",
+      "author": "bart; original recordings Stephan / pdsounds",
+      "source": "https://opengameart.org/content/ice-spells",
+      "license": "CC0-1.0",
+      "processing": "silenceremove=start_periods=1:start_threshold=-48dB,aresample=44100,asetrate=44100*0.7,aresample=44100,atrim=duration=0.85,afade=t=out:st=0.7949999999999999:d=0.055,loudnorm=I=-20:TP=-3:LRA=7",
+      "sha256": "a085cc227b34efda72edce95acdae87a9cbeaab144975ef15668967022680bb0"
+    },
+    {
+      "cue": "mage_meteor_hit",
+      "file": "assets/v012/audio/mage_meteor_hit.ogg",
+      "source_file": "impactGlass_heavy_000.ogg",
+      "author": "Kenney",
+      "source": "https://kenney.nl/assets/impact-sounds",
+      "license": "CC0-1.0",
+      "processing": "silenceremove=start_periods=1:start_threshold=-48dB,aresample=44100,asetrate=44100*0.7,aresample=44100,atrim=duration=0.55,afade=t=out:st=0.49500000000000005:d=0.055,loudnorm=I=-20:TP=-3:LRA=7",
+      "sha256": "52e87626150c0d7208f6bd21def20f5367e8326c7668351c615d7ad51a05dfbe"
+    }
+  ]
+}

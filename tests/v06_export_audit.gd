@@ -5,12 +5,30 @@ func check(ok: bool,message: String) -> void:
 	checks+=1
 	if not ok:failures+=1;push_error("EXPORT FAIL: "+message)
 func _initialize() -> void:
-	check(ProjectSettings.get_setting("application/config/version")=="0.6.0","pack version")
+	check(ProjectSettings.get_setting("application/config/version")=="0.13.0","pack version")
+	for identity in ["ranger","mage"]:
+		for view in ["side","down","up"]:check(ResourceLoader.exists(ArenaHeroArt.atlas(identity,view)),"v012 hero atlas ships "+identity+view)
+		check(FileAccess.file_exists(ArenaHeroArt.folder(identity)+identity+"_frames.json"),"v012 anchors ship "+identity)
+		check(ArenaHeroArt.portrait(identity)!=null,"v012 portrait ships "+identity)
+		check(ResourceLoader.exists(ArenaHeroArt.folder(identity)+identity+"_fx.png"),"v012 painted VFX ships "+identity)
+	for cue in ArenaAudio.HERO_CUES:check(ResourceLoader.exists("res://assets/v012/audio/"+cue+".ogg"),"CC0 hero sound ships "+cue)
+	for view in ["side","down","up"]:check(ResourceLoader.exists("res://assets/v011/knight_"+view+".png"),"selected cartoon knight ships "+view)
+	check(ResourceLoader.exists("res://assets/v011/portrait_knight.png"),"transparent young portrait ships")
+	check(ResourceLoader.exists("res://assets/v011/physical_fx.png"),"painted physical effects ship")
+	check(FileAccess.file_exists("res://assets/v011/knight_frames.json"),"authored atlas regions ship")
+	for kind in ArenaAudio.FILES:
+		for file in ArenaAudio.FILES[kind]:check(ResourceLoader.exists("res://assets/v011/audio/"+str(file)+".ogg"),"selected CC0 sound ships "+str(file))
+	check(not ResourceLoader.exists("res://assets/v011/knight_design.png"),"unused concept sheet excluded")
+	for file in ["title","world_atlas","hall_bg","ui_icons","ui_controls","ui_skin","perk_icons","widget_dark","widget_paper","widget_amber","widget_blue","widget_green"]:check(ResourceLoader.exists("res://assets/v013/"+file+".png"),"current cartoon front-end asset ships "+file)
+	check(FileAccess.file_exists("res://assets/v013/regions.json"),"inspected UI regions ship")
+	check(not ResourceLoader.exists("res://assets/v010/headquarters.png"),"unused old courtyard excluded from executable")
 	for file in ["weapon_rig.gd","actor_visual.gd","arena/arena_weapon_catalog.gd","arena/arena_drop.gd","arena/arena_minimap.gd"]:
 		check(not ResourceLoader.exists("res://scripts/"+file),"retired script absent")
 	for path in ["weapons","tiny_swords","ui"]:
 		check(not DirAccess.dir_exists_absolute("res://assets/"+path),"retired resources absent")
-	check(ResourceLoader.exists("res://assets/v06/portrait_mage.png"),"new portraits shipped")
+	check(ResourceLoader.exists("res://assets/v09/portrait_mage.png"),"new portraits shipped")
+	check(ResourceLoader.exists("res://assets/v09/mage_side.png") and ResourceLoader.exists("res://assets/v09/site_pad.png"),"current animation and foundation shipped")
+	check(not ResourceLoader.exists("res://assets/v06/knight_side.png"),"old cartoon hero atlas excluded")
 	check(ResourceLoader.exists("res://scripts/arena/arena_motion.gd"),"current action planning shipped")
 	check(not FileAccess.file_exists("res://docs/ART_GENERATION.json"),"development materials excluded")
 	print("V06 EXPORT AUDIT CHECKS: %d, FAILURES: %d"%[checks,failures]);quit(0 if failures==0 else 1)

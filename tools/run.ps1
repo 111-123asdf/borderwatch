@@ -1,4 +1,4 @@
-param([switch]$Editor)
+param([switch]$Editor,[switch]$Playtest)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot 'godot_path.ps1')
@@ -9,5 +9,6 @@ if (-not $Editor) {
 }
 $arguments = @('--path', $projectRoot)
 if ($Editor) { $arguments += '--editor' }
+if ($Playtest -and -not $Editor) { $arguments += @('--','--playtest') }
 & $enginePath @arguments
 exit $LASTEXITCODE

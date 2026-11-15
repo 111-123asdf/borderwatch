@@ -13,7 +13,7 @@ func run() -> void:
 	check(is_equal_approx(ArenaCombat.resolve(100,1,0,0.2,0.1),88),"magic exposure applies only to magic")
 	check(is_equal_approx(ArenaCombat.resolve(100,0,0,0,0.1),100),"physical ignores magic exposure")
 	game=load("res://scenes/arena.tscn").instantiate();root.add_child(game);current_scene=game;await process_frame
-	check(game.hud.root.find_child("开始守望",true,false)!=null,"entry keeps the direct start action")
+	check(game.hud.root.find_child("StartCampaign",true,false)!=null,"entry leads to the campaign map")
 	check(game.hud.root.find_child("英雄训练",true,false)==null,"entry has no retired hero training action")
 	game.start_run("knight","forest")
 	check(game.routes.size()==1 and game.level_definition.sites.size()==8,"first level authored road and sites")
