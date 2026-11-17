@@ -1,10 +1,42 @@
 class_name ArenaLevelCatalog
 extends RefCounted
-const IDS := ["forest","creek"]
+const IDS := ["forest","creek","ruins"]
 const SIZE := Vector2(1600,900)
 # Campaign geography is independent of battlefield roads and art. Future regions add nodes here.
-const WORLD_NODES:={"forest":{"region":"forest_frontier","position":Vector2(400,558)},"creek":{"region":"forest_frontier","position":Vector2(688,432)}}
+const WORLD_NODES:={
+	"forest":{"region":"forest_frontier","position":Vector2(400,558)},
+	"creek":{"region":"forest_frontier","position":Vector2(688,432)},
+	"ruins":{"region":"arcane_ruins","position":Vector2(1240,620)}
+}
 static func definition(key: String) -> Dictionary:
+	if key=="ruins":
+		var ruins: Dictionary={"id":"ruins","name":"紫雾遗迹 · 星陨古殿","story":"调度吊桥，借交叉火力守住星陨殿。","world_region":"arcane_ruins","biome":"ruins",
+			"map_art":"res://assets/v017/map_ruins.png","preview_art":"res://assets/v017/map_ruins.png",
+			"perk_mode":"keystone","boss":true,"boss_kind":"colossus","camp_guard":"void_harvester","waves":8,"size":Vector2(2000,1125),"core":Vector2(1120,560),"hero_spawn":Vector2(1030,600),
+			"routes":[
+				[Vector2(-30,180),Vector2(220,180),Vector2(360,320),Vector2(600,320),Vector2(680,160),Vector2(840,160),Vector2(900,350),Vector2(760,440),Vector2(860,560),Vector2(1120,560)],
+				[Vector2(-30,950),Vector2(240,950),Vector2(360,800),Vector2(620,800),Vector2(700,960),Vector2(950,960),Vector2(1040,790),Vector2(920,700),Vector2(860,560),Vector2(1120,560)],
+				[Vector2(2030,920),Vector2(1770,920),Vector2(1650,750),Vector2(1460,750),Vector2(1370,940),Vector2(1240,940),Vector2(1230,770),Vector2(1380,700),Vector2(1380,560),Vector2(1120,560)],
+				[Vector2(2030,170),Vector2(1800,170),Vector2(1680,330),Vector2(1450,330),Vector2(1380,440),Vector2(1380,560),Vector2(1120,560)]],
+			"bridge_gate":{"point":Vector2(480,800),"route_id":1,"fork":Vector2(360,800),
+				"detour":[Vector2(-30,950),Vector2(240,950),Vector2(360,800),Vector2(220,660),Vector2(350,530),Vector2(640,530),Vector2(700,700),Vector2(620,800),Vector2(700,960),Vector2(950,960),Vector2(1040,790),Vector2(920,700),Vector2(860,560),Vector2(1120,560)]},
+			"sites":[Vector2(180,300),Vector2(400,210),Vector2(580,455),Vector2(750,280),Vector2(990,275),Vector2(1000,450),Vector2(180,815),Vector2(405,940),Vector2(575,665),Vector2(800,835),Vector2(1250,640),Vector2(1500,590),Vector2(1560,430),Vector2(1600,870),Vector2(1360,1030),Vector2(1490,210),Vector2(1870,310),Vector2(1870,810)],
+			"site_traits":["highground","choke","choke","highground","highground","conduit","highground","choke","choke","highground","conduit","conduit","choke","highground","choke","conduit","highground","choke"],
+			"site_roles":["西北入弯","北侧回弯","绕行交叉射界","北环内侧","北环折返","核心西侧","西南前哨","吊桥分流","绕行内湾","南环内侧","南环汇防","核心东侧","破障前沿","东南回弯","南环长线","裂隙前哨","东北入口","东南入口"],
+			"altars":[Vector2(1120,670)],
+			"camps":[Vector2(120,550),Vector2(1820,550)],
+			"braziers":[Vector2(540,20),Vector2(373,1002),Vector2(1688,36),Vector2(1634,932)],
+			"breach":{"point":Vector2(1550,330),"guard":Vector2(1570,285),"route_id":3,"wave":4},
+			"locked_sites":[10,15],"locked_prices":{"10":180,"15":220},"locked_site_price":200,
+			"blocked":[Rect2(430,50,120,80),Rect2(960,80,70,75)],
+			"pool":[["construct_hound","astral_prism"],["rune_warden","astral_prism","rift_bomber"],["construct_hound","rune_warden","void_harvester"]],
+			"preview_enemies":["construct_hound","rune_warden","astral_prism","colossus"],
+			"towers":{"archer":1,"barracks":1,"mage":1,"cannon":1}}
+		var terrain_file:=FileAccess.open("res://assets/v017/terrain_blocks.json",FileAccess.READ)
+		if terrain_file!=null:
+			var rectangles: Array=JSON.parse_string(terrain_file.get_as_text())
+			for rect in rectangles:ruins.blocked.append(Rect2(float(rect[0]),float(rect[1]),float(rect[2]),float(rect[3])))
+		return ruins
 	if key=="creek":
 		return {"id":"creek","name":"溪谷驿站","story":"两座桥，一道防线。","world_region":"forest_frontier","biome":"creek","map_art":"res://assets/v09/map_creek.png","boss":false,"waves":8,"core":Vector2(1510,540),"hero_spawn":Vector2(1390,565),
 			"routes":[[Vector2(-30,190),Vector2(230,190),Vector2(350,350),Vector2(590,350),Vector2(640,185),Vector2(990,185),Vector2(1110,390),Vector2(1040,510),Vector2(1240,540),Vector2(1510,540)],
@@ -50,7 +82,16 @@ static func wave(stage: String,number: int) -> Dictionary:
 		{"units":[["brute",8,1],["wisp",6,1],["spearman",8]],"lead":1},
 		{"units":[["fox",24,1],["spore",6,1],["spearman",6]],"lead":-1},
 		{"units":[["fox",20],["brute",6,2],["wisp",6,1],["spearman",10,1]],"lead":-1}]
-	return (creek if stage=="creek" else forest)[clampi(number-1,0,7)].duplicate(true)
+	var ruins: Array=[
+		{"units":[["construct_hound",9],["astral_prism",3]],"lead":0,"route_pool":[0,0,0,1]},
+		{"units":[["construct_hound",10],["rune_warden",4]],"lead":1,"route_pool":[1,1,0,1]},
+		{"units":[["construct_hound",8],["astral_prism",7],["rift_bomber",3]],"lead":2,"route_pool":[2,2,1,0]},
+		{"units":[["rune_warden",6,1],["construct_hound",12,1],["astral_prism",6]],"lead":-1,"route_pool":[0,2,1]},
+		{"units":[["construct_hound",16,1],["rift_bomber",6,1],["rune_warden",4],["astral_prism",5]],"lead":3,"route_pool":[3,0,1,2,3]},
+		{"units":[["rune_warden",8,1],["void_harvester",3,1],["astral_prism",8,1]],"lead":-1,"route_pool":[0,1,2,3]},
+		{"units":[["construct_hound",18,1],["rift_bomber",8,1],["rune_warden",8,1],["void_harvester",2,1]],"lead":-1,"route_pool":[0,1,2,3]},
+		{"units":[["construct_hound",20,1],["rune_warden",10,1],["astral_prism",8,1],["rift_bomber",10,1]],"lead":-1,"route_pool":[0,1,2,3]}]
+	return (ruins if stage=="ruins" else (creek if stage=="creek" else forest))[clampi(number-1,0,7)].duplicate(true)
 static func wave_profile(stage: String,number: int) -> Dictionary:
 	var pattern:=wave(stage,number)
 	var scale:=1.0+0.11*maxi(0,number-1)
@@ -71,8 +112,10 @@ static func wave_profile(stage: String,number: int) -> Dictionary:
 			if float(data.resistance)>=HIGH_RESIST:high_res+=health
 			if elite:elites+=1
 	non_boss=total
-	if stage=="forest" and number==8:
-		var boss:=ArenaDefinitions.enemy("moth");var health:=float(boss.health)*scale
+	var def:=definition(stage)
+	if bool(def.get("boss",false)) and number==8:
+		var boss_kind: String=str(def.get("boss_kind","moth"))
+		var boss:=ArenaDefinitions.enemy(boss_kind);var health:=float(boss.health)*scale
 		total+=health;count+=1
 		if float(boss.armour)>=HEAVY_ARMOUR:heavy+=health
 		if float(boss.resistance)>=HIGH_RESIST:high_res+=health

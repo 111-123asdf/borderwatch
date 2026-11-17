@@ -8,6 +8,9 @@ source, target = map(pathlib.Path, sys.argv[1:3])
 keep_audio = '--audio' in sys.argv[3:]
 duration = next((float(x.split('=', 1)[1]) for x in sys.argv[3:] if x.startswith('--duration=')), None)
 encoder = shutil.which('ffmpeg')
+bundled = pathlib.Path(__file__).resolve().parents[2] / 'toolchain' / 'ffmpeg' / 'ffmpeg.exe'
+if not encoder and bundled.is_file():
+    encoder = str(bundled)
 if not encoder:
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / 'test-results' / 'movie-tools'))
     try:

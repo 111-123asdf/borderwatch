@@ -49,6 +49,16 @@ func base(background: String,page_name: String) -> void:
 		var gradient:=Gradient.new();gradient.colors=PackedColorArray([Color(1,.89,.58,.25),Color(1,.89,.58,0)])
 		var dot:=GradientTexture2D.new();dot.gradient=gradient;dot.width=24;dot.height=24;dot.fill=GradientTexture2D.FILL_RADIAL;dot.fill_from=Vector2(.5,.5);dot.fill_to=Vector2(1,.5)
 		var light:=CPUParticles2D.new();light.name="AmbientLights";light.texture=dot;light.position=Vector2(800,450);light.amount=8;light.lifetime=24;light.preprocess=18;light.emission_shape=CPUParticles2D.EMISSION_SHAPE_RECTANGLE;light.emission_rect_extents=Vector2(780,400);light.gravity=Vector2.ZERO;light.direction=Vector2.UP;light.initial_velocity_min=1;light.initial_velocity_max=3;light.scale_amount_min=.2;light.scale_amount_max=.4;hud.menu.add_child(light)
+		if page_name=="world":
+			var top_gate:=hud.colour_block(hud.menu,Rect2(0,0,1600,36),Color(0.08,0.11,0.16,0.78))
+			var bot_gate:=hud.colour_block(hud.menu,Rect2(0,864,1600,36),Color(0.08,0.11,0.16,0.78))
+			top_gate.z_index=30;bot_gate.z_index=30
+			var tw:=hud.menu.create_tween().set_parallel(true).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+			tw.tween_property(top_gate,"position:y",-40.0,0.16)
+			tw.tween_property(bot_gate,"position:y",904.0,0.16)
+			tw.chain().tween_callback(func():
+				if is_instance_valid(top_gate):top_gate.queue_free()
+				if is_instance_valid(bot_gate):bot_gate.queue_free())
 	notice=text(hud.menu,"",Rect2(420,846,760,38),23);notice.name="FrontMessage";notice.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
 func frame(parent: Node,rect: Rect2,paper:=false) -> Panel:
 	var panel:=Panel.new();panel.position=rect.position;panel.size=rect.size;panel.mouse_filter=Control.MOUSE_FILTER_STOP;parent.add_child(panel);ArenaMenuArt.panel(panel,paper);return panel
@@ -87,11 +97,11 @@ func levels() -> void:
 		hud.image(node,ArenaMenuArt.utility("flag"),Rect2(5,0,86,90))
 		var number:=text(node,str(index+1),Rect2(24,12,48,45),30);number.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;number.add_theme_color_override("font_outline_color",Color("241b18"));number.add_theme_constant_override("outline_size",3)
 		node.tooltip_text=ArenaLevelCatalog.definition(key).name
-		if bool(game.campaign.data.cleared[key]):hud.image(node,ArenaMenuArt.utility("check"),Rect2(56,66,40,40))
+		if bool(game.campaign.data.cleared.get(key,false)):hud.image(node,ArenaMenuArt.utility("check"),Rect2(56,66,40,40))
 		if not reduced():
 			var float_tween:=node.create_tween().set_loops();float_tween.tween_property(node,"position:y",node.position.y-5,1.3).set_trans(Tween.TRANS_SINE);float_tween.tween_property(node,"position:y",node.position.y,1.3).set_trans(Tween.TRANS_SINE)
 	# No invented three-star scoring: existing clear flags are the only earned marks.
-	for point in [Vector2(1125,210),Vector2(1400,390),Vector2(1240,620)]:
+	for point in [Vector2(1125,210),Vector2(1400,390)]:
 		var lock:=hud.image(hud.menu,ArenaMenuArt.utility("lock"),Rect2(point,Vector2(48,48)));lock.modulate=Color(1,1,1,.45);lock.tooltip_text="远景地区 · 尚未开放";lock.mouse_filter=Control.MOUSE_FILTER_PASS
 	dock()
 func dock() -> void:
@@ -116,11 +126,13 @@ func prepare(key: String) -> void:
 	var close:=action(stage_panel,"×",Rect2(562,18,72,72),close_stage,"CloseStage");close.add_theme_font_size_override("font_size",38)
 	text(stage_panel,definition.name,Rect2(34,209,530,48),34)
 	text(stage_panel,"8 波",Rect2(34,260,150,36),25)
-	hud.image(stage_panel,ArenaMenuArt.utility("diamond"),Rect2(480,257,34,34));text(stage_panel,"+"+str(6 if game.campaign.data.cleared[stage] else 8),Rect2(524,258,90,38),26)
-	for index in range(4):
-		var enemy: String=["fox","brute","wisp","moth" if stage=="forest" else "spearman"][index]
+	hud.image(stage_panel,ArenaMenuArt.utility("diamond"),Rect2(480,257,34,34));text(stage_panel,"+"+str(6 if bool(game.campaign.data.cleared.get(stage,false)) else 8),Rect2(524,258,90,38),26)
+	var preview_list: Array=definition.get("preview_enemies",["fox","brute","wisp","moth" if stage=="forest" else "spearman"])
+	for index in range(min(4,preview_list.size())):
+		var enemy: String=str(preview_list[index])
 		var image:=hud.image(stage_panel,ArenaMenuArt.creature(enemy),Rect2(31+index*66,317,62,72));image.tooltip_text=ArenaDefinitions.ENEMIES[enemy].name;image.mouse_filter=Control.MOUSE_FILTER_PASS
-	var brief:=text(stage_panel,str(definition.story)+("\n单路守线 · 飞蛾首领" if stage=="forest" else "\n双路回防 · 精英合流"),Rect2(330,312,286,88),25);brief.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+	var tagline: String="\n单路守线 · 飞蛾首领" if stage=="forest" else ("\n双路回防 · 精英合流" if stage=="creek" else "\n吊桥改道 · 破障奇袭 · 巨像")
+	var brief:=text(stage_panel,str(definition.story)+tagline,Rect2(330,312,286,88),25);brief.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
 	var ready:=game.campaign.can_deploy(stage)
 	var deploy:=action(stage_panel,"战斗！",Rect2(222,446,392,84),deploy_stage,"Deploy",true);deploy.disabled=not ready
 	if not ready:

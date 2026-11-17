@@ -10,7 +10,7 @@ func run() -> void:
 	for stage in ArenaLevelCatalog.IDS:
 		var data:=ArenaLevelCatalog.definition(stage);var roads: Array=[]
 		for points in data.routes:roads.append(ArenaLevelCatalog.curve(points))
-		check(data.sites.size()==(8 if stage=="forest" else 10),stage+" site count")
+		check(data.sites.size()==(8 if stage=="forest" else (18 if stage=="ruins" else 10)),stage+" site count")
 		for i in range(data.sites.size()):
 			var p: Vector2=data.sites[i];var closest:=INF;var coverage:=0.0;var neighbour:=INF
 			for road in roads:
@@ -28,7 +28,7 @@ func run() -> void:
 			var road: Curve2D=roads[lane];var uncovered:=0;var gap:=0;var longest:=0;var samples:=0
 			for offset in range(35,int(road.get_baked_length())-40,5):
 				var p: Vector2=road.sample_baked(offset,true)
-				if not Rect2(0,88,1600,812).has_point(p):continue
+				if not Rect2(Vector2(0,88),Vector2(data.get("size",ArenaLevelCatalog.SIZE))-Vector2(0,88)).has_point(p):continue
 				samples+=1
 				for obstacle in data.blocked:check(not obstacle.grow(12).has_point(p),stage+" main road clear")
 				var covered:=false

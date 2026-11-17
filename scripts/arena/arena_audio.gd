@@ -8,6 +8,7 @@ var last_play := {}
 var sampled:=true
 var banks: Dictionary={}
 var variants: Dictionary={}
+var player_families: Array[String]=["","","","","","","","","","","","","","","",""]
 const HERO_CUES:=["ranger_draw","ranger_release","ranger_hit","ranger_roll","ranger_rain","mage_gather","mage_cast","mage_hit","mage_frost","mage_meteor_charge","mage_meteor_hit"]
 const FILES:={
 	"blade":["knifeSlice","knifeSlice2"],
@@ -52,12 +53,32 @@ func _ready() -> void:
 	_make("explode", 0.32, 110.0, 0.75, 1.0)
 	_make("phase", 0.4, 80.0, 0.8, 1.0)
 
+func _family_for(kind: String) -> String:
+	if kind in ["hit","heavy_hit","mage_hit","ranger_hit"]:return "impact"
+	if kind in ["bow","shoot","ranger_draw","ranger_release","mage_gather","mage_cast","explode","mage_frost","mage_meteor_hit"]:return "release"
+	if kind in ["kill"]:return "kill"
+	if kind in ["tower","ui_click","phase","hurt"]:return "cue"
+	return "other"
+func _family_cap(fam: String) -> int:
+	match fam:
+		"impact":return 3
+		"release":return 2
+		"kill":return 2
+		"cue":return 2
+		_:return 3
 func play(kind: String, volume_db := -8.0, pitch := 1.0) -> void:
 	if not streams.has(kind) and not banks.has(kind): return
 	var now := Time.get_ticks_msec()
 	if last_play.has(kind) and now - int(last_play[kind]) < 45: return
-	last_play[kind] = now
 	var important: bool=kind in ["hurt","phase","heavy_hit","explode","mage_frost","mage_meteor_charge","mage_meteor_hit","ranger_rain"]
+	var fam:=_family_for(kind)
+	var cap:=_family_cap(fam)
+	var active_fam:=0
+	for p_idx in range(players.size()):
+		if players[p_idx].playing and player_families[p_idx]==fam:
+			active_fam+=1
+	if active_fam>=cap and not important:return
+	last_play[kind] = now
 	var index: int=12+cursor%4 if important else cursor%12
 	# Ordinary effects use a free voice and cannot cut off a skill or injury cue.
 	if not important:
@@ -67,6 +88,7 @@ func play(kind: String, volume_db := -8.0, pitch := 1.0) -> void:
 			if not players[candidate].playing:index=candidate;found=true;break
 		if not found:return
 	var player: AudioStreamPlayer=players[index]
+	player_families[index]=fam
 	cursor += 1
 	if sampled and banks.has(kind):
 		var variant: int=(int(variants.get(kind,-1))+1)%banks[kind].size()

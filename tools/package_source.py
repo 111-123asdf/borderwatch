@@ -65,9 +65,10 @@ with zipfile.ZipFile(temporary) as archive:
                 raise RuntimeError('Restored source hash mismatch: ' + name)
         if args.audit:
             subprocess.run(['git', 'add', '--all'], cwd=checkout, check=True, capture_output=True)
-            checked = subprocess.run(['python', str(checkout / 'tools/audit_submission.py'), '--verify', str(args.audit.resolve()), '--staged'], cwd=checkout, capture_output=True, text=True, encoding='utf-8')
+            child_env = dict(os.environ, PYTHONIOENCODING='utf-8')
+            checked = subprocess.run([os.sys.executable, str(checkout / 'tools/audit_submission.py'), '--verify', str(args.audit.resolve()), '--staged'], cwd=checkout, capture_output=True, text=True, encoding='utf-8', errors='replace', env=child_env)
             if checked.returncode:
-                raise RuntimeError('Extracted staging verification failed:\n' + checked.stdout + checked.stderr)
+                raise RuntimeError('Extracted staging verification failed:\n' + (checked.stdout or '') + (checked.stderr or ''))
 temporary.replace(target)
 report = {'archive': str(target), 'files': count, 'bytes': target.stat().st_size, 'head': head,
           'sha256': hashlib.sha256(target.read_bytes()).hexdigest(), 'crc': True, 'git_fsck_full': True,

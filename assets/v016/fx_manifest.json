@@ -1,0 +1,164 @@
+{
+  "generator": "tools/compile_pixelfx.mjs",
+  "library": "patch-gg/pixelfx (MIT)",
+  "palette": "Dark Battlefield / Starfall Purple-Cyan-Gold",
+  "cellSize": [
+    64,
+    64
+  ],
+  "sheets": {
+    "fx_slash": {
+      "file": "fx_slash.png",
+      "width": 512,
+      "height": 64,
+      "frameSize": [
+        64,
+        64
+      ],
+      "frames": 8,
+      "fps": 24,
+      "loop": false,
+      "pivot": [
+        32,
+        32
+      ],
+      "source": "melee/sword-slash"
+    },
+    "fx_arcane_blast": {
+      "file": "fx_arcane_blast.png",
+      "width": 512,
+      "height": 64,
+      "frameSize": [
+        64,
+        64
+      ],
+      "frames": 8,
+      "fps": 18,
+      "loop": false,
+      "pivot": [
+        32,
+        32
+      ],
+      "source": "explosions/plasma-explosion+arcane/mana-burst"
+    },
+    "fx_lightning_arc": {
+      "file": "fx_lightning_arc.png",
+      "width": 512,
+      "height": 64,
+      "frameSize": [
+        64,
+        64
+      ],
+      "frames": 8,
+      "fps": 20,
+      "loop": false,
+      "pivot": [
+        32,
+        32
+      ],
+      "source": "lightning/zap-hit+lightning/_lib"
+    },
+    "fx_frost_shatter": {
+      "file": "fx_frost_shatter.png",
+      "width": 512,
+      "height": 64,
+      "frameSize": [
+        64,
+        64
+      ],
+      "frames": 8,
+      "fps": 16,
+      "loop": false,
+      "pivot": [
+        32,
+        42
+      ],
+      "source": "ice/frost-nova+ice/snowflake-burst"
+    },
+    "fx_shield_break": {
+      "file": "fx_shield_break.png",
+      "width": 512,
+      "height": 64,
+      "frameSize": [
+        64,
+        64
+      ],
+      "frames": 8,
+      "fps": 18,
+      "loop": false,
+      "pivot": [
+        32,
+        32
+      ],
+      "source": "impacts/shield-block+impacts/_lib"
+    },
+    "fx_hit_spark": {
+      "file": "fx_hit_spark.png",
+      "width": 512,
+      "height": 64,
+      "frameSize": [
+        64,
+        64
+      ],
+      "frames": 8,
+      "fps": 24,
+      "loop": false,
+      "pivot": [
+        32,
+        32
+      ],
+      "source": "impacts/hit-spark+impacts/crit-hit"
+    },
+    "fx_fire_brazier": {
+      "file": "fx_fire_brazier.png",
+      "width": 768,
+      "height": 64,
+      "frameSize": [
+        64,
+        64
+      ],
+      "frames": 12,
+      "fps": 8,
+      "loop": true,
+      "pivot": [
+        32,
+        59
+      ],
+      "source": "fire/brazier"
+    },
+    "fx_ground_slam": {
+      "file": "fx_ground_slam.png",
+      "width": 512,
+      "height": 64,
+      "frameSize": [
+        64,
+        64
+      ],
+      "frames": 8,
+      "fps": 18,
+      "loop": false,
+      "pivot": [
+        32,
+        50
+      ],
+      "source": "impacts/ground-slam"
+    },
+    "fx_upgrade_sigil": {
+      "file": "fx_upgrade_sigil.png",
+      "width": 512,
+      "height": 64,
+      "frameSize": [
+        64,
+        64
+      ],
+      "frames": 8,
+      "fps": 16,
+      "loop": false,
+      "pivot": [
+        32,
+        54
+      ],
+      "source": "arcane/magic-circle-cast+pickups/collect-burst"
+    }
+  }
+}

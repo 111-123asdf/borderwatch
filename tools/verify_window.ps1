@@ -3,6 +3,8 @@ $projectRoot=Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot 'godot_path.ps1')
 $enginePath=Resolve-GodotBinary $projectRoot
 $profile=Join-Path $projectRoot 'test-results\window-user'
+New-Item -ItemType Directory -Force -Path (Join-Path $projectRoot 'test-results') | Out-Null
+Set-Content -LiteralPath (Join-Path $projectRoot 'test-results\.gdignore') -Value '' -Encoding ascii
 $savedAppData=$env:APPDATA
 $savedLocalAppData=$env:LOCALAPPDATA
 try {
@@ -10,7 +12,7 @@ try {
     $env:LOCALAPPDATA=Join-Path $profile 'Local'
     New-Item -ItemType Directory -Path $env:APPDATA,$env:LOCALAPPDATA -Force | Out-Null
     foreach($size in @('1600x900','1024x576')) {
-      foreach($testName in @('v06_window','v08_integration_window','v09_window','v010_window','v011_window','v012_window','v013_window')) {
+      foreach($testName in @('v06_window','v08_integration_window','v09_window','v010_window','v011_window','v012_window','v013_window','v015_window','v017_window')) {
         $arguments=@('--path',$projectRoot,'--resolution',$size,'--script',('res://tests/'+$testName+'.gd'))
         if($size -eq '1024x576') {$arguments+=@('--','--small')}
         $previous=$ErrorActionPreference

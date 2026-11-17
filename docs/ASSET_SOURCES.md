@@ -1,27 +1,24 @@
-# 当前素材与来源
-v0.13局外资产使用assets/v013：新三英雄同框标题、暗调军械厅、多地貌卡通世界、UI皮肤、16个徽章/技能图标、16个通用控件图标、40个成长图标，以及从同一皮肤派生的五张轻量控件纹理。均由内置imagegen为本项目原创生成；原始输出、提示、处理和SHA256见ART_GENERATION_V013.json。负责人明确授权脚本做透明底清理和控件裁切/归一化。概念参考图只研究布局；商业游戏截图和视频不进入游戏/源码包。旧v010局外图片已移出正式工程，保存在外层清理保留目录及v012源码基线；生成记录保留，发行不包含。
+# v0.17 / v0.18 当前素材与混合渲染
 
-v0.12游侠/法师使用assets/v012：六张三方向七状态表、两张透明立绘、两张4×4特效和逐帧区域/脚底/出手点JSON。内置imagegen重新生成，未分发商业参考图。原始生成、编辑提示、SHA256及18项参考取舍见ART_GENERATION_V012.json；骑士保持assets/v011。
+- **v0.18 新增引擎混合层（`assets/v018/`）**：
+  - `assets/v018/particles/`：选自 [`Calinou/kenney-particle-pack`](https://github.com/Calinou/kenney-particle-pack)（作者 Kenney，CC0 1.0 公共领域许可，保留于 `third_party/kenney_particles/LICENSE.txt`），用于火盆火舌、余烬、步尘、法术光环与命中火花。
+  - `assets/v018/site_plinths.png` 与 `assets/v018/ruins_mechanisms.png`：由 `tools/build_v018_props.py`（2x SSAA 程序石雕纹理）生成，提供全三关 2.5D 雕石塔基座（含高台/隘口/脉座/锁位）及第 3 关破障碎石封门、石墩符文吊桥。
+  - `scripts/shaders/water_ribbon.gdshader` 与 `painted_ruins.gdshader`：驱动第 2–3 关溪流海岸实时波光与火盆呼吸。
 
-新增11个CC0采样约81KB：Kenney Impact Sounds、Vehicle/Jan Schupke的Tinysized SFX、bart（原Stephan/pdsounds）的Ice Spells。逐文件来源和处理见AUDIO_V012.json，声明见third_party/hero_audio_v012。
+assets/v017：OpenAI内置imagegen为本项目生成四类塔三级形态、六种构装敌人、遗迹地表与核心。塔分别独立设计轮廓，不用同一图反复换色。来源文件和SHA256见ART_GENERATION_V017.json；原始图在工程外美术参考/v017原始生成。已获负责人授权进行裁切、局部遮罩、切片和游戏引擎渲染。
 
-v0.11骑士使用assets/v011/knight_side/down/up.png与透明portrait_knight.png；形象根据负责人反馈改为露面、蓝黑短发带银色前发、银甲红披风的青年卡通剑士。每方向56个关键姿势，按原始PNG实际透明轮廓切片；未用Python修改图片。physical_fx.png为四行四列的刀光、命中、震地和战吼特效。原始输出与完整提示见ART_GENERATION_V011.json。三视设定稿放在工程外的美术参考，不作为运行背景。
+运行是2D混合方案：地表与外观为生成位图，机关／肢体局部动作、阴影、环境色、桥墙细节、水面、光与粒子由代码驱动。构装兼容精灵表重复同一底图以维持状态时钟，实际动作由ArenaConstructRig刚性部件完成，不声称逐帧手绘或真实3D。英雄v011／v012原认可版保留。
 
-assets/v011/audio的16个OGG选自Kenney RPG Audio与Impact Sounds，逐文件来源、SHA256和CC0-1.0许可见AUDIO_V011.json，两包原始许可保存在third_party/kenney_audio。只带使用的文件，未携带整个下载包。来源：https://kenney.nl/assets/rpg-audio 与 https://kenney.nl/assets/impact-sounds 。商业参考角色只研究青年气质、轮廓和色块，不打包其图片或录音。
-历史v0.10曾使用assets/v010（现已移出工程）：同场景守线封面、标题图、多地貌大陆地图、中性前哨庭院、八个功能图标和四格材质。全部为内置imagegen生成的PNG；原始输出保持，透明范围以AtlasTexture使用，界面材质用九宫格拉伸。选定输出、完整提示及校验见ART_GENERATION_V010.json。早期全绿地图、森林营地和四屏视觉稿只作为迭代参考，未加入运行工程。
+参考[Ironhide官方关卡资料](https://play.kingdomrush.com/kingdom-rush-strategy-guide)研究可读道路与火力覆盖；[Godot Cutout](https://docs.godotengine.org/en/stable/tutorials/animation/cutout_animation.html)研究部件动画；[CanvasItem shader](https://docs.godotengine.org/en/stable/tutorials/shaders/shader_reference/canvas_item_shader.html)确认COLOR语义。商业截图／用户提供参考图不进入运行包。
 
-负责人提供的视频仅研究标题/世界/英雄/图鉴的层级与操作；不打入源码或成品。配色和地貌按最新需求设计成多地区世界，当前两个真实关卡仍在森林区域。局外界面不使用商业游戏的截图、图标、录音或代码。
+## 当前仍使用的共享素材
 
-旧英雄对照、当前地表、塔与空地基使用assets/v09/*.png；生成的森林生物、士兵与场景道具沿用assets/v06/creature_*.png及props.png；旧菜单木牌已退出运行并移出工程。所有当前图片使用OpenAI内置imagegen为本项目生成；仅有PNG输出，不声称具备手绘逐层源文件或实际3D模型。
+assets/v016/fx_*.png与fx_manifest.json由tools/compile_pixelfx.mjs基于patch-gg/pixelfx生成，原始MIT声明保留在tools/vendor/pixelfx/LICENSE和NOTICE.md。只移出展示站点与演示GIF，生成模块仍保留。v016祭坛等资源仍有运行引用；旧TileMap与像素构装体属于历史实验，不代表当前地图画法。
 
-三张portrait为英雄养成和出战立绘。九张knight/ranger/mage的side/down/up表，每张十二列七行，顺序为待机、移动、普攻、小技能、大招、受击、倒下，专属武器画入完整人物。运行按状态采用6／8／10／10／12／4／6帧。v09改为年轻、柔和体积光与精致塑形的原创职业形象，衣着色彩与武器标志延续本项目设计。
+v011骑士、v012游侠/法师、v013局外界面、v09森林/溪谷地表、v06森林怪物与士兵为此前项目生成美术。当前直接运行的PNG与元数据保留；历史生成清单可从Git历史或收尾前源码归档恢复，不伪称手绘分层源文件。
 
-七张creature表为炭狐、苔甲、幽光、投矛手、孢囊兽、飞蛾及士兵，六列三行，分别走动／攻击／倒下。保留项目前期生成的森林生物种类，重新生成完整序列，不恢复最初的占位怪。透明底提取也通过imagegen完成。
+v011/audio：Kenney RPG Audio与Impact Sounds，CC0-1.0，许可在third_party/kenney_audio。v012/audio：Kenney Impact Sounds、Jan Schupke的Tinysized SFX与bart/Stephan的Ice Spells，许可在third_party/hero_audio_v012。third_party其他历史许可继续保留。
 
-towers.png为四列三行，四列依次弓箭塔、法师塔、火炮塔、兵营，三行依次一级至三级，共十二套建筑形态；v09统一地基接触面，强化俯视体积。site_pad为空塔位石土环，透明边距由AtlasTexture裁切，不改写源图。props.png为四列两行的树、岩、遗址、营地与信标。v09的map_forest与map_creek基于已验收地表去除旧烘焙塔环，道路、营地、地标和不对称双桥保持；塔位单独绘制。实际通路、碰撞、射界以ArenaLevelCatalog与检查为准。
+商业角色立绘、用户视频和公开截图仅为构图/动作研究，保存在工程外，不进入运行包。Godot版权见godot-copyright.txt；不分发Windows字体。不擅自为团队源码指定开放源码许可。
 
-旧v06生成记录见ART_GENERATION.json，v09选定输出、提示与文件校验见ART_GENERATION_V09.json。记录不包含失败稿或私人聊天。旧v06人物、地图与塔图不再运行，已移至外层清理保留目录，逐文件SHA256验证原件保持；不再进入源码包。七种森林生物和props仍在工程。先前删除审批被阻止，本次未重试删除旧图，采用原件保留的可逆归档。负责人提供的17张商业游戏立绘参考保存在工程外的美术参考，公开实机与攻略只供构图、比例、动作研究，不直接打进成品。研究链接见MOTION_ART_DIRECTION.md。
-
-骑士挥剑、命中、重击、击杀、震地、战吼和草地脚步使用上述真实采样；其余未覆盖类别保留ArenaAudio合成音，实验场原版切换回合成音。运行字体由系统／Godot提供，不分发Windows字体文件。Godot与第三方引擎声明见godot-copyright.txt。
-
-历史版本曾使用Tiny Swords旧CC0包及CC0武器图，v0.6已不再引用；其来源与许可仍保留在third_party和Git历史。项目源码尚未由团队指定开放源码许可证，不擅自选MIT或CC0授权团队作品。
+本轮v0.19还包括地面降噪、无字塔位图形、攻击时序、步态、世界步尘、局部反馈和音频并发；均为2D混合实现。素材画法与实际体验仍待负责人反馈，不能由来源声明或自动测试证明好看。

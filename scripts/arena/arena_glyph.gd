@@ -30,6 +30,9 @@ func _draw() -> void:
 			draw_rect(Rect2(c+Vector2(-r,-r*0.85),Vector2(r*0.82,r*1.7)),tint,false,2.5);draw_rect(Rect2(c+Vector2(r*0.18,-r*0.85),Vector2(r*0.82,r*1.7)),tint,false,2.5);draw_line(c+Vector2(0,-r*0.72),c+Vector2(0,r*0.86),tint,2)
 		"exit":
 			draw_arc(c,r*0.82,-PI*0.72,PI*0.72,20,tint,3);draw_line(c+Vector2(0,-r),c+Vector2(0,r*0.12),tint,3)
+		"overview":
+			draw_rect(Rect2(c-Vector2(r,r*0.75),Vector2(r*2,r*1.5)),tint,false,2)
+			draw_polyline(PackedVector2Array([c+Vector2(-r*0.7,r*0.4),c+Vector2(-r*0.2,-r*0.3),c+Vector2(r*0.3,r*0.2),c+Vector2(r*0.7,-r*0.4)]),tint,2,true)
 		"move":
 			for n in [-0.4,0.4]:draw_arc(c+Vector2(n*r,0),r*0.6,-PI*0.5,PI*0.5,12,tint,3)
 		"skill":draw_arc(c,r,0,TAU,24,tint,3);draw_line(c,c+Vector2(0,-r*0.7),tint,3);draw_line(c,c+Vector2(r*0.6,0),tint,3)
@@ -61,6 +64,16 @@ func _draw() -> void:
 			draw_line(c+Vector2(-r*0.4,-r*0.8),c+Vector2(r*0.9,0),tint,8)
 		"pause":
 			for x in [-0.45,0.45]: draw_rect(Rect2(c+Vector2(x*r-2,-r),Vector2(4,r*2)),tint)
+		"star":
+			draw_circle(c,r*1.02,Color("1c2938"))
+			draw_arc(c,r*1.02,0,TAU,28,Color("d8b16a"),2.2,true)
+			var pts:=PackedVector2Array()
+			for i in range(8):
+				var ang: float=i*TAU/8.0-PI*0.5
+				var rad: float=r*0.86 if i%2==0 else r*0.36
+				pts.append(c+Vector2(cos(ang),sin(ang))*rad)
+			draw_colored_polygon(pts,tint)
+			draw_circle(c,r*0.20,Color("fff7d8"))
 		_: draw_arc(c,r,0,TAU,24,tint,2)
 	if progress < 1.0:
 		draw_arc(c,r+4,-PI/2,-PI/2+TAU*clampf(progress,0,1),40,Color("fff4bf"),2)

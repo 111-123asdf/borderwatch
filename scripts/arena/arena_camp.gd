@@ -31,9 +31,14 @@ func covers(at: Vector2) -> bool:
 func activate(wave: int) -> void:
 	if state!="dormant" or wave<ACTIVATED_WAVE:return
 	state="active";activated_at=game.elapsed
-	_spawn("captain",0,false)
-	_spawn("spearman",1,true)
-	_spawn("fox",2,true)
+	if game.level_id=="ruins":
+		_spawn("void_harvester",0,false)
+		_spawn("astral_prism",1,true)
+		_spawn("construct_hound",2,true)
+	else:
+		_spawn("captain",0,false)
+		_spawn("spearman",1,true)
+		_spawn("fox",2,true)
 func _spawn(kind: String,index: int,elite: bool) -> ArenaEnemy:
 	var enemy:=ArenaEnemy.new();enemy.game=game;enemy.kind=kind;enemy.is_guard=true;enemy.elite=elite;enemy.camp_id=id
 	enemy.home=point+Vector2.RIGHT.rotated(index*TAU/3.0)*44;enemy.position=enemy.home

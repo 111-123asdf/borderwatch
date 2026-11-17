@@ -1,4 +1,4 @@
-param([switch]$Editor,[switch]$Playtest)
+param([switch]$Editor,[switch]$Playtest,[switch]$FeelLab,[string]$Stage="")
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot 'godot_path.ps1')
@@ -9,6 +9,13 @@ if (-not $Editor) {
 }
 $arguments = @('--path', $projectRoot)
 if ($Editor) { $arguments += '--editor' }
-if ($Playtest -and -not $Editor) { $arguments += @('--','--playtest') }
+$userArgs = @()
+if ($Playtest -and -not $Editor) { $userArgs += '--playtest' }
+if ($FeelLab -and -not $Editor) { $userArgs += '--feel-lab' }
+if ($Stage -and -not $Editor) { $userArgs += "--stage=$Stage" }
+if ($userArgs.Count -gt 0) {
+    $arguments += '--'
+    $arguments += $userArgs
+}
 & $enginePath @arguments
 exit $LASTEXITCODE

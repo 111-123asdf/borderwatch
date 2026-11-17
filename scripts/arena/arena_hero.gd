@@ -44,11 +44,16 @@ var last_target_id:=0
 var block_boost_clock:=0.0
 var revive_block_clock:=0.0
 var revive_halved:=false
+const MILESTONE_LEVELS: Array[int]=[2,5,8]
+const AWAKEN_SKIP_MULT: Array[String]=["execute_threshold","full_hp_threshold","combo_every","death_save","block_bonus","pierce_bonus","unyield","fortress","warmachine","warcredit","goldenage","citywall","overload","bloodrage","sworddance","starcore"]
+var awakened_perks: Dictionary={}
 var meta_level:=1
 var meta_health:=0.0
 var meta_attack:=0.0
 var passive_rank:=0
 var foot_clock:=0.0
+var chrono_clock:=0.0
+var chrono_hits:=0
 func _ready() -> void:
 	collision_layer=2;collision_mask=1
 	var shape:=CollisionShape2D.new();var circle:=CircleShape2D.new();circle.radius=12;shape.shape=circle;add_child(shape)
@@ -67,13 +72,20 @@ func configure(key: String) -> void:
 	visual.configure(key,ArenaHeroArt.height(key,game.feel.enabled,game.feel.unit_scale),game.feel.enabled)
 	visual.feedback.reduced=bool(game.campaign.data.reduced_motion)
 func skill_unlocked(slot: int) -> bool:return slot in [0,1] and meta_level>=(2 if slot==0 else 4)
+func has_keystone(key: String) -> bool:return game!=null and game.has_keystone(key)
 func center() -> Vector2: return position+Vector2(0,-30)
-func block_capacity() -> int: return int(data.get("block",1))+int(mod("block_bonus"))+(1 if mod("fortress")>0 else 0)
+func block_capacity() -> int: return int(data.get("block",1))+int(mod("block_bonus"))+(1 if mod("fortress")>0 else 0)+(2 if has_keystone("bastion_ward") else 0)
 func can_block() -> bool: return not knocked_out and rolling<=0 and velocity.length()<35
 func perk(key: String) -> int: return int(perks.get(key,0))
 func mod(key: String) -> float: return float(mods.get(key,0.0))
 func has_mod(key: String) -> bool: return mod(key)>0.0
 func has_link(a: String, b: String) -> bool: return perk(a)>0 and perk(b)>0
+func effective_perk_rank(key: String) -> int:
+	var rank:=perk(key)
+	if rank>0 and bool(awakened_perks.get(key,false)):
+		var card: Dictionary=ArenaPerks.card(key)
+		return maxi(rank,int(card.get("max",rank)))
+	return rank
 func recompute() -> void:
 	mods={}
 	for key in perks:
@@ -81,10 +93,13 @@ func recompute() -> void:
 		var card: Dictionary=ArenaPerks.card(str(key))
 		if card.is_empty(): continue
 		var effects: Array=card.get("effects",[])
-		for index in range(mini(rank,effects.size())):
+		var awakened:=bool(awakened_perks.get(str(key),false))
+		var cap: int=effects.size() if awakened else mini(rank,effects.size())
+		for index in range(cap):
 			var effect: Dictionary=effects[index]
 			for stat in effect:
-				mods[stat]=float(mods.get(stat,0.0))+float(effect[stat])
+				var mult: float=1.25 if awakened and not (str(stat) in AWAKEN_SKIP_MULT) else 1.0
+				mods[stat]=float(mods.get(stat,0.0))+float(effect[stat])*mult
 	for link in ArenaPerks.LINKS:
 		if ArenaPerks.is_real_link(str(link.from),str(link.to)): continue
 		if perk(str(link.from))>0 and perk(str(link.to))>0:
@@ -108,7 +123,8 @@ func recompute() -> void:
 				mods[stat]=float(mods.get(stat,0.0))+float(item.bonus[stat])
 	if has_link("lifesteal","tough"): mods["shield_cap"]=mod("shield_cap")*1.5
 	overheal_shield=minf(overheal_shield,mod("shield_cap"))
-	var target:=float(data.health)*(1.0+meta_health+mod("max_hp"))
+	var level_growth:=0.04*float(maxi(0,level-1))
+	var target:=float(data.health)*(1.0+meta_health+level_growth+mod("max_hp"))
 	var delta:=target-max_health
 	max_health=target
 	if absf(delta)>0.001: health=clampf(health+delta,0.0,max_health)
@@ -144,7 +160,9 @@ func attack_damage() -> float:
 	if echo_clock>0: scale+=mod("echo")*(2.0 if overload_clock>0 and has_link("echo","overload") else 1.0)
 	if enchant_clock>0: scale+=mod("enchant")
 	if overheal_shield>0 and has_link("lifesteal","combo"): scale+=0.15
-	return float(data.damage)*(1.0+meta_attack)*scale+mod("flat")
+	if has_keystone("overload_core"): scale*=1.0+0.08*float(mini(4,game.resonance_casts))
+	var level_growth:=0.04*float(maxi(0,level-1))
+	return float(data.damage)*(1.0+meta_attack+level_growth)*scale+mod("flat")
 func armor_pen() -> float: return clampf(mod("armor_pen"),0.0,0.6)
 func skill_scale() -> float:
 	var result:=1.0+mod("skill")
@@ -197,7 +215,7 @@ func _physics_process(delta: float) -> void:
 	attack_cooldown=maxf(0,attack_cooldown-delta);combat_delay=maxf(0,combat_delay-delta)
 	foot_clock=maxf(0.0,foot_clock-delta)
 	protection=maxf(0,protection-delta);war_cry=maxf(0,war_cry-delta);hurt_time=maxf(0,hurt_time-delta)
-	echo_clock=maxf(0,echo_clock-delta);enchant_clock=maxf(0,enchant_clock-delta);overload_clock=maxf(0,overload_clock-delta);roll_boost_clock=maxf(0,roll_boost_clock-delta)
+	echo_clock=maxf(0,echo_clock-delta);enchant_clock=maxf(0,enchant_clock-delta);overload_clock=maxf(0,overload_clock-delta);roll_boost_clock=maxf(0,roll_boost_clock-delta);chrono_clock=maxf(0.0,chrono_clock-delta)
 	block_boost_clock=maxf(0,block_boost_clock-delta);revive_block_clock=maxf(0,revive_block_clock-delta)
 	if knocked_out:
 		revive_clock=maxf(0,revive_clock-delta)
@@ -206,6 +224,7 @@ func _physics_process(delta: float) -> void:
 		queue_redraw();return
 	if game.blocking.load_for(self)>0: combat_delay=5.0
 	if combat_delay<=0: health=minf(max_health,health+max_health*0.08*delta)
+	if has_keystone("bastion_ward"): health=minf(max_health,health+max_health*0.025*delta)
 	if mod("fortress")>0 and game.blocking.load_for(self)>0: health=minf(max_health,health+max_health*0.02*delta)
 	var move:=Input.get_vector("move_left","move_right","move_up","move_down")
 	if move.length()>0.05: path.clear()
@@ -216,16 +235,17 @@ func _physics_process(delta: float) -> void:
 		rolling=maxf(0,rolling-delta);velocity=roll_direction*520;move_and_slide();queue_redraw();return
 	if move.length()>0.1:
 		facing=move.normalized()
-		if action!="" and action_released: cancel_action()
+		if action!="" and (action_released or (action=="attack" and move.length()>0.35)): cancel_action()
 	if action!="":
 		action_clock+=delta
 		if not action_released and action_clock>=action_duration*ArenaMotion.release_fraction(class_id,action,visual.polished): release_action()
 		if action_clock>=action_duration: cancel_action()
-	var planted: bool=action!="" and not action_released
-	var desired: Vector2=move*float(data.speed)
+	var planted: bool=action!="" and action!="attack" and not action_released
+	var move_mult: float=1.20 if chrono_clock>0.0 else 1.0
+	var desired: Vector2=move*float(data.speed)*move_mult
 	velocity=Vector2.ZERO if planted else velocity.move_toward(desired,(2500.0 if move.length()>0.1 else 4800.0)*delta)
 	move_and_slide()
-	position=position.clamp(Vector2(15,95),ArenaLevelCatalog.SIZE-Vector2(15,20))
+	position=position.clamp(Vector2(15,95),game.world_size()-Vector2(15,20))
 	if action=="":
 		visual.show_state("hurt" if hurt_time>0 else ("walk" if velocity.length()>5 else "idle"),facing,0.24)
 		if hurt_time<=0 and velocity.length()>5:visual.stride(velocity.length())
@@ -237,7 +257,9 @@ func _physics_process(delta: float) -> void:
 	visual.modulate=(Color.WHITE if visual.polished else (Color(1.05,1.0,0.95) if reduced else Color(2.1,1.6,1.4))) if hurt_time>0 else Color(1,1,1,0.62 if not reduced and protection>0 and fmod(protection,0.16)<0.08 else 1.0)
 	queue_redraw()
 func attack_rate() -> float:
-	return 1.0+mod("attack_speed")+(mod("roll_boost") if roll_boost_clock>0 else 0.0)+(0.4 if overload_clock>0 and mod("overload")>0 else 0.0)
+	var chrono_bonus: float=0.55 if chrono_clock>0.0 else 0.0
+	var altar_bonus: float=game.hero_overclock_bonus() if game!=null and game.has_method("hero_overclock_bonus") else 0.0
+	return 1.0+mod("attack_speed")+(mod("roll_boost") if roll_boost_clock>0 else 0.0)+(0.4 if overload_clock>0 and mod("overload")>0 else 0.0)+chrono_bonus+altar_bonus
 func rapid_every() -> int:
 	return 4 if has_link("rapid","power") else 5
 func begin_attack(enemy: Node2D) -> bool:
@@ -260,7 +282,7 @@ func cast(slot: int, point: Vector2) -> bool:
 	cancel_action()
 	var relative:=point-position
 	if relative.length()>430: point=position+relative.normalized()*430
-	action_target=point.clamp(Vector2(0,90),ArenaLevelCatalog.SIZE);facing=(point-position).normalized() if relative.length()>5 else facing
+	action_target=point.clamp(Vector2(0,90),game.world_size());facing=(point-position).normalized() if relative.length()>5 else facing
 	action="small" if slot==0 else "ultimate";action_clock=0;action_released=false;action_duration=(0.34 if class_id=="ranger" else 0.48) if slot==0 else 0.72
 	cooldowns[slot]=float(data.small_cd if slot==0 else data.ultimate_cd)*cooldown_scale()
 	combat_delay=5.0
@@ -280,6 +302,8 @@ func cast(slot: int, point: Vector2) -> bool:
 		if game.feel.enabled:
 			game.effect(position,45,Color("b4d6a0"),"roll_painted",0.28,roll_direction);game.audio.play("ranger_roll",-14)
 	if class_id=="mage" and game.feel.enabled:game.audio.play("mage_gather",-16)
+	if has_keystone("chrono") and slot==0: chrono_clock=4.5
+	if has_keystone("conduit"): game.trigger_conduit(position,attack_damage()*1.1+45.0)
 	visual.show_state(action,facing,action_duration);visual.frame=0;return true
 func role(key: String) -> float: return mod(key)
 func _animation_frame() -> void:
@@ -321,10 +345,17 @@ func release_action() -> void:
 				pierce+=int(mod("pierce_bonus"))
 				var origin:=visual.emission_origin("attack") if game.feel.enabled else center()
 				var tag: String=("pierce_arrow" if pierce>0 else "arrow") if class_id=="ranger" else "star"
-				game.fire_projectile(origin,action_enemy.center(),shot_damage,int(data.type),"hero",{"target":action_enemy,"pierce":pierce,"expose":class_id=="mage","appearance":"arrow" if class_id=="ranger" else "magic","burn":burn,"presentation":class_id if game.feel.enabled else "","feedback":tag})
+				game.fire_projectile(origin,action_enemy.center(),shot_damage,int(data.type),"hero",{"target":action_enemy,"pierce":pierce,"bounce":1 if has_keystone("refract") else 0,"expose":class_id=="mage","appearance":"arrow" if class_id=="ranger" else "magic","burn":burn,"presentation":class_id if game.feel.enabled else "","feedback":tag})
 			game.audio.play(("ranger_release" if class_id=="ranger" else "mage_cast") if game.feel.enabled else ("bow" if class_id=="ranger" else "shoot"))
 		if mod("sworddance")>0 and game.rng.randf()<0.2:
 			_sworddance(hit*0.6)
+		if has_keystone("chrono") and chrono_clock>0.0:
+			chrono_hits+=1
+			if chrono_hits>=3:
+				chrono_hits=0;cooldowns[1]=maxf(0.0,cooldowns[1]-1.5)
+				var burst_pt: Vector2=action_enemy.position if is_instance_valid(action_enemy) and not action_enemy.dead else position+facing*75.0
+				game.area_damage(burst_pt,95.0,hit*0.95,1,"hero",0.5)
+				game.effect(burst_pt,95.0,Color("caa4ff"),"blast",0.35)
 	elif action=="small":
 		var skill:=skill_scale()
 		match class_id:
@@ -409,6 +440,7 @@ func take_hit(amount: float, damage_type: int, melee := false) -> float:
 		if block_boost_clock>0 and has_link("shieldback","ironwall"): adjusted*=0.90
 		if revive_block_clock>0 and has_link("revive","ironwall"): adjusted*=0.70
 	if war_cry>0: adjusted*=0.7
+	if has_keystone("bastion_ward"): adjusted*=0.75
 	adjusted*=1.0-citywall_reduction()
 	var incoming:=minf(health+overheal_shield,ArenaCombat.resolve(adjusted,damage_type,0,0))
 	var absorbed:=minf(overheal_shield,incoming);overheal_shield-=absorbed
@@ -436,7 +468,17 @@ func take_hit(amount: float, damage_type: int, melee := false) -> float:
 func add_xp(amount: int) -> void:
 	xp+=amount
 	while xp>=xp_target:
-		xp-=xp_target;level+=1;xp_target=60+(level-1)*25;game.queue_choice()
+		xp-=xp_target;level+=1;xp_target=60+(level-1)*25
+		recompute()
+		_trigger_level_burst()
+		if not game.keystone_mode and level in MILESTONE_LEVELS:game.queue_choice()
+func _trigger_level_burst() -> void:
+	health=minf(max_health,health+max_health*0.25)
+	if game==null or game.game_over:return
+	game.effect(position,115.0,Color("f6d68d"),"upgrade",0.55)
+	for enemy in game.enemies.duplicate():
+		if is_instance_valid(enemy) and not enemy.dead and not enemy.is_guard and not enemy.elite and not bool(enemy.data.get("boss",false)) and enemy.position.distance_to(position)<=115.0:
+			enemy.push_back(22.0);enemy.stun=maxf(enemy.stun,0.28)
 func apply_perk(key: String) -> bool:
 	var card: Dictionary=ArenaPerks.card(key)
 	if card.is_empty() or perk(key)>=int(card.max): return false

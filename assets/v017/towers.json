@@ -1,0 +1,170 @@
+{
+  "archer1": {
+    "file": "tower_archer_1.png",
+    "contact": [
+      256,
+      480
+    ],
+    "bounds": [
+      110,
+      16,
+      401,
+      496
+    ],
+    "sha256": "8c00ef1359b2ce3bca67fdf0f8b02f1e161481a6039da0d32c70867475adcc6f"
+  },
+  "archer2": {
+    "file": "tower_archer_2.png",
+    "contact": [
+      256,
+      480
+    ],
+    "bounds": [
+      82,
+      16,
+      430,
+      496
+    ],
+    "sha256": "0f14cdb1c68d995948261ec98829c28593fe13a9773e7f0ae4623b59b62d1816"
+  },
+  "archer3": {
+    "file": "tower_archer_3.png",
+    "contact": [
+      256,
+      480
+    ],
+    "bounds": [
+      81,
+      16,
+      430,
+      496
+    ],
+    "sha256": "f08f23ace3adfec536aeb9f08e1cb70468bb9698bc927c65bf01edd3a4f9417f"
+  },
+  "mage1": {
+    "file": "tower_mage_1.png",
+    "contact": [
+      256,
+      480
+    ],
+    "bounds": [
+      80,
+      143,
+      432,
+      496
+    ],
+    "sha256": "aba4fa306738e48877015f0b652344c0ac6779fe668097165e9dc4f7d31c3955"
+  },
+  "mage2": {
+    "file": "tower_mage_2.png",
+    "contact": [
+      256,
+      480
+    ],
+    "bounds": [
+      34,
+      16,
+      478,
+      496
+    ],
+    "sha256": "f19a582bd519673f7f3904bac7914569529ef24363fb2d1c7eae02d22700ba6d"
+  },
+  "mage3": {
+    "file": "tower_mage_3.png",
+    "contact": [
+      256,
+      480
+    ],
+    "bounds": [
+      56,
+      16,
+      456,
+      496
+    ],
+    "sha256": "4a7302c6178cbab43b8e1c66d7144449db7df9703be29436d97d9f89a38804bb"
+  },
+  "cannon1": {
+    "file": "tower_cannon_1.png",
+    "contact": [
+      256,
+      480
+    ],
+    "bounds": [
+      16,
+      217,
+      496,
+      496
+    ],
+    "sha256": "28459ba12035acdb89be2cc2bd1809814430a18cbbe4f078aa5c53fbb3eff17f"
+  },
+  "cannon2": {
+    "file": "tower_cannon_2.png",
+    "contact": [
+      256,
+      480
+    ],
+    "bounds": [
+      16,
+      169,
+      496,
+      496
+    ],
+    "sha256": "beb65b2714c2621407b95d33f32303c98ab5c40643860d4d2db35390fbb660b5"
+  },
+  "cannon3": {
+    "file": "tower_cannon_3.png",
+    "contact": [
+      256,
+      480
+    ],
+    "bounds": [
+      16,
+      140,
+      496,
+      496
+    ],
+    "sha256": "b1aab08c882df63b341ee2e15783b2213c263ac391588024045a1d2cacc1d13e"
+  },
+  "barracks1": {
+    "file": "tower_barracks_1.png",
+    "contact": [
+      256,
+      480
+    ],
+    "bounds": [
+      16,
+      229,
+      496,
+      496
+    ],
+    "sha256": "8794f9c98e73b291f484f5ac49ec90c43cdcc0d02f8fc9f18c4dd1d3d6874d05"
+  },
+  "barracks2": {
+    "file": "tower_barracks_2.png",
+    "contact": [
+      256,
+      480
+    ],
+    "bounds": [
+      16,
+      231,
+      496,
+      496
+    ],
+    "sha256": "5adf91d78ad29393ac4978238458e8e08ccdf7b5b07f8c98ebae77987150e8dc"
+  },
+  "barracks3": {
+    "file": "tower_barracks_3.png",
+    "contact": [
+      256,
+      480
+    ],
+    "bounds": [
+      16,
+      179,
+      496,
+      496
+    ],
+    "sha256": "2c510a3fd5340382fd4fdf0357ec7827feac6b5576d657ca4dbcd090eee31d7e"
+  }
+}
