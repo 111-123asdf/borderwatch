@@ -25,16 +25,19 @@ func hit(game: Node2D, point: Vector2, damage: float, kind: int, killed: bool, s
 	if damage<=0:return
 	var knight: bool=source=="hero" and game.hero.class_id=="knight"
 	var hero_hit: bool=source=="hero"
-	var heavy: bool=(knight and attack=="small" and kind==0) or (hero_hit and attack=="meteor" and kind==1)
-	if is_instance_valid(target) and hero_hit:
+	var heavy: bool=(knight and attack=="small" and kind==0) or (hero_hit and attack=="meteor" and kind==1) or (source=="tower" and (killed or damage>=36.0))
+	if is_instance_valid(target) and (hero_hit or (source=="tower" and (killed or damage>=22.0))):
 		target.visual.feedback.reduced=bool(game.campaign.data.reduced_motion)
 		target.visual.feedback.impact(target.visual,heavy)
+	var dir_vec: Vector2=(point-game.hero.position).normalized() if hero_hit else Vector2.RIGHT
 	if hero_hit and kind==1:
-		game.effect(point,25 if killed else 17,ArenaCombat.colour(kind),"magic_impact_painted",0.25)
+		game.effect(point,25 if killed else 17,ArenaCombat.colour(kind),"magic_impact_painted",0.25,dir_vec)
 	elif hero_hit and game.hero.class_id=="ranger":
-		game.effect(point,22 if killed else 16,ArenaCombat.colour(kind),"arrow_impact_painted",0.20)
+		game.effect(point,22 if killed else 16,ArenaCombat.colour(kind),"arrow_impact_painted",0.20,dir_vec)
 	elif knight:
-		game.effect(point,23 if killed else (20 if heavy else 14),ArenaCombat.colour(kind),"impact_painted",0.22 if killed else 0.16)
+		game.effect(point,23 if killed else (20 if heavy else 14),ArenaCombat.colour(kind),"impact_painted",0.22 if killed else 0.16,dir_vec)
+	elif source=="tower":
+		game.effect(point,22 if killed else (18 if heavy else 12),ArenaCombat.colour(kind),"impact_painted" if kind==0 else "magic_impact_painted",0.20 if killed else 0.15)
 	else:game.effect(point,12,ArenaCombat.colour(kind),"hit",0.16)
 	if heavy:
 		if knight and attack=="small" and game.hero.action=="small" and game.hero.action_released:game.hero.visual.feedback.freeze_after_release()

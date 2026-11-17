@@ -43,10 +43,14 @@ def snapshot():
         raise RuntimeError('Unresolved merge conflicts')
     main = git('rev-parse', 'origin/main').decode().strip()
     head = git('rev-parse', 'HEAD').decode().strip()
-    subprocess.run(['git', 'merge-base', '--is-ancestor', main, head], cwd=ROOT, check=True)
+    ancestor = subprocess.run(['git', 'merge-base', '--is-ancestor', main, head], cwd=ROOT).returncode == 0
+    same_tree = git('rev-parse', main + '^{tree}') == git('rev-parse', head + '^{tree}')
+    if not ancestor and not same_tree:
+        raise RuntimeError('Upstream has different source changes; review integration before submitting')
     merge_file = ROOT / '.git/MERGE_HEAD'
     return {
         'format': 1, 'base_main': main, 'head_at_review': head,
+        'upstream_is_ancestor': ancestor, 'upstream_tree_equals_head': same_tree,
         'branch': git('branch', '--show-current').decode().strip(),
         'merge_heads': merge_file.read_text().splitlines() if merge_file.exists() else [],
         'files': {p: {'bytes': (ROOT / p).stat().st_size, 'sha256': digest(ROOT / p)} for p in existing},

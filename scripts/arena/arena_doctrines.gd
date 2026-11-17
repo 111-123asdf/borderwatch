@@ -60,6 +60,61 @@ const EFFECT_KEYS: Array[String]=["range_mult","interval_mult","damage_mult","sp
 	"soldier_count","soldier_health","soldier_speed","soldier_range","block_capacity","taunt","charge_stun"]
 const HEAVY_ARMOUR:=0.4
 const HIGH_RESIST:=0.4
+const BRANCH_PRICES: Array[int]=[45,60,75]
+const BRANCHES: Dictionary={
+	"sentinel":[
+		{"id":"a","name":"猎鹰视界","summary":"射程+12% · 攻速+9%","delta":{"range_mult":0.12,"interval_mult":-0.09}},
+		{"id":"b","name":"弱点印记","summary":"易伤+10% · 破甲+15% · 精英伤+10%","delta":{"mark_bonus":0.10,"armour_pen":0.15,"bonus_elite":0.10}},
+	],
+	"repeater":[
+		{"id":"a","name":"疾风连矢","summary":"连射+12% · 攻速+6%(满级4箭)","delta":{"triple_chance":0.12,"interval_mult":-0.06}},
+		{"id":"b","name":"致命箭簇","summary":"伤害+16% · 破甲+10%","delta":{"damage_mult":0.16,"armour_pen":0.10}},
+	],
+	"piercer":[
+		{"id":"a","name":"重弩破钢","summary":"破甲+18% · 重甲伤+18%","delta":{"armour_pen":0.18,"bonus_armour":0.18}},
+		{"id":"b","name":"精准狙杀","summary":"伤害+18% · 攻速+9%","delta":{"damage_mult":0.18,"interval_mult":-0.09}},
+	],
+	"frost":[
+		{"id":"a","name":"极寒蔓延","summary":"减速+7% · 冻结+0.35s · 叠层-1","delta":{"slow_amount":0.07,"freeze_time":0.35,"frost_stacks":-1.0}},
+		{"id":"b","name":"冰晶碎裂","summary":"法伤+18% · 法穿+12%","delta":{"damage_mult":0.18,"resist_pen":0.12}},
+	],
+	"arcfire":[
+		{"id":"a","name":"连环爆焰","summary":"殉爆范围+16 · 爆伤+22%","delta":{"explode_radius":16.0,"explode_mult":0.22}},
+		{"id":"b","name":"奥能过载","summary":"法伤+16% · 攻速+8%","delta":{"damage_mult":0.16,"interval_mult":-0.08}},
+	],
+	"breaker":[
+		{"id":"a","name":"法盾崩解","summary":"法穿+18% · 高抗伤+20%","delta":{"resist_pen":0.18,"bonus_resist":0.20}},
+		{"id":"b","name":"秘法洪流","summary":"射程+10% · 攻速+9% · 法伤+10%","delta":{"range_mult":0.10,"interval_mult":-0.09,"damage_mult":0.10}},
+	],
+	"siege":[
+		{"id":"a","name":"震天巨炮","summary":"精英首领伤+22% · 炮伤+18%","delta":{"bonus_elite":0.22,"damage_mult":0.18}},
+		{"id":"b","name":"迅捷装填","summary":"射程+10% · 攻速+10% · 破甲+10%","delta":{"range_mult":0.10,"interval_mult":-0.10,"armour_pen":0.10}},
+	],
+	"burning":[
+		{"id":"a","name":"焦土火海","summary":"火域半径+12 · 持续+1.0s","delta":{"burn_radius":12.0,"burn_time":1.0}},
+		{"id":"b","name":"烈焰高爆","summary":"灼伤+14/s · 炮伤+14%","delta":{"burn_dps":14.0,"damage_mult":0.14}},
+	],
+	"frag":[
+		{"id":"a","name":"广域震荡","summary":"溅射+18% · 击退+6","delta":{"splash_mult":0.18,"knockback":6.0}},
+		{"id":"b","name":"暴雨弹幕","summary":"攻速+9% · 炮伤+15%","delta":{"interval_mult":-0.09,"damage_mult":0.15}},
+	],
+	"shield":[
+		{"id":"a","name":"铁壁增援","summary":"士兵生命+25% · 3级增兵+1","delta":{"soldier_health":0.25,"soldier_count":0.34}},
+		{"id":"b","name":"磐石防线","summary":"阻挡数+1 · 移速+10%","delta":{"block_capacity":1.0,"soldier_speed":0.10}},
+	],
+	"hunter":[
+		{"id":"a","name":"群猎伏击","summary":"射程+25 · 2级+1猎手","delta":{"soldier_range":25.0,"soldier_count":0.50}},
+		{"id":"b","name":"荆棘毒箭","summary":"减速+8% · 持续+0.4s · 生命+20%","delta":{"slow_amount":0.08,"slow_time":0.40,"soldier_health":0.20}},
+	],
+	"charge":[
+		{"id":"a","name":"雷霆冲锋","summary":"冲锋眩晕+0.4s · 移速+15%","delta":{"charge_stun":0.40,"soldier_speed":0.15}},
+		{"id":"b","name":"先锋战甲","summary":"士兵生命+28% · 3级增兵+1","delta":{"soldier_health":0.28,"soldier_count":0.34}},
+	],
+}
+static func branches(id: String) -> Array:
+	return BRANCHES.get(id,[])
+static func branch_price(rank: int) -> int:
+	return BRANCH_PRICES[clampi(rank,0,BRANCH_PRICES.size()-1)]
 static func by_id(id: String) -> Dictionary:
 	for entry in LIST:
 		if str(entry.id)==id:return entry

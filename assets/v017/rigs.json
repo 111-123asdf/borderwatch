@@ -1,0 +1,330 @@
+{
+  "construct_hound": {
+    "parts": [
+      {
+        "pivot": [
+          87.02000000000001,
+          351.0
+        ],
+        "origin": [
+          50,
+          351
+        ],
+        "phase": 0,
+        "role": "leg",
+        "file": "actor_construct_hound_part0.png"
+      },
+      {
+        "pivot": [
+          194.12,
+          353.75
+        ],
+        "origin": [
+          167,
+          353
+        ],
+        "phase": 1,
+        "role": "leg",
+        "file": "actor_construct_hound_part1.png"
+      },
+      {
+        "pivot": [
+          279.8,
+          370.25
+        ],
+        "origin": [
+          232,
+          370
+        ],
+        "phase": 0,
+        "role": "leg",
+        "file": "actor_construct_hound_part2.png"
+      },
+      {
+        "pivot": [
+          398.8,
+          364.75
+        ],
+        "origin": [
+          351,
+          364
+        ],
+        "phase": 1,
+        "role": "leg",
+        "file": "actor_construct_hound_part3.png"
+      }
+    ],
+    "height": 275,
+    "foot": 494,
+    "source": "exec-a714f1b0-7599-4a5b-8fe6-eed1d66259a8.png"
+  },
+  "rune_warden": {
+    "parts": [
+      {
+        "pivot": [
+          184.6,
+          335.56
+        ],
+        "origin": [
+          122,
+          335
+        ],
+        "phase": 0,
+        "role": "leg",
+        "file": "actor_rune_warden_part0.png"
+      },
+      {
+        "pivot": [
+          336.91999999999996,
+          335.56
+        ],
+        "origin": [
+          265,
+          335
+        ],
+        "phase": 1,
+        "role": "leg",
+        "file": "actor_rune_warden_part1.png"
+      },
+      {
+        "pivot": [
+          77.5,
+          158.48000000000002
+        ],
+        "origin": [
+          18,
+          158
+        ],
+        "phase": 0,
+        "role": "arm",
+        "file": "actor_rune_warden_part2.png"
+      },
+      {
+        "pivot": [
+          436.88,
+          149.16000000000003
+        ],
+        "origin": [
+          379,
+          149
+        ],
+        "phase": 1,
+        "role": "arm",
+        "file": "actor_rune_warden_part3.png"
+      }
+    ],
+    "height": 466,
+    "foot": 494,
+    "source": "exec-458638af-416a-4895-b233-7173ac14b8b5.png"
+  },
+  "astral_prism": {
+    "parts": [
+      {
+        "pivot": [
+          138.5,
+          184.6
+        ],
+        "origin": [
+          99,
+          186
+        ],
+        "phase": 0,
+        "role": "orbit",
+        "file": "actor_astral_prism_part0.png"
+      },
+      {
+        "pivot": [
+          370.875,
+          94.16
+        ],
+        "origin": [
+          330,
+          118
+        ],
+        "phase": 1,
+        "role": "orbit",
+        "file": "actor_astral_prism_part1.png"
+      },
+      {
+        "pivot": [
+          346.5,
+          332.16
+        ],
+        "origin": [
+          284,
+          332
+        ],
+        "phase": 0,
+        "role": "orbit",
+        "file": "actor_astral_prism_part2.png"
+      }
+    ],
+    "height": 476,
+    "foot": 494,
+    "source": "exec-2e6f467c-ad21-483d-a4bd-0b55f9f103d8.png"
+  },
+  "rift_bomber": {
+    "parts": [
+      {
+        "pivot": [
+          188.75,
+          332.16
+        ],
+        "origin": [
+          130,
+          332
+        ],
+        "phase": 0,
+        "role": "leg",
+        "file": "actor_rift_bomber_part0.png"
+      },
+      {
+        "pivot": [
+          331.15,
+          332.16
+        ],
+        "origin": [
+          264,
+          332
+        ],
+        "phase": 1,
+        "role": "leg",
+        "file": "actor_rift_bomber_part1.png"
+      },
+      {
+        "pivot": [
+          84.17500000000001,
+          217.92
+        ],
+        "origin": [
+          33,
+          217
+        ],
+        "phase": 0,
+        "role": "arm",
+        "file": "actor_rift_bomber_part2.png"
+      },
+      {
+        "pivot": [
+          429.05,
+          208.4
+        ],
+        "origin": [
+          380,
+          208
+        ],
+        "phase": 1,
+        "role": "arm",
+        "file": "actor_rift_bomber_part3.png"
+      }
+    ],
+    "height": 476,
+    "foot": 494,
+    "source": "exec-fb5f3120-9370-4be5-ac91-0158b0b231fd.png"
+  },
+  "void_harvester": {
+    "parts": [
+      {
+        "pivot": [
+          223.925,
+          341.68
+        ],
+        "origin": [
+          188,
+          341
+        ],
+        "phase": 0,
+        "role": "leg",
+        "file": "actor_void_harvester_part0.png"
+      },
+      {
+        "pivot": [
+          310.23,
+          332.16
+        ],
+        "origin": [
+          268,
+          332
+        ],
+        "phase": 1,
+        "role": "leg",
+        "file": "actor_void_harvester_part1.png"
+      },
+      {
+        "pivot": [
+          124.99,
+          18
+        ],
+        "origin": [
+          45,
+          18
+        ],
+        "phase": 0,
+        "role": "arm",
+        "file": "actor_void_harvester_part2.png"
+      }
+    ],
+    "height": 476,
+    "foot": 494,
+    "source": "exec-90fb0388-783c-4922-a53d-d35f080d6b82.png"
+  },
+  "colossus": {
+    "parts": [
+      {
+        "pivot": [
+          184.6,
+          334.54
+        ],
+        "origin": [
+          122,
+          334
+        ],
+        "phase": 0,
+        "role": "leg",
+        "file": "actor_colossus_part0.png"
+      },
+      {
+        "pivot": [
+          336.91999999999996,
+          334.54
+        ],
+        "origin": [
+          265,
+          334
+        ],
+        "phase": 1,
+        "role": "leg",
+        "file": "actor_colossus_part1.png"
+      },
+      {
+        "pivot": [
+          77.5,
+          156.32000000000002
+        ],
+        "origin": [
+          18,
+          156
+        ],
+        "phase": 0,
+        "role": "arm",
+        "file": "actor_colossus_part2.png"
+      },
+      {
+        "pivot": [
+          436.88,
+          146.94
+        ],
+        "origin": [
+          379,
+          146
+        ],
+        "phase": 1,
+        "role": "arm",
+        "file": "actor_colossus_part3.png"
+      }
+    ],
+    "height": 469,
+    "foot": 494,
+    "source": "exec-7c7d87b9-c596-48f7-bd41-2b269d622046.png"
+  }
+}

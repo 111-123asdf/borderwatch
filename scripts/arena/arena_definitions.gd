@@ -20,7 +20,14 @@ const ENEMIES := {
 	"spearman":{"name":"棘木投矛手","health":105.0,"speed":52.0,"damage":15.0,"type":0,"armour":0.15,"resistance":0.0,"capacity":1,"gold":17,"xp":12},
 	"spore":{"name":"孢囊兽","health":150.0,"speed":45.0,"damage":16.0,"type":1,"armour":0.0,"resistance":0.2,"capacity":1,"gold":20,"xp":14},
 	"captain":{"name":"营地队长","health":420.0,"speed":58.0,"damage":25.0,"type":0,"armour":0.25,"resistance":0.25,"capacity":99,"gold":45,"xp":30},
-	"moth":{"name":"暮林巨蛾","health":3100.0,"speed":26.0,"damage":17.0,"type":1,"armour":0.15,"resistance":0.15,"capacity":99,"gold":150,"xp":100}
+	"moth":{"name":"暮林巨蛾","health":3100.0,"speed":26.0,"damage":17.0,"type":1,"armour":0.15,"resistance":0.15,"capacity":99,"gold":150,"xp":100},
+	"construct_hound":{"name":"裂隙猎犬","health":72.0,"speed":92.0,"damage":12.0,"type":0,"armour":0.05,"resistance":0.0,"capacity":1,"gold":14,"xp":10},
+	"rune_warden":{"name":"符文重盾傀儡","health":245.0,"speed":38.0,"damage":22.0,"type":0,"armour":0.58,"resistance":0.05,"capacity":2,"gold":26,"xp":17},
+	"astral_prism":{"name":"星界棱镜","health":125.0,"speed":48.0,"damage":14.0,"type":1,"armour":0.0,"resistance":0.52,"capacity":1,"gold":19,"xp":13},
+	"rift_bomber":{"name":"坍缩魔芯","health":135.0,"speed":55.0,"damage":18.0,"type":1,"armour":0.15,"resistance":0.25,"capacity":1,"gold":21,"xp":14},
+	"void_harvester":{"name":"虚空收割者","health":460.0,"speed":62.0,"damage":27.0,"type":0,"armour":0.28,"resistance":0.28,"capacity":99,"gold":48,"xp":32},
+	"breacher":{"name":"裂隙破障者","health":900.0,"speed":0.0,"damage":22.0,"type":0,"armour":0.35,"resistance":0.05,"capacity":99,"gold":40,"xp":30},
+	"colossus":{"name":"星界巨像","health":4200.0,"speed":25.0,"damage":24.0,"type":1,"armour":0.22,"resistance":0.22,"capacity":99,"gold":200,"xp":120}
 }
 static func hero(key: String) -> Dictionary:
 	return HEROES.get(key,HEROES.knight).duplicate(true)
@@ -30,7 +37,7 @@ static func enemy(key: String) -> Dictionary:
 	return ENEMIES.get(key,ENEMIES.fox).duplicate(true)
 static func leak_damage(kind: String,elite := false) -> int:
 	# Core damage is tiered by threat, not by raw spawn index; elites at least 24.
-	var base: int=int({"fox":14,"wisp":14,"spearman":18,"spore":18,"brute":36,"captain":0,"moth":0}.get(kind,14))
+	var base: int=int({"fox":14,"wisp":14,"spearman":18,"spore":18,"brute":36,"captain":0,"moth":0,"construct_hound":14,"astral_prism":16,"rift_bomber":22,"rune_warden":36,"void_harvester":0,"colossus":0}.get(kind,14))
 	return maxi(base,24) if elite else base
 static func skill_text(hero_id: String, slot: int) -> String:
 	if slot==0: return {"knight":"扇形重斩，短暂眩晕","ranger":"朝移动方向翻滚，短暂无敌","mage":"霜环造成法术伤害并减速"}[hero_id]

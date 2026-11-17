@@ -1,0 +1,177 @@
+{
+  "version": "0.17.0",
+  "generator": "OpenAI built-in imagegen",
+  "date": "2026-11-17",
+  "originals_external": "../美术参考/v017原始生成",
+  "entries": [
+    {
+      "role": "archer",
+      "native_output": "exec-d0f64501-33fb-4b53-9e77-5d9f265939ee.png",
+      "sha256": "48f277e3d59295c7db89e6210f0302042399d16b11a0c8dc390b43efcff403a1"
+    },
+    {
+      "role": "mage",
+      "native_output": "exec-f410c31a-2c4d-466b-bf0b-ae83513be7a9.png",
+      "sha256": "9ffafc0975b01cdd0aa4745225c2028652f2b45e3cef8ff962731dc0d0ffc2dd"
+    },
+    {
+      "role": "cannon",
+      "native_output": "exec-1035436e-0c44-48ab-bcc3-177d07a85baf.png",
+      "sha256": "660de261dad51dae50d487eede88107cdafa334b6388f6dc044615e96d87ae17"
+    },
+    {
+      "role": "barracks",
+      "native_output": "exec-6ca6ae34-63de-42de-b47b-d7568910f56f.png",
+      "sha256": "4ce3285c79a3699cfc2d3522c884582d4e91341834a2a60c839ddc191f341e67"
+    },
+    {
+      "role": "construct_hound",
+      "native_output": "exec-a714f1b0-7599-4a5b-8fe6-eed1d66259a8.png",
+      "sha256": "853588d438b1f07d9af32adfb3a6ee492fae66947f967ffb2d431fc71407a43a"
+    },
+    {
+      "role": "rune_warden",
+      "native_output": "exec-458638af-416a-4895-b233-7173ac14b8b5.png",
+      "sha256": "3a21f985db2e88206879208b6afa4b094bb7cdac800a25682ef22fb9c5ac6a78"
+    },
+    {
+      "role": "astral_prism",
+      "native_output": "exec-2e6f467c-ad21-483d-a4bd-0b55f9f103d8.png",
+      "sha256": "450161e539a21b2a1e24bfa600a1ccc5877d35b2368f9fef60df380cd809fd01"
+    },
+    {
+      "role": "rift_bomber",
+      "native_output": "exec-fb5f3120-9370-4be5-ac91-0158b0b231fd.png",
+      "sha256": "14978bbf41d0ffe9c22dfcf5b367292edcde0cc2ab02f3f22bbd70c513c399d7"
+    },
+    {
+      "role": "void_harvester",
+      "native_output": "exec-90fb0388-783c-4922-a53d-d35f080d6b82.png",
+      "sha256": "34135647eaf6a385e824de421d30f542a90fc4c82af72d52013e17a1a627b58c"
+    },
+    {
+      "role": "colossus",
+      "native_output": "exec-7c7d87b9-c596-48f7-bd41-2b269d622046.png",
+      "sha256": "cde534dacbe29c428f1dbaa3e55e216fa9bd2bd35c84f1d907ee9edabf5a0666"
+    },
+    {
+      "role": "map_open",
+      "native_output": "exec-b6358cb0-1c94-40d8-9d92-b58eb5982ec1.png",
+      "sha256": "7bb71dc045f9800d5c10c6e5f6ca6ca9163efbd7b61417b32822bb7e6c62cfc4"
+    },
+    {
+      "role": "map_closed",
+      "native_output": "exec-dedca639-79d2-495e-ac7e-1e7198127175.png",
+      "sha256": "b4bc67302f3875c6db1c9ae1a790c0665245e6946479269fce20e0849aab40ea"
+    },
+    {
+      "role": "core",
+      "native_output": "exec-29ade0a7-201a-43eb-89ef-fd6282719328.png",
+      "sha256": "a0c3d7ab229ca7d0bfeae8564625a8881662938d44433f366080e5f908e9fefe"
+    }
+  ],
+  "prompt_record": "以下为设计约束摘要；完整逐字调用以本轮聊天工具记录为准，未伪造缺失的逐字提示。",
+  "design_briefs": {
+    "towers": "Transparent background, three separate progressively stronger tiers. Distinct families: tall timber archer platform; stone arcane core mage tower; low broad metal cannon; ground-level barracks with flag and troop doorway. Consistent overhead contact direction and stable footprint.",
+    "creatures": "Transparent original ruin constructs: stone hound, rune guardian, floating prism, volatile bomber, scythe harvester and monumental boss. Readable silhouettes, restrained blue-violet magic, hand-painted material. Split rigid limbs in engine rather than rotate entire sticker.",
+    "map": "Oblique top-down 2D painted ancient observatory ruins, broad readable winding roads matching authored layout, 18 clear sites, no highways/overpasses/platformer ledges. 2000x1125 target world, open northeast road plus closed variant, no HUD/characters/baked towers. Daylit neutral stone and violet vegetation."
+  },
+  "processing": [
+    "prepare_v017_art.py: normalize contacts and slice tower body/part and enemy rigid pieces",
+    "map_closed region composited only on northeast branch; cropped open-road alpha overlay reveals without replacing full screen",
+    "build_v017_terrain.py: painted abyss classification plus route/site clearance",
+    "engine: biome tint/exposure, procedural contact shadows, bridge/wall detail, distance-based rigid gait, local mechanism motion"
+  ],
+  "runtime_sha256": {
+    "assets/v017/actor_astral_prism.png": "0e51cde2cd8e4bd2f443c3282b801c064f49f9720b4486183f8d5a6236f24306",
+    "assets/v017/actor_astral_prism_body.png": "95f5b3858a68fadf57a639b01a95b6ef2eb178a4c62b4f97d77495cbb9e0f78e",
+    "assets/v017/actor_astral_prism_part0.png": "05c48b8b905d86e8a6eb4df0c14543bed90c8490c025dcfd33204dd1b397682d",
+    "assets/v017/actor_astral_prism_part1.png": "6e64aedf3d70158d6397ebd56653bf6be7971e9696a5e77bffe8af8cf744941e",
+    "assets/v017/actor_astral_prism_part2.png": "dda9d3a6b0dc4615d012903782db93f203faa6d490fe3a9ad094ac13adaecb8e",
+    "assets/v017/actor_colossus.png": "a640bbd4af7fb02fdfb47ed01a7ecaa9e4b49c8323289a1af2da6af01321e9ff",
+    "assets/v017/actor_colossus_body.png": "ba593e80e7c0b9692d7a0737e87bc0bda54efd8b1334edae881fe31728499c67",
+    "assets/v017/actor_colossus_part0.png": "72e2b83d85a91339ba9a603f9cc801f31fbb17c1139a9acab05f5b1b3ec11adb",
+    "assets/v017/actor_colossus_part1.png": "93e9a1dabb005dacd2526b0da2bfe1ea9954ba68fa462c85540f205cfabebbee",
+    "assets/v017/actor_colossus_part2.png": "099b87362b11e086916c6654a574bd3e1b902e062eb4cb4b619bc700fdd67a12",
+    "assets/v017/actor_colossus_part3.png": "28cf173b630f4db99dcd19095548ef76de5148498c01770cf5c7434d30ea3dc5",
+    "assets/v017/actor_construct_hound.png": "2baeb121fd690ce54825e038c84dd8c0cbc108498767074fe789c9f95f8c46c1",
+    "assets/v017/actor_construct_hound_body.png": "97d09b5b16ef9d42de417623267c5ee88691db781555bb3298d936d58e503005",
+    "assets/v017/actor_construct_hound_part0.png": "a1c48b98b7e633b67088b2dea0d83472c897ac87132a03aff6cb2399465c53b7",
+    "assets/v017/actor_construct_hound_part1.png": "f2ca6db9f2c1680de2e6343caf0f861d835290414620641e0cd4684c8b02e509",
+    "assets/v017/actor_construct_hound_part2.png": "4810dd6d46a327b2da76ca9037518fd6b2c848f4b433ec153a1e89e581723512",
+    "assets/v017/actor_construct_hound_part3.png": "e2fd6118946172f563d22d9b068ae65eabb90ddd66e724df32472eea59d47add",
+    "assets/v017/actor_rift_bomber.png": "23576863aca1a706cfd10fff25b305228baffae813ecb32173e27b70c008dc78",
+    "assets/v017/actor_rift_bomber_body.png": "45d2f97bed5dbb69ecb5d73b4707b6ba9296023f4cf9b63cb583f09e3cf965a5",
+    "assets/v017/actor_rift_bomber_part0.png": "16d780c12c8e14bca2cd27aba78ed17126b2055aa7f8f6b2d71d64b643c2977c",
+    "assets/v017/actor_rift_bomber_part1.png": "5fad2ef73358020fda5e97d4f08c0ed1e1de2ecf964995b768315e4c7ac4b504",
+    "assets/v017/actor_rift_bomber_part2.png": "e7249dfa3a52c0ebc1ec6cba96e464a105ba56b3ea66cb08818fcc33cf50862b",
+    "assets/v017/actor_rift_bomber_part3.png": "cb7d54db60da5df4959253058afbfd1318777d45ca123cd37cc116b2dc4233ab",
+    "assets/v017/actor_rune_warden.png": "3b51d1aa7fa84c4cc08251ddb30ee000063a355dd72feb914288c19f493ada4f",
+    "assets/v017/actor_rune_warden_body.png": "d13be63ffcdae056ab5cd45dccf6d1cef6d2b758067c355f1cc292cd11419a34",
+    "assets/v017/actor_rune_warden_part0.png": "563a4ab9863adc4f3d75e23b6363259ee85e115f2addfcc0330bcef1e1cdc72b",
+    "assets/v017/actor_rune_warden_part1.png": "c1cffa7b75f72ccbfb8f4386cef392213f5f83b2cbfb30b1fcebb7c03b2f01e9",
+    "assets/v017/actor_rune_warden_part2.png": "0f3ca91e8a89b26c09413a2c037c0ed019bd917ef8b0cedcc615f5d2d416f792",
+    "assets/v017/actor_rune_warden_part3.png": "bf35fd4a2af439cf9aee7f471a25075db8be5c212e1f27df0c83265ab13ae295",
+    "assets/v017/actor_void_harvester.png": "19a60db71de4aa539aa618c7b5fbbbab6e9913d80e66ceee5b5dc39f86399af0",
+    "assets/v017/actor_void_harvester_body.png": "4c22c3877d9daa86c595327d58dfc516e8e17c2678bafcbdf38fbba402b2ad95",
+    "assets/v017/actor_void_harvester_part0.png": "4bb9968685c2ea27da6b62033b3f8b24d7ffec6ba21261ef37bc31858a987c62",
+    "assets/v017/actor_void_harvester_part1.png": "69969624293e80c63fa596647d57cc4ec3f6516ea7581e0cd7af50469a4f2993",
+    "assets/v017/actor_void_harvester_part2.png": "fd345bba839957f07f62ef92ff6b9719b7e62520c2f1709f5dda18f1bd08bc80",
+    "assets/v017/art_layers.json": "643b9723d3fccd18859a2fcf63c2eaad5a2d0945fe22b7a1e47e7876e08f2336",
+    "assets/v017/core_ruins.png": "ad1d115639b2ca60ff5636ecf80e3b33c5989d81525bcc6fed804ee2356d0468",
+    "assets/v017/creature_astral_prism.png": "8edc362e7220aa83bd77e10771c14b55f5f0d806f28b7ad240029b8ff0092ebe",
+    "assets/v017/creature_colossus.png": "fb8cdd721b687fd64ac688d8638265f5d44ed1b7e9e690ca6648649376283ad7",
+    "assets/v017/creature_construct_hound.png": "789e9b9b0b174ca5468fb002e9ddf053e5d21d76cdb4c9550f2763bcb3ab1f88",
+    "assets/v017/creature_rift_bomber.png": "26ff031a0065b1fad09022cba75204ebed2f170f7d07cca6173def4dd3a63da3",
+    "assets/v017/creature_rune_warden.png": "03be8630f331167d80858c52cdd45c6520d4d58b5f63232bb567b975c7788671",
+    "assets/v017/creature_void_harvester.png": "350e0369b6ed2a6713be6859d6f0bbc30d7a3b783e542232dcef28950cd1f981",
+    "assets/v017/layout.json": "6ff40fcaa8300693d7a4973b8e04d6c4ff20cc074e2b6ae3d5cc03f1a94232e6",
+    "assets/v017/map_ruins.png": "a680c91a3c901e0a837d7c709758f8c4159d1ecec22ae97bf9cb54b314a1e8d2",
+    "assets/v017/map_ruins_open.png": "c7282d10740e551c254c892d62cf5501ae4a14f113d9c17754963c58974f789e",
+    "assets/v017/rigs.json": "bbaa804379d26c93705756069be308c72084089f7053f2b7948579d237fb5500",
+    "assets/v017/terrain_blocks.json": "ba672f36f74cab345c8c00de799363424529e2249ba82b36fc08296a206f3a0e",
+    "assets/v017/tower_archer_1.png": "8c00ef1359b2ce3bca67fdf0f8b02f1e161481a6039da0d32c70867475adcc6f",
+    "assets/v017/tower_archer_1_base.png": "42902facfa6840a7c803934091c128071348a5a3fdcaa494ca60909ee4b5c900",
+    "assets/v017/tower_archer_1_part.png": "e4f5a6519bc2d90b89a1b653ff2fece5ebc51d5b4afa6e83f137298babc23fc6",
+    "assets/v017/tower_archer_2.png": "0f14cdb1c68d995948261ec98829c28593fe13a9773e7f0ae4623b59b62d1816",
+    "assets/v017/tower_archer_2_base.png": "cf84fdaf93bccf9297244c3e0dfbd504c434d26eefeb5c6109e172f505c064b6",
+    "assets/v017/tower_archer_2_part.png": "b8070116afbf4099cbfeff671d55cc5ca49345b9450ed37f8081c4dcc0428e83",
+    "assets/v017/tower_archer_3.png": "f08f23ace3adfec536aeb9f08e1cb70468bb9698bc927c65bf01edd3a4f9417f",
+    "assets/v017/tower_archer_3_base.png": "0dc031968e67a0b4e9068aa43540fcccc0029934abc8ed4014633701cc91e04c",
+    "assets/v017/tower_archer_3_part.png": "de2d3b88aadde3050fe6e078a25b3c0b46b0960aefe9764a2e94837de6b86787",
+    "assets/v017/tower_barracks_1.png": "8794f9c98e73b291f484f5ac49ec90c43cdcc0d02f8fc9f18c4dd1d3d6874d05",
+    "assets/v017/tower_barracks_1_base.png": "5b781ed4a612fdbacb1f77f263bda9c452ef86999fc3671464aaa919b9a77c56",
+    "assets/v017/tower_barracks_1_part.png": "190e5645613a386ca1736654b5003a58a005956cd05dc7c5882ef90220f79b5f",
+    "assets/v017/tower_barracks_2.png": "5adf91d78ad29393ac4978238458e8e08ccdf7b5b07f8c98ebae77987150e8dc",
+    "assets/v017/tower_barracks_2_base.png": "aeb2e4f2df9943cfd39d1cf773e251d94a8e863ca77c920256fbd54a115a2b8d",
+    "assets/v017/tower_barracks_2_part.png": "04673765bd3b91ad35e16c60a3f6fa89eb12662686d92fb8a13f407fa77bd73b",
+    "assets/v017/tower_barracks_3.png": "2c510a3fd5340382fd4fdf0357ec7827feac6b5576d657ca4dbcd090eee31d7e",
+    "assets/v017/tower_barracks_3_base.png": "e9d97ca00f63109a1fab91f6c6ee790ef2cc99f70142734f6c1499ee84216ccd",
+    "assets/v017/tower_barracks_3_part.png": "f1d9b9f69fdc87fe639fa8bb3605dbc4c2bf3d0f907ae85f8869d26aea816242",
+    "assets/v017/tower_cannon_1.png": "28459ba12035acdb89be2cc2bd1809814430a18cbbe4f078aa5c53fbb3eff17f",
+    "assets/v017/tower_cannon_1_base.png": "aa334a3074cc5151ee065138d5e3d4ef01daaa6754325bb67a9c34e066a1b538",
+    "assets/v017/tower_cannon_1_part.png": "0d8db5b74f9f86ca0c2110ed670b9498c4b348fa5f029bc7a603f6e4e9687b62",
+    "assets/v017/tower_cannon_2.png": "beb65b2714c2621407b95d33f32303c98ab5c40643860d4d2db35390fbb660b5",
+    "assets/v017/tower_cannon_2_base.png": "ce02f71fc396fe30ee4311e8ac81fc47b1f7f0aabf40284360b0c95b8a4756f4",
+    "assets/v017/tower_cannon_2_part.png": "ae71d79384e9538f6d175a37e502d30a52ea10b1bbfe56b8dc61cfe7bb843bfa",
+    "assets/v017/tower_cannon_3.png": "b1aab08c882df63b341ee2e15783b2213c263ac391588024045a1d2cacc1d13e",
+    "assets/v017/tower_cannon_3_base.png": "aaa763fca41d72107fa7b1b5cfa5834b0a6571f366e50613f374a6586bea24d6",
+    "assets/v017/tower_cannon_3_part.png": "7959855a33ba2e8ae45609bac33af8f3faba55a1ed53b2a6f3bec0287b0022ac",
+    "assets/v017/tower_mage_1.png": "aba4fa306738e48877015f0b652344c0ac6779fe668097165e9dc4f7d31c3955",
+    "assets/v017/tower_mage_1_base.png": "f1ac1bebc7707fc018be4ace49a849075215994ba048129e4ded4bef5425aa1b",
+    "assets/v017/tower_mage_1_part.png": "bd186a10c842eb87a5cd635eb5c9667db01f2bbd771ba44c91fca1edde36da79",
+    "assets/v017/tower_mage_2.png": "f19a582bd519673f7f3904bac7914569529ef24363fb2d1c7eae02d22700ba6d",
+    "assets/v017/tower_mage_2_base.png": "8be94db015335d0e390d24d10938db44279a6912d123446d32d64e6edd0dec16",
+    "assets/v017/tower_mage_2_part.png": "4d38c9b6a9de86d5fdd12bc303d730f93cee263fc0c066f04cf440ba1beaab9a",
+    "assets/v017/tower_mage_3.png": "4a7302c6178cbab43b8e1c66d7144449db7df9703be29436d97d9f89a38804bb",
+    "assets/v017/tower_mage_3_base.png": "cb7eb6ee1392dec8df91761a7b0a5ca9083492d0d7c4a52a4d1b2d3645927610",
+    "assets/v017/tower_mage_3_part.png": "e519c519a72baa4a9906b22fb7db166c787f3506f2808b58da5c765683269de9",
+    "assets/v017/towers.json": "170a6ad381fc4e8ff51197fc08c641aba1817c1f437e4349502f088124a05efc",
+    "assets/v017/towers.png": "96d862b8f924eabb85a2d71792c45fa4bec6fe5a7dd101deb09ee6734cbef3d8"
+  },
+  "limitations": [
+    "2D artwork, not 3D models",
+    "repeated compatibility sheet is a state clock, not eighteen independently drawn frames",
+    "raw generated sources remain external to keep source ZIP small"
+  ]
+}

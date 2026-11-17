@@ -7,7 +7,7 @@ const PLAYTEST_GEMS:=9999
 const COSTS:=[0,2,3,5,8]
 const HP:=[0.0,0.0,0.03,0.03,0.06,0.08]
 const ATTACK:=[0.0,0.0,0.0,0.03,0.03,0.06]
-var data: Dictionary={"gems":0,"levels":{"knight":1,"ranger":1,"mage":1},"cleared":{"forest":false,"creek":false},"last_run":"","settled":{},"tutorial_done":false,"volume":0.8,"reduced_motion":false,"selected_hero":"knight","equipped_towers":["archer","mage","cannon","barracks"]}
+var data: Dictionary={"gems":0,"levels":{"knight":1,"ranger":1,"mage":1},"cleared":{"forest":false,"creek":false,"ruins":false},"last_run":"","settled":{},"tutorial_done":false,"volume":0.8,"reduced_motion":false,"selected_hero":"knight","equipped_towers":["archer","mage","cannon","barracks"]}
 var path: String
 var persistent: bool
 var locked:=false
@@ -66,7 +66,7 @@ func settle(run_id: String,stage: String,won: bool,completed: int) -> Dictionary
 	if run_id=="" or stage not in ArenaLevelCatalog.IDS or completed<0 or completed>8 or (won and completed!=8):return {"ok":false,"amount":0,"error":"无效结算"}
 	if data.settled.has(run_id):return {"ok":true,"amount":0,"duplicate":true}
 	var amount: int=6 if won else (3 if completed>=6 else (2 if completed>=4 else 0))
-	var first: bool=won and not bool(data.cleared[stage])
+	var first: bool=won and not bool(data.cleared.get(stage,false))
 	if first:amount+=2
 	var candidate:=data.duplicate(true)
 	candidate.gems+=amount;candidate.last_run=run_id;candidate.settled[run_id]=amount
@@ -86,9 +86,14 @@ func _valid(candidate: Dictionary) -> bool:
 	for key in ArenaDefinitions.HERO_IDS:
 		if typeof(candidate.levels.get(key))!=TYPE_INT or candidate.levels[key]<1 or candidate.levels[key]>5:return false
 	for key in ArenaLevelCatalog.IDS:
-		if typeof(candidate.cleared.get(key))!=TYPE_BOOL:return false
+		if key in ["forest","creek"]:
+			if typeof(candidate.cleared.get(key))!=TYPE_BOOL:return false
+		elif candidate.cleared.has(key) and typeof(candidate.cleared.get(key))!=TYPE_BOOL:
+			return false
 	return typeof(candidate.get("settled"))==TYPE_DICTIONARY and typeof(candidate.get("last_run"))==TYPE_STRING and typeof(candidate.get("volume"))==TYPE_FLOAT and is_finite(candidate.volume) and candidate.volume>=0 and candidate.volume<=1 and typeof(candidate.get("reduced_motion"))==TYPE_BOOL
 func _commit(candidate: Dictionary) -> bool:
+	for key in ArenaLevelCatalog.IDS:
+		if not candidate.cleared.has(key):candidate.cleared[key]=false
 	if locked or not _valid(candidate):last_error="养成数据无效，未写入";return false
 	if persistent:
 		var cfg:=ConfigFile.new();cfg.set_value("campaign","version",3);cfg.set_value("campaign","data",candidate)
@@ -108,3 +113,5 @@ func _load() -> void:
 	data=candidate.duplicate(true)
 	if not data.has("selected_hero"):data.selected_hero="knight"
 	if not data.has("equipped_towers"):data.equipped_towers=ArenaDefinitions.TOWER_IDS.duplicate()
+	for key in ArenaLevelCatalog.IDS:
+		if not data.cleared.has(key):data.cleared[key]=false

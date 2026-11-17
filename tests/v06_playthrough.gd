@@ -42,7 +42,7 @@ func _process(delta: float) -> bool:
 		passed=game.core_health>0 and casts>0;stopping=true;finish.call_deferred();return false
 	if game.choice_open:
 		var priorities: Array=[]
-		for card in ArenaPerks.CARDS:
+		for card in (ArenaKeystones.LIST if game.keystone_mode else ArenaPerks.CARDS):
 			var only:=str(card.get("hero",""))
 			if only=="" or only==hero_id: priorities.append(str(card.id))
 		for key in priorities:
@@ -67,13 +67,20 @@ func _process(delta: float) -> bool:
 	was_down=game.hero.knocked_out
 	if last_wave!=game.cycle:print("WAVE ",game.cycle," core=",game.core_health," gold=",game.gold," elapsed=",int(game.elapsed));last_wave=game.cycle
 	manage_towers()
+	if game.keystone_mode:
+		if game.resonance>=100.0:
+			var pack:=game.nearest_enemy(game.level_definition.core,650)
+			if pack!=null:game.cast_resonance(pack.position)
+		if not game.bridge_sealed and game.bridge_cooldown<=0.0:
+			for unit in game.enemies:
+				if is_instance_valid(unit) and not unit.dead and unit.route_id==1 and unit.bridge_branch=="":game.trigger_bridge_gate();break
 	if preview and timer>3 and game.phase=="rest" and game.hero.health>game.hero.max_health*0.85:game.request_wave()
 	if game.hero.knocked_out:return false
 	var target: ArenaEnemy
 	var greatest:=-INF
 	for enemy in game.enemies:
 		if not is_instance_valid(enemy) or enemy.dead or enemy.is_guard:continue
-		var score: float=enemy.progress/game.routes[enemy.route_id].get_baked_length()
+		var score: float=enemy.progress/game.enemy_road(enemy).get_baked_length()
 		if enemy.kind=="moth":score+=0.12
 		if score>greatest:greatest=score;target=enemy
 	if target==null:
@@ -108,6 +115,9 @@ func doctrine_count() -> int:
 func manage_towers() -> void:
 	var order: Array=[0,1,3,2,4,5,6,7] if stage=="forest" else [0,5,1,6,3,7,4,8,2,9]
 	var plan: Array=["archer","barracks","mage","archer","cannon","mage","archer","cannon"] if stage=="forest" else ["archer","mage","mage","barracks","archer","archer","cannon","mage","cannon","archer"]
+	if stage=="ruins":
+		order=[5,8,11,3,9,12,4,2,13,1,7,0,6,14,16,17,10,15]
+		plan=["archer","archer","cannon","mage","archer","mage","archer","barracks","barracks","archer","mage","mage","cannon","archer","mage","mage","archer","archer"]
 	if game.cycle>=6:
 		for index in order:
 			if game.site_locked(index) and game.gold>=game.unlock_price(index)+120:game.unlock_site(index);return
@@ -123,5 +133,9 @@ func manage_towers() -> void:
 		if tower.level==2 and game.doctrine_tokens>0:tower.upgrade("",true);return
 	for tower in game.towers:
 		if tower.level<3 and game.gold>=tower.upgrade_price():tower.upgrade();return
+	for tower in game.towers:
+		if tower.doctrine_id!="" and not tower.awaiting_doctrine:
+			for index in range(2):
+				if tower.branch_rank(index)<3 and game.gold>=tower.branch_price(index):tower.upgrade_branch(index);return
 func finish() -> void:
 	Input.action_release("shoot");paused=false;game.running=false;game.audio.shutdown();await process_frame;OS.delay_msec(150);game.queue_free();await process_frame;quit(0 if passed else 1)

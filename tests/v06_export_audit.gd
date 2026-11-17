@@ -5,7 +5,20 @@ func check(ok: bool,message: String) -> void:
 	checks+=1
 	if not ok:failures+=1;push_error("EXPORT FAIL: "+message)
 func _initialize() -> void:
-	check(ProjectSettings.get_setting("application/config/version")=="0.13.0","pack version")
+	check(ProjectSettings.get_setting("application/config/version")=="0.19.0","pack version")
+	for file in ["arena_attack_timing", "arena_construct_rig", "arena_grounding"]:
+		check(ResourceLoader.exists("res://scripts/arena/"+file+".gd"),"current presentation code ships "+file)
+	for file in ["site_plinths", "ruins_mechanisms"]:
+		check(ResourceLoader.exists("res://assets/v018/"+file+".png"),"current prop atlas ships "+file)
+	check(ResourceLoader.exists("res://assets/v018/particles/smoke_07.png"),"world dust texture ships")
+	for file in ["towers","rigs","layout","terrain_blocks","art_layers"]:
+		check(FileAccess.file_exists("res://assets/v017/"+file+".json"),"v017 runtime metadata ships "+file)
+	for file in ["map_ruins","map_ruins_open","towers","core_ruins"]:
+		check(ResourceLoader.exists("res://assets/v017/"+file+".png"),"v017 current artwork ships "+file)
+	for kind in ArenaDefinitions.TOWER_IDS:
+		for tier in range(1,4):
+			for part in ["base","part"]:
+				check(ResourceLoader.exists("res://assets/v017/tower_"+kind+"_"+str(tier)+"_"+part+".png"),"tower mechanism ships "+kind+str(tier)+part)
 	for identity in ["ranger","mage"]:
 		for view in ["side","down","up"]:check(ResourceLoader.exists(ArenaHeroArt.atlas(identity,view)),"v012 hero atlas ships "+identity+view)
 		check(FileAccess.file_exists(ArenaHeroArt.folder(identity)+identity+"_frames.json"),"v012 anchors ship "+identity)

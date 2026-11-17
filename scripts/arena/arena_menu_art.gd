@@ -71,4 +71,4 @@ static func perk(id: String) -> Texture2D:
 		if str(ArenaPerks.CARDS[index].id)==id:return part("perk_icons",str(index))
 	return null
 static func creature(key: String) -> Texture2D:
-	var sheet: Texture2D=load("res://assets/v06/creature_"+key+".png");var image:=AtlasTexture.new();image.atlas=sheet;image.region=Rect2(Vector2.ZERO,sheet.get_size()/Vector2(6,3));return image
+	var sheet: Texture2D=load(ArenaCreature.sheet_path(key));var image:=AtlasTexture.new();image.atlas=sheet;image.region=Rect2(Vector2.ZERO,sheet.get_size()/Vector2(6,3));return image

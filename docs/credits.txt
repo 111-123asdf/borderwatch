@@ -1,7 +1,44 @@
-边境守望 v0.13 · 资源说明
-局外卡通标题、世界地图、室内战术厅、控件、技能徽章与40个成长图标位于assets/v013，由OpenAI内置imagegen为本项目原创生成。负责人授权脚本做透明边缘清理及控件裁切归一化；原始输出与提示记录在docs/ART_GENERATION_V013.json。
-三英雄使用assets/v011骑士与assets/v012游侠/法师的原创生成立绘和完整动作；地表、四塔与地基沿用assets/v09，生成的森林生物和道具沿用assets/v06。人物为2D逐帧精灵，不是实际3D模型。
-16个动作/接触音效来自Kenney RPG Audio与Impact Sounds，作者Kenney，CC0-1.0：https://kenney.nl/assets/rpg-audio 、 https://kenney.nl/assets/impact-sounds 。逐文件记录在docs/AUDIO_V011.json，原始许可在third_party/kenney_audio。
-11个英雄采样为CC0：Kenney Impact Sounds；Vehicle/Jan Schupke的Tinysized SFX（https://opengameart.org/content/fantasy-sound-effects-tinysized-sfx）；bart（原Stephan/pdsounds）的Ice Spells（https://opengameart.org/content/ice-spells）。逐文件处理在docs/AUDIO_V012.json，许可在third_party/hero_audio_v012。UI点击复用其中短晶体采样；其余类别保留程序合成。
-用户提供的商业角色参考图与录像只用于研究，不作为游戏资源、录音或源码图片分发。旧v010局外资源保留在源码历史，退出当前发行。未使用参考游戏的代码。
-运行字体由系统/引擎提供，不分发Windows字体。Godot4.7.2采用MIT License，完整引擎及第三方声明见godot-copyright.txt。历史CC0许可保留在third_party与Git历史。
+边境守望 v0.19 · 资源与授权
+
+assets/v017遗迹地表、四类三级塔、六种构装外观与核心由OpenAI内置imagegen为本项目生成。负责人授权切片与局部遮罩；Godot运行时提供环境材质、接触阴影、局部机关、刚性部件步态、桥墙细节、水面与粒子。来源与SHA256见源码docs/ART_GENERATION_V017.json。图片为2D，不声称3D模型或独立手绘动画帧。
+三英雄保留骑士v011、游侠/法师v012完整动作与专属武器；局外assets/v013、森林地图assets/v09、森林生物与道具assets/v06均为项目原创生成。旧像素地图/构装仅历史实验，当前第三关使用v017；共享v016特效仍运行。
+商业角色参考与负责人提供的录像只研究设计，不作为游戏图片、录音或代码分发。
+
+声音：16个采样选自Kenney RPG Audio和Impact Sounds，Kenney，CC0-1.0。
+https://kenney.nl/assets/rpg-audio
+https://kenney.nl/assets/impact-sounds
+11个英雄采样为CC0：Kenney Impact Sounds；Vehicle / Jan Schupke的Tinysized SFX；bart（原Stephan/pdsounds）的Ice Spells。
+https://opengameart.org/content/fantasy-sound-effects-tinysized-sfx
+https://opengameart.org/content/ice-spells
+原始许可保留在源码third_party/kenney_audio与third_party/hero_audio_v012；历史逐文件生成/音频记录可从Git历史核对。UI点击复用短晶体采样，其余类别含程序合成声音。
+
+Godot4.7.2采用MIT，完整引擎及第三方声明见随包godot-copyright.txt。字体由系统/引擎提供，不分发Windows字体。
+
+战斗特效使用patch-gg/pixelfx离线编译：
+https://github.com/patch-gg/pixelfx
+原始源码与许可在源码tools/vendor/pixelfx；许可全文如下：
+
+MIT License
+
+Copyright (c) 2026 Patch
+Copyright (c) 2026 Hugo Duprez
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+环境与世界步尘的粒子纹理选自Kenney Particle Pack，CC0-1.0；来源https://github.com/Calinou/kenney-particle-pack，原始许可保留在源码third_party/kenney_particles/LICENSE.txt。

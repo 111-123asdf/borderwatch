@@ -1,5 +1,5 @@
 # 当前架构
-ArenaGame组装唯一战斗场景、地图、固定相机、按脚底排序的Actors、碰撞、导航、波次、成长选择和胜负状态。关卡差异只进入ArenaLevelCatalog；敌人记录route_id与progress，沿同一Curve2D采样。英雄使用CharacterBody2D与静态障碍碰撞；右键路径使用20像素网格，建塔后重建。
+ArenaGame组装唯一战斗场景、地图、关卡相机、按脚底排序的Actors、碰撞、导航、波次、成长选择和胜负状态。关卡差异只进入ArenaLevelCatalog；敌人记录route_id与progress，沿所属Curve2D采样。英雄使用CharacterBody2D与静态障碍碰撞；右键路径使用20像素网格，建塔后重建。
 
 ArenaBlocking集中维护敌人与英雄／士兵的拦截关系、容量与释放。塔无生命且不接收敌弹；兵营士兵独立承受近战，阵亡10秒补员。敌人未被拦截就沿道路前进，击退只改变道路进度。营地守卫在home附近行动。
 
@@ -20,3 +20,16 @@ ArenaBattleArt管理v09地表、空地基、四类三级建筑接触中心和固
 所有运行资源在res://，存档在user://。编辑器、测试、导出和外层入口均指向唯一正式工程，不复制第二套玩法脚本。
 
 v0.13：ArenaMenuArt使用assets/v013区域元数据和独立归一化控件，按大板/内衬/小框/主按钮分开。ArenaFrontEnd持有卡框、属性、技能说明和路线预览节点，同页修改内容，背景/顶栏不重建。ArenaPerkCodex使用独立40格图标与构筑轴边框，详情/筛选只更新局部。ArenaCampaign.playtest显式使用独立PLAYTEST_PATH并补足试玩钻石，正常存档路径保持。按键E统一释放职业大招。
+
+## v0.17地图、渲染与镜头
+
+ArenaLevelCatalog配置world_size、routes、bridge_gate、sites、site_traits、camps与breach。ArenaBattleCamera在大于1600×900的地图启用中键／边缘平移、M全图与C聚焦；ArenaGame.world_to_hud投影跟随按钮和建造面板，点击使用逆画布变换。静态导航一次缓存，动态更新仅重算建筑、桥及封路附近格子。
+
+ArenaEnemy.road_curve与bridge_branch在经过分岔时锁定；击退、预测和目标进度均读取同一曲线，恢复桥面不改已有敌人的分支。ArenaRuinsSiege管理破障者、可延迟的预告、物理封路、区域显露层与一次性援兵；siege_guard不计入营地清理。
+
+ArenaBattleArt使用v017十二种塔外观和接触元数据，空塔位石屑／接触阴影由ArenaGrounding绘制。ArenaTower稳定主体与局部机关分开，塔根不随朝向旋转。ArenaConstructRig以一个CanvasItem绘制裁切刚性部件，按位移驱动步态，原AnimatedSprite2D只管理状态时钟；不虚称真实3D骨骼。环境材质、命中闪光与水面着色器遵守Godot fragment COLOR已含纹理的约定，避免重复相乘变暗。
+
+第三关地表为注册后的v017手绘地图及东北显露层；旧v016 TileMap场景、LDtk与生成器已移出正式工程，可从收尾前归档恢复；v016共享特效和仍有引用的资源保留。共享pixelfx特效、氛围粒子与战斗规则继续运行。
+
+## v0.19表现与阶段收尾
+ArenaAttackTiming管理塔和士兵准备/释放/回落；ArenaBattleArt持有世界空间步尘池。构装按类型区分步态，ArenaVisualFeedback管理局部反馈，ArenaAudio限制音族并发。阶段冻结后的实际验证见STAGE_CLOSEOUT.md；后续假设见NEXT_STAGE.md。
