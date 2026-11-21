@@ -25,8 +25,30 @@ static func map_path(key: String) -> String:
 	return "res://assets/v09/map_"+key+".png"
 static func towers_path() -> String:
 	return "res://assets/v017/towers.png"
+# Tight regions keep the three independently illustrated tiers on the same ground plane.
+const TOWER_REGIONS := {
+	"storm":[Rect2(103,0,259,365),Rect2(69,366,311,365),Rect2(26,732,389,495)],
+	"lens":[Rect2(486,0,261,358),Rect2(465,359,296,368),Rect2(429,728,349,500)],
+	"snare":[Rect2(851,68,352,298),Rect2(817,418,412,312),Rect2(789,760,459,465)]}
+
+static func tower_texture(kind: String,tier: int) -> Texture2D:
+	var atlas:=AtlasTexture.new()
+	if TOWER_REGIONS.has(kind):
+		atlas.atlas=load("res://assets/v021/towers.png")
+		atlas.region=TOWER_REGIONS[kind][tier-1]
+	else:
+		var sheet: Texture2D=load(towers_path())
+		var cell:=sheet.get_size()/Vector2(4,3)
+		atlas.atlas=sheet
+		atlas.region=Rect2(Vector2(ArenaDefinitions.DEFAULT_TOWERS.find(kind),tier-1)*cell,cell)
+	atlas.filter_clip=true
+	return atlas
+
 static var tower_metadata: Dictionary={}
 static func contact(kind: String,tier: int,cell: Vector2) -> Dictionary:
+	if TOWER_REGIONS.has(kind):
+		var width:=([94.0,107.0,120.0] if kind=="snare" else [79.0,90.0,103.0])
+		return {"uv":Vector2(0.5,0.97),"scale":Vector2.ONE*float(width[tier-1])/cell.x}
 	if tower_metadata.is_empty():
 		var file:=FileAccess.open("res://assets/v017/towers.json",FileAccess.READ)
 		if file!=null:tower_metadata=JSON.parse_string(file.get_as_text())

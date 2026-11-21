@@ -15,11 +15,12 @@ func clear(game: Node2D) -> void:
 	for enemy in game.enemies:
 		if is_instance_valid(enemy):enemy.visual.feedback.clear(enemy.visual)
 
-func hit(game: Node2D, point: Vector2, damage: float, kind: int, killed: bool, source: String, target: Node2D, attack: String) -> void:
+func hit(game: Node2D, point: Vector2, damage: float, kind: int, killed: bool, source: String, target: Node2D, attack: String, condition_result: Dictionary={}) -> void:
 	hit_serial+=1
 	if not enabled:
 		game.effect(point,21 if killed else 12,ArenaCombat.colour(kind),"hit",0.27 if killed else 0.16)
-		if game.numbers.size()<24:game.numbers.append({"point":point,"text":str(int(ceil(damage))),"colour":ArenaCombat.colour(kind),"life":0.55})
+		if damage>0 and not condition_result.is_empty(): _number(game,point,damage,kind,target,condition_result)
+		elif game.numbers.size()<24:game.numbers.append({"point":point,"text":str(int(ceil(damage))),"colour":ArenaCombat.colour(kind),"life":0.55})
 		if damage>90:game.shake=1.4
 		game.audio.play("kill" if killed else "hit",-12 if killed else -16);return
 	if damage<=0:return
@@ -43,24 +44,28 @@ func hit(game: Node2D, point: Vector2, damage: float, kind: int, killed: bool, s
 		if knight and attack=="small" and game.hero.action=="small" and game.hero.action_released:game.hero.visual.feedback.freeze_after_release()
 		var now:=Time.get_ticks_msec()
 		if now-last_heavy>=400:trauma=minf(1.0,trauma+0.55);last_heavy=now
-	if source=="hero":_number(game,point,damage,kind,target)
+	if source=="hero":_number(game,point,damage,kind,target,condition_result)
 	var sound: String="kill" if killed else ("heavy_hit" if heavy else "hit")
 	if hero_hit and kind==1:sound="mage_hit"
 	elif hero_hit and game.hero.class_id=="ranger":sound="ranger_hit"
 	game.audio.play(sound,-15 if source!="hero" else -9)
 	if hero_hit and killed and sound!="kill":game.audio.play("kill",-15)
 
-func _number(game: Node2D, point: Vector2, damage: float, kind: int, target: Node2D) -> void:
+func _number(game: Node2D, point: Vector2, damage: float, kind: int, target: Node2D, condition_result: Dictionary) -> void:
 	var id: int=target.get_instance_id() if is_instance_valid(target) else 0
+	var critical := bool(condition_result.get("crit",false))
+	var active_cards: Array = condition_result.get("icons",[])
+	var decorated := critical or not active_cards.is_empty()
 	# Use simulation presentation time: opening a menu cannot silently consume a merge window.
 	for item in game.numbers:
-		if int(item.get("target",-1))==id and int(item.get("kind",-1))==kind and float(item.get("merge",0.0))>0:
+		if not decorated and int(item.get("target",-1))==id and int(item.get("kind",-1))==kind and float(item.get("merge",0.0))>0:
 			item.amount+=damage;item.text=str(int(ceil(item.amount)));item.life=0.65;return
 	if game.numbers.size()>=24:game.numbers.pop_front()
 	var origin:=point+Vector2(-8,-18)
 	for item in game.numbers:
 		if float(item.life)>0.35 and origin.distance_to(item.point)<28:origin.y-=25
-	game.numbers.append({"point":origin,"text":str(int(ceil(damage))),"amount":damage,"target":id,"kind":kind,"merge":0.15,"colour":ArenaCombat.colour(kind),"life":0.65,"duration":0.65})
+	var colour := Color("fff098") if critical else (Color("a2e8d8") if decorated else ArenaCombat.colour(kind))
+	game.numbers.append({"point":origin,"text":str(int(ceil(damage))),"amount":damage,"target":id,"kind":kind,"merge":0.0 if decorated else 0.15,"colour":colour,"life":0.65,"duration":0.65,"critical":critical,"icons":active_cards,"capped":condition_result.get("capped",false)})
 
 func tick(game: Node2D, delta: float) -> void:
 	shake_clock+=delta;trauma=maxf(0.0,trauma-delta*3.0)

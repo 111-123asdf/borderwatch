@@ -305,6 +305,23 @@ func _draw_legacy_and_painted_effects() -> void:
 			"frost_painted":
 				_paint("mage", 2, int(p * 4), point, Vector2.ONE * r * 2, 1.0 - p * p)
 				draw_arc(point, r, 0, TAU, 48, Color(0.65, 0.88, 1.0, (1.0 - p) * 0.3), 1.5, true)
+			"tower_arc","tower_beam":
+				var direction: Vector2=item.direction
+				var end:=point+direction*r
+				var line:=PackedVector2Array([point,end])
+				if item.kind=="tower_arc":
+					var side:=direction.orthogonal()*minf(r*0.12,8)
+					line=PackedVector2Array([point,point.lerp(end,0.32)+side,point.lerp(end,0.62)-side,end])
+				draw_polyline(line,Color(colour,0.28*(1.0-p)),5.0,true)
+				draw_polyline(line,colour,1.8,true)
+			"snare_snap":
+				draw_arc(point,r*(1.0-p*0.8),0,TAU,36,colour,2.5,true)
+			"tower_frost":
+				var front:=r*lerpf(ArenaTowerTrial.FROST_INNER_RATIO,1.0,1.0-pow(1.0-p,3.0))
+				draw_arc(point,front,0.0,TAU,70,Color(colour,0.86*(1.0-p)),4.0,true)
+			"tower_frost_inner":
+				draw_circle(point,r,Color(colour,(1.0-p)*0.08))
+				draw_arc(point,r,0.0,TAU,56,Color(colour,(1.0-p)*0.76),2.0,true)
 			"meteor_painted":
 				var travel := Vector2(-r * 0.9 * (1.0 - p), -350.0 * (1.0 - p))
 				_paint("mage", 3, 0 if p < 0.6 else 1, point + travel, Vector2.ONE * (55 + p * 25), 0.9)
@@ -590,6 +607,12 @@ func _draw_enemy_telegraph(item: Dictionary, p: float, reduced: bool) -> void:
 
 func _draw_friendly_telegraph(item: Dictionary, p: float, colour: Color) -> void:
 	var rad := maxf(6.0, float(item.radius))
+	if item.options.has("core_radius"):
+		draw_arc(item.point,rad,0.0,TAU,46,Color(0.21,0.13,0.09,0.48),3.5,true)
+		draw_arc(item.point,float(item.options.core_radius),0.0,TAU,36,Color(0.21,0.13,0.09,0.65),4.6,true)
+		draw_arc(item.point,rad,0.0,TAU,46,Color(colour,0.52),1.5,true)
+		draw_arc(item.point,float(item.options.core_radius),0.0,TAU,36,Color(colour,0.45+0.35*p),2.5,true)
+		return
 	draw_set_transform(item.point, 0.0, Vector2(1.0, 0.58))
 	if _glow_tex != null:
 		draw_texture_rect(_glow_tex, Rect2(-Vector2.ONE * rad, Vector2.ONE * rad * 2.0), false, Color(colour.r, colour.g, colour.b, 0.14 + 0.10 * p))
@@ -601,8 +624,18 @@ func _draw_friendly_telegraph(item: Dictionary, p: float, colour: Color) -> void
 func _draw_floating_numbers() -> void:
 	for item in game.numbers:
 		var font_size := 24 if (game.feel != null and game.feel.enabled) else 13
+		if bool(item.get("critical",false)): font_size+=6
 		var size := ThemeDB.fallback_font.get_string_size(item.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
 		var origin: Vector2 = item.point - Vector2(size.x * 0.5, 0)
 		var alpha := minf(1.0, float(item.life) * 4.0)
 		draw_string_outline(ThemeDB.fallback_font, origin, item.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, 3, Color(0.12, 0.08, 0.05, alpha))
 		draw_string(ThemeDB.fallback_font, origin, item.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color(item.colour, alpha))
+		var icon_position:=origin+Vector2(size.x+3,-font_size*0.70)
+		for id in item.get("icons",[]):
+			var card_icon:=ArenaConditions.icon(id)
+			if card_icon!=null:
+				draw_texture_rect(card_icon,Rect2(icon_position,Vector2(15,15)),false,Color(1,1,1,alpha))
+				icon_position.x+=16.0
+		if bool(item.get("capped",false)):
+			draw_string_outline(ThemeDB.fallback_font,origin+Vector2(0,15),"+80%（上限）",HORIZONTAL_ALIGNMENT_LEFT,-1,13,3,Color(0.12,0.08,0.05,alpha))
+			draw_string(ThemeDB.fallback_font,origin+Vector2(0,15),"+80%（上限）",HORIZONTAL_ALIGNMENT_LEFT,-1,13,Color(1,0.92,0.65,alpha))

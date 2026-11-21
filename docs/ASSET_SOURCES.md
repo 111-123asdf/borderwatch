@@ -1,4 +1,6 @@
-# v0.17 / v0.18 当前素材与混合渲染
+# 游戏素材与来源
+
+新增三塔的三级外观来自项目生成的九宫格图集 assets/v021/towers.png，三列对应跃电塔、聚光塔、绊索工坊。制作方式和随包授权见 [credits.txt](credits.txt)。
 
 - **v0.18 新增引擎混合层（`assets/v018/`）**：
   - `assets/v018/particles/`：选自 [`Calinou/kenney-particle-pack`](https://github.com/Calinou/kenney-particle-pack)（作者 Kenney，CC0 1.0 公共领域许可，保留于 `third_party/kenney_particles/LICENSE.txt`），用于火盆火舌、余烬、步尘、法术光环与命中火花。
@@ -21,4 +23,4 @@ v011/audio：Kenney RPG Audio与Impact Sounds，CC0-1.0，许可在third_party/k
 
 商业角色立绘、用户视频和公开截图仅为构图/动作研究，保存在工程外，不进入运行包。Godot版权见godot-copyright.txt；不分发Windows字体。不擅自为团队源码指定开放源码许可。
 
-本轮v0.19还包括地面降噪、无字塔位图形、攻击时序、步态、世界步尘、局部反馈和音频并发；均为2D混合实现。素材画法与实际体验仍待负责人反馈，不能由来源声明或自动测试证明好看。
+v0.19 的运行时表现还包括地面降噪、无字塔位图形、攻击时序、步态、世界步尘、局部反馈和音频并发；均为2D混合实现。素材画法与实际体验仍待负责人反馈，不能由来源声明或自动测试证明好看。

@@ -111,9 +111,10 @@ func dock() -> void:
 	var equipped:=game.campaign.tower_loadout()
 	for index in range(4):
 		var button:=action(tray,"",Rect2(106+index*88,4,80,82),towers,"WorldTower_"+str(index))
-		if index<equipped.size():hud.image(button,hud.tower_image(equipped[index]),Rect2(3,1,74,76));button.tooltip_text=ArenaDefinitions.TOWERS[equipped[index]].name
+		if index<equipped.size():hud.image(button,hud.tower_image(equipped[index]),Rect2(3,1,74,76));button.tooltip_text=game.tower_display_data(equipped[index]).name
 		else:hud.image(button,ArenaMenuArt.utility("range"),Rect2(26,26,28,28)).modulate.a=.35
 	for item in [[0,1124,hall,"HeroHall","英雄"],[1,1270,towers,"TowerHall","防御塔"],[2,1416,growth,"被动图鉴","成长"]]:
+		if (game.condition_lab or game.defense_rules) and item[0]==2: continue
 		var button:=action(hud.menu,"",Rect2(item[1],710,132,148),item[2],item[3],false,true)
 		hud.image(button,ArenaMenuArt.icon(item[0]),Rect2(14,0,104,104))
 		var caption:=text(button,item[4],Rect2(0,106,132,36),26);caption.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;caption.add_theme_color_override("font_outline_color",Color("152535"));caption.add_theme_constant_override("outline_size",4)
@@ -133,7 +134,7 @@ func prepare(key: String) -> void:
 		var image:=hud.image(stage_panel,ArenaMenuArt.creature(enemy),Rect2(31+index*66,317,62,72));image.tooltip_text=ArenaDefinitions.ENEMIES[enemy].name;image.mouse_filter=Control.MOUSE_FILTER_PASS
 	var tagline: String="\n单路守线 · 飞蛾首领" if stage=="forest" else ("\n双路回防 · 精英合流" if stage=="creek" else "\n吊桥改道 · 破障奇袭 · 巨像")
 	var brief:=text(stage_panel,str(definition.story)+tagline,Rect2(330,312,286,88),25);brief.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
-	var ready:=game.campaign.can_deploy(stage)
+	var ready:=game.campaign.can_deploy(stage,game.defense_rules)
 	var deploy:=action(stage_panel,"战斗！",Rect2(222,446,392,84),deploy_stage,"Deploy",true);deploy.disabled=not ready
 	if not ready:
 		text(stage_panel,"需装备首波可建的塔",Rect2(36,401,575,36),24)
@@ -142,7 +143,7 @@ func close_stage() -> void:
 	if is_instance_valid(stage_panel):hud.menu.remove_child(stage_panel);stage_panel.queue_free()
 	stage_panel=null
 func deploy_stage() -> void:
-	if game.campaign.can_deploy(stage):game.start_run(game.campaign.selected_hero(),stage)
+	if game.campaign.can_deploy(stage,game.defense_rules):game.start_run(game.campaign.selected_hero(),stage)
 func _make_card(height: float) -> void:
 	card=Control.new();card.name="PortraitCard";card.position=Vector2(132,154);card.size=Vector2(420,height);card.mouse_filter=Control.MOUSE_FILTER_IGNORE;hud.menu.add_child(card)
 	var clip:=Control.new();clip.name="CardClip";clip.position=Vector2(48,92);clip.size=Vector2(324,height-144);clip.clip_contents=true;clip.mouse_filter=Control.MOUSE_FILTER_IGNORE;card.add_child(clip)
@@ -243,10 +244,11 @@ func upgrade_hero() -> void:
 func towers() -> void:
 	if page_id=="towers" and is_instance_valid(card):_refresh_tower();return
 	message="";base("hall_bg","towers");header("防御塔工坊",levels)
-	for index in range(4):
+	for index in ArenaDefinitions.TOWER_IDS.size():
 		var id: String=ArenaDefinitions.TOWER_IDS[index]
-		var button:=action(hud.menu,"",Rect2(568+index*106,20,84,84),select_tower.bind(id),"Tower_"+id)
-		hud.image(button,hud.tower_image(id),Rect2(5,4,74,76));roster[id]=button;button.tooltip_text=ArenaDefinitions.TOWERS[id].name
+		var button:=action(hud.menu,"",Rect2(450+index*100,20,84,84),select_tower.bind(id),"Tower_"+id)
+		hud.image(button,hud.tower_image(id),Rect2(5,4,74,76));roster[id]=button;button.tooltip_text=game.tower_display_data(id).name
+		var equipped_mark:=hud.image(button,ArenaMenuArt.utility("check"),Rect2(55,54,26,26));equipped_mark.name="Equipped"
 	_make_card(492);card_art.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	for index in range(3):
 		tier_buttons.append(action(hud.menu,["I","II","III"][index],Rect2(154+index*126,664,116,70),select_tier.bind(index+1),"TowerTier_"+str(index+1)))
@@ -262,19 +264,22 @@ func towers() -> void:
 	text(detail_panel,"预览不花费金币；实际建造与改造在关卡内进行。",Rect2(38,626,745,36),23)
 	_refresh_tower()
 func _refresh_tower() -> void:
-	var data: Dictionary=ArenaDefinitions.TOWERS[tower_id];var equipped:=game.campaign.tower_loadout()
-	for id in roster:ArenaMenuArt.selected(roster[id],id==tower_id);roster[id].position.y=16 if id==tower_id else 20
+	var data:=game.tower_display_data(tower_id);var equipped:=game.campaign.tower_loadout()
+	for id in roster:
+		ArenaMenuArt.selected(roster[id],id==tower_id)
+		roster[id].position.y=16 if id==tower_id else 20
+		roster[id].get_node("Equipped").visible=id in equipped
 	card_art.texture=hud.tower_image(tower_id,preview_tier);rank_label.text=["I","II","III"][preview_tier-1]+" 阶"
-	name_label.text=data.name;role_label.text=ArenaCombat.label(int(data.type))+(" · 范围轰击" if tower_id=="cannon" else (" · 驻军拦截" if tower_id=="barracks" else " · 自动攻击"))
+	name_label.text=data.name;role_label.text=ArenaCombat.label(int(data.type))+" · "+str(data.description)
 	stat_icons[1].texture=ArenaMenuArt.utility("shield") if tower_id=="barracks" else (ArenaMenuArt.icon(15) if int(data.type)==1 else ArenaMenuArt.utility("sword"))
 	_stat_value(0,float(data.reach)+(preview_tier-1)*16,320,str(roundi(float(data.reach)+(preview_tier-1)*16)))
 	_stat_value(1,3 if tower_id=="barracks" else float(data.damage)*(1+.6*(preview_tier-1)),3 if tower_id=="barracks" else 130,"3 人" if tower_id=="barracks" else str(snappedf(float(data.damage)*(1+.6*(preview_tier-1)),.1)))
 	_stat_value(2,1.0 if tower_id=="barracks" else (1+.14*(preview_tier-1))/float(data.interval),2,"1 /秒" if tower_id=="barracks" else str(snappedf((1+.14*(preview_tier-1))/float(data.interval),.01))+" /秒")
 	for index in range(3):ArenaMenuArt.selected(tier_buttons[index],index+1==preview_tier)
 	var equipped_now:=tower_id in equipped
-	equip_button.text="卸下防御塔" if equipped_now else "装备防御塔";equip_button.disabled=game.campaign.locked or (equipped_now and equipped.size()==1);ArenaMenuArt.accent(equip_button,"green" if equipped_now else "amber")
+	equip_button.text=("%s   %d / %d"%[("卸下防御塔" if equipped_now else ("替换出战塔" if equipped.size()==ArenaDefinitions.LOADOUT_LIMIT else "装备防御塔")),equipped.size(),ArenaDefinitions.LOADOUT_LIMIT]);equip_button.disabled=game.campaign.locked or (equipped_now and equipped.size()==1);ArenaMenuArt.accent(equip_button,"green" if equipped_now else "amber")
 	equip_button.tooltip_text="至少保留一类防御塔" if equipped_now and equipped.size()==1 else ""
-	var symbols: Array={"archer":["farsight","rapid","pierce"],"mage":["frostheart","burn","starcore"],"cannon":["executioner","burn","warmachine"],"barracks":["ironwall","piercearrow","rapid"]}[tower_id]
+	var symbols: Array={"archer":["farsight","rapid","pierce"],"mage":["frostheart","burn","starcore"],"cannon":["executioner","burn","warmachine"],"barracks":["ironwall","piercearrow","rapid"],"storm":["starlight","farsight","executioner"],"lens":["starcore","rapid","farsight"],"snare":["ironwall","pierce","warmachine"]}[tower_id]
 	for index in range(3):route_titles[index].text=str(ArenaDoctrines.for_tower(tower_id)[index].name);route_icons[index].texture=ArenaMenuArt.perk(symbols[index])
 	select_route(selected_route);feedback()
 func select_tower(id: String) -> void:
@@ -289,8 +294,26 @@ func select_route(index: int) -> void:
 func toggle_tower() -> void:
 	var equipped:=game.campaign.tower_loadout()
 	if tower_id in equipped:equipped.erase(tower_id)
+	elif equipped.size()==ArenaDefinitions.LOADOUT_LIMIT:
+		var panel:=hud.modal_panel(Vector2(690,282))
+		ArenaMenuArt.panel(panel,true)
+		text(panel,"选择要换下的塔",Rect2(28,22,520,44),30,true)
+		action(panel,"×",Rect2(590,12,72,60),hud.close_modal,"CancelReplacement")
+		for slot in equipped.size():
+			var old:=equipped[slot]
+			var button:=action(panel,"",Rect2(24+slot*162,90,152,134),replace_tower.bind(slot),"Replace_"+old)
+			var caption:=text(button,str(game.tower_display_data(old).name),Rect2(2,85,148,42),20);caption.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+			hud.image(button,hud.tower_image(old),Rect2(35,3,82,82))
+		return
 	else:equipped.append(tower_id)
 	message="" if game.campaign.equip_towers(equipped) else (game.campaign.last_error if game.campaign.last_error!="" else "至少保留一类防御塔");_refresh_tower()
+func replace_tower(slot: int) -> void:
+	var equipped:=game.campaign.tower_loadout()
+	if slot>=0 and slot<equipped.size() and tower_id not in equipped:
+		equipped[slot]=tower_id
+		message="" if game.campaign.equip_towers(equipped) else game.campaign.last_error
+	hud.close_modal()
+	_refresh_tower()
 func growth() -> void:hud.show_codex()
 func settings() -> void:
 	var panel:=hud.modal_panel(Vector2(700,480));ArenaMenuArt.panel(panel,true)

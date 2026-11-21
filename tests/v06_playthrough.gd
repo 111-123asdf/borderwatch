@@ -7,7 +7,6 @@ var passed:=false
 var hero_id:="knight"
 var stage:="forest"
 var last_wave:=0
-var camp_cursor:=0
 var casts:=0
 var knockouts:=0
 var was_down:=false
@@ -15,15 +14,21 @@ var timer:=0.0
 var stopping:=false
 var hero_level:=1
 var preview:=false
+var defense_rule:=""
+var roster:=PackedStringArray()
 func _initialize() -> void:call_deferred("run")
 func run() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg=="--preview":preview=true
+		if arg.begins_with("--towers="): roster=arg.trim_prefix("--towers=").split(",")
 		if arg.begins_with("--hero="):hero_id=arg.trim_prefix("--hero=")
 		if arg.begins_with("--level="):stage=arg.trim_prefix("--level=")
 		if arg.begins_with("--hero-level="):hero_level=int(arg.trim_prefix("--hero-level="))
+		if arg.begins_with("--rule="):defense_rule=arg.trim_prefix("--rule=")
 	if hero_id not in ArenaDefinitions.HERO_IDS or stage not in ArenaLevelCatalog.IDS:push_error("Invalid playthrough arguments");quit(1);return
 	game=load("res://scenes/arena.tscn").instantiate();game.campaign=ArenaCampaign.new("",false)
+	if not roster.is_empty() and not game.campaign.equip_towers(Array(roster)):
+		push_error("Invalid tower roster");quit(1);return
 	# Optional pre-existing hero-level profile is a labelled meta fixture. Run resources stay normal.
 	game.campaign.data.levels[hero_id]=clampi(hero_level,1,5)
 	root.add_child(game);current_scene=game;await process_frame
@@ -40,6 +45,22 @@ func _process(delta: float) -> bool:
 	if preview and game.cycle>=4:
 		print("PREVIEW FIRST THREE WAVES PASSED: ",JSON.stringify(game.wave_log)," casts=",casts)
 		passed=game.core_health>0 and casts>0;stopping=true;finish.call_deferred();return false
+	if not game.rule_offers.is_empty():
+		var pick:=defense_rule
+		if pick=="draw" or (not pick.is_empty() and not game.rule_offers.any(func(c): return c.id==defense_rule)):
+			if pick!="draw" and not ArenaRuleDeck.BLESSINGS.has(pick):
+				push_error("Unknown defense rule: "+pick)
+				stopping=true;finish.call_deferred();return false
+			pick=game.rule_offers[0].id
+		if not game.choose_defense_rule(pick):
+			push_error("Invalid defense rule for automated run: "+pick)
+			stopping=true;finish.call_deferred();return false
+		if not pick.is_empty():
+			print("RULE ",game.cycle," ",pick," + ",game.selected_defense_cards.back().curse_id)
+			for order in ["lure","bounty","chest","gate","bridge"]:
+				game.orders.command(order)
+		release_and_hold()
+		return false
 	if game.choice_open:
 		var priorities: Array=[]
 		for card in (ArenaKeystones.LIST if game.keystone_mode else ArenaPerks.CARDS):
@@ -48,16 +69,15 @@ func _process(delta: float) -> bool:
 		for key in priorities:
 			if key in game.choices:game.choose_perk(key);release_and_hold();break
 		return false
-	if game.camp_reward_open:
-		var reward: String="hero"
-		if game.doctrine_tokens==0 and game.l2_count()>0:reward="token"
-		elif game.gold<120:reward="gold"
-		game.choose_camp_reward(game.open_camp_id,reward)
-		return false
 	if game.game_over:
 		print("TELEMETRY ",JSON.stringify(game.telemetry()))
-		print("NORMAL ",hero_id," ",stage," won=",game.victory," wave=",game.cycle," kills=",game.kills," core=",game.core_health," camps=",game.camps_cleared," l3=",l3_count()," doctrines=",doctrine_count()," casts=",casts," KO=",knockouts," simulated seconds=",snappedf(game.elapsed,0.1)," damage=",game.damage_stats)
+		print("NORMAL ",hero_id," ",stage," won=",game.victory," wave=",game.cycle," kills=",game.kills," core=",game.core_health," l3=",l3_count()," doctrines=",doctrine_count()," casts=",casts," KO=",knockouts," simulated seconds=",snappedf(game.elapsed,0.1)," damage=",game.damage_stats)
 		passed=game.victory and game.cycle==8 and game.built>=4 and (casts>0 if hero_level>=2 else casts==0)
+		if not roster.is_empty():
+			var built_kinds:=game.towers.map(func(t): return t.kind)
+			print("DEPLOYED TOWERS ",built_kinds)
+			passed=passed and Array(roster).all(func(kind): return kind in built_kinds)
+		if defense_rule not in ["","draw"]: passed=passed and defense_rule in game.picked_rules
 		stopping=true;finish.call_deferred();return false
 	if timer>1100:push_error("NORMAL TIMEOUT "+hero_id+" "+stage);stopping=true;finish.call_deferred();return false
 	decision-=delta
@@ -74,7 +94,6 @@ func _process(delta: float) -> bool:
 		if not game.bridge_sealed and game.bridge_cooldown<=0.0:
 			for unit in game.enemies:
 				if is_instance_valid(unit) and not unit.dead and unit.route_id==1 and unit.bridge_branch=="":game.trigger_bridge_gate();break
-	if preview and timer>3 and game.phase=="rest" and game.hero.health>game.hero.max_health*0.85:game.request_wave()
 	if game.hero.knocked_out:return false
 	var target: ArenaEnemy
 	var greatest:=-INF
@@ -99,7 +118,7 @@ func _process(delta: float) -> bool:
 			if game.hero.cooldowns[0]<=0 and game.hero.cast(0,target.position):casts+=1
 			if game.hero.cooldowns[1]<=0 and game.hero.cast(1,target.position):casts+=1
 	elif game.hero.position.distance_to(game.level_definition.hero_spawn)>80:game.hero.command_move(game.level_definition.hero_spawn)
-	if game.phase=="rest" and game.camps_cleared==2 and game.hero.health>game.hero.max_health*0.85:
+	if game.phase=="rest" and game.hero.health>game.hero.max_health*0.85:
 		game.request_wave()
 	return false
 func l3_count() -> int:
@@ -113,6 +132,12 @@ func doctrine_count() -> int:
 		if is_instance_valid(tower) and tower.doctrine_id!="":total+=1
 	return total
 func manage_towers() -> void:
+	for tower in game.towers:
+		if tower.awaiting_doctrine:
+			var options: Array=ArenaDoctrines.for_tower(tower.kind)
+			if not options.is_empty():tower.choose_doctrine(str(options[(tower.site_id+game.cycle)%options.size()].id))
+			return
+	if not game.can_change_towers(): return
 	var order: Array=[0,1,3,2,4,5,6,7] if stage=="forest" else [0,5,1,6,3,7,4,8,2,9]
 	var plan: Array=["archer","barracks","mage","archer","cannon","mage","archer","cannon"] if stage=="forest" else ["archer","mage","mage","barracks","archer","archer","cannon","mage","cannon","archer"]
 	if stage=="ruins":
@@ -122,17 +147,10 @@ func manage_towers() -> void:
 		for index in order:
 			if game.site_locked(index) and game.gold>=game.unlock_price(index)+120:game.unlock_site(index);return
 	for index in order:
-		var kind: String=plan[index]
-		if game.site_tower(index)==null and kind in game.available_towers() and game.gold>=ArenaDefinitions.TOWERS[kind].cost:game.build_tower(index,kind);return
+		var kind: String=plan[index] if roster.is_empty() else str(roster[order.find(index)%roster.size()])
+		if not game.site_locked(index) and game.site_tower(index)==null and kind in game.available_towers() and game.gold>=ArenaDefinitions.TOWERS[kind].cost:game.build_tower(index,kind);return
 	for tower in game.towers:
-		if tower.awaiting_doctrine:
-			var options: Array=ArenaDoctrines.for_tower(tower.kind)
-			if not options.is_empty():tower.choose_doctrine(str(options[(tower.site_id+game.cycle)%options.size()].id))
-			return
-	for tower in game.towers:
-		if tower.level==2 and game.doctrine_tokens>0:tower.upgrade("",true);return
-	for tower in game.towers:
-		if tower.level<3 and game.gold>=tower.upgrade_price():tower.upgrade();return
+		if tower.project_level==0 and tower.level<3 and game.gold>=tower.upgrade_price():tower.upgrade();return
 	for tower in game.towers:
 		if tower.doctrine_id!="" and not tower.awaiting_doctrine:
 			for index in range(2):

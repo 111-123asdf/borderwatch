@@ -1,7 +1,7 @@
-# 阶段冻结 · v0.19（2026-11-17）
-唯一正式工程为D:/godot/边境守望。先读README、docs/CURRENT_SLICE.md、docs/ARCHITECTURE.md、docs/DEVELOPMENT.md、docs/TESTING.md、docs/STAGE_CLOSEOUT.md及CONTRIBUTING.md。最新负责人需求优先。
+# 工程协作
+在包含 project.godot 的仓库根目录开发。先读 README、docs/CURRENT_SLICE.md、docs/ARCHITECTURE.md、docs/DEVELOPMENT.md、docs/TESTING.md、docs/STAGE_CLOSEOUT.md 及 CONTRIBUTING.md。最新负责人需求优先。
 
-本阶段停止扩展功能，仅处理交付阻塞。三关固定道路/塔位、三英雄、四塔三级、局内成长与营地。塔无生命，英雄15秒复活，基地失守才失败；所有伤害明确物理或法术。不恢复独立武器、能量、旧护盾训练或自由建造。
+三关固定道路和塔位，三英雄、七塔三级，每局最多携带四种。正式局以波间选牌成长，森林巢穴搁置。塔无生命，英雄15秒复活，基地失守才失败；所有伤害明确物理或法术。不恢复独立武器、能量、旧护盾训练或自由建造。
 
 英雄为骑士v011、游侠/法师v012，局外v013。Q小技能、E大招。保留年轻利落的认可外形。文字克制，塔位无浮动文字牌；说明放交互菜单/手册。不得用粒子数量代替动作质量。
 
@@ -11,4 +11,4 @@
 
 保存Git历史、未提交成果、授权、来源、课程材料。参考图和课程草稿在工程外。清理前检查动态引用、元数据、测试与再生成依赖，v016仍有现行特效，不按版本目录整删。
 
-不自动登录、暂存、提交、推送或创建PR；负责人已选择手动Git。tools/submit_closeout.ps1仅供负责人运行。引擎、缓存、测试输出、录像、发行包和密钥不入Git。源码包包含未提交成果，不能仅以HEAD识别交付。
+不自动登录、暂存、提交、推送或创建PR；负责人已选择手动Git。tools/submit_closeout.ps1 专供历史 v0.19 收尾。引擎、缓存、测试输出、录像、发行包和密钥不入Git。源码包包含未提交成果，不能仅以HEAD识别交付。

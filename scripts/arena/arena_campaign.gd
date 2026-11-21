@@ -3,18 +3,20 @@ extends RefCounted
 
 const SAVE_PATH:="user://campaign_v3.cfg"
 const PLAYTEST_PATH:="user://playtest_v013.cfg"
+const CONDITION_PATH:="user://condition_lab_v020.cfg"
+const TOWER_TRIAL_PATH:="user://tower_lab_v020.cfg"
 const PLAYTEST_GEMS:=9999
 const COSTS:=[0,2,3,5,8]
 const HP:=[0.0,0.0,0.03,0.03,0.06,0.08]
 const ATTACK:=[0.0,0.0,0.0,0.03,0.03,0.06]
-var data: Dictionary={"gems":0,"levels":{"knight":1,"ranger":1,"mage":1},"cleared":{"forest":false,"creek":false,"ruins":false},"last_run":"","settled":{},"tutorial_done":false,"volume":0.8,"reduced_motion":false,"selected_hero":"knight","equipped_towers":["archer","mage","cannon","barracks"]}
+var data: Dictionary={"gems":0,"levels":{"knight":1,"ranger":1,"mage":1},"cleared":{"forest":false,"creek":false,"ruins":false},"last_run":"","settled":{},"tutorial_done":false,"volume":0.8,"reduced_motion":false,"selected_hero":"knight","equipped_towers":ArenaDefinitions.DEFAULT_TOWERS.duplicate()}
 var path: String
 var persistent: bool
 var locked:=false
 var last_error:=""
-static func playtest() -> ArenaCampaign:
+static func playtest(save_path:=PLAYTEST_PATH) -> ArenaCampaign:
 	# A separate opt-in preview profile. Never reads, migrates or overwrites normal saves.
-	var profile:=ArenaCampaign.new(PLAYTEST_PATH,true)
+	var profile:=ArenaCampaign.new(save_path,true)
 	if not profile.locked:profile.data.gems=maxi(PLAYTEST_GEMS,profile.gems())
 	return profile
 func _init(save_path:=SAVE_PATH,persist:=true) -> void:
@@ -24,7 +26,7 @@ func gems() -> int:return int(data.gems)
 func selected_hero() -> String:return str(data.get("selected_hero","knight"))
 func tower_loadout() -> Array[String]:
 	var result: Array[String]=[]
-	for key in data.get("equipped_towers",ArenaDefinitions.TOWER_IDS):result.append(str(key))
+	for key in data.get("equipped_towers",ArenaDefinitions.DEFAULT_TOWERS):result.append(str(key))
 	return result
 func select_hero(hero_id: String) -> bool:
 	if locked or hero_id not in ArenaDefinitions.HERO_IDS:return false
@@ -34,14 +36,14 @@ func equip_towers(keys: Array) -> bool:
 	if locked or not _valid_towers(keys):return false
 	var candidate:=data.duplicate(true);candidate.equipped_towers=keys.duplicate()
 	return _commit(candidate)
-func can_deploy(stage: String) -> bool:
+func can_deploy(stage: String,defense:=false) -> bool:
 	if stage not in ArenaLevelCatalog.IDS:return false
 	var definition:=ArenaLevelCatalog.definition(stage)
 	for key in tower_loadout():
-		if int(definition.towers.get(key,99))<=1:return true
+		if (defense and stage=="forest") or int(definition.towers.get(key,99))<=1:return true
 	return false
 func _valid_towers(keys: Variant) -> bool:
-	if typeof(keys)!=TYPE_ARRAY or keys.is_empty() or keys.size()>4:return false
+	if typeof(keys)!=TYPE_ARRAY or keys.is_empty() or keys.size()>ArenaDefinitions.LOADOUT_LIMIT:return false
 	var seen: Dictionary={}
 	for key in keys:
 		if typeof(key)!=TYPE_STRING or key not in ArenaDefinitions.TOWER_IDS or seen.has(key):return false
@@ -80,7 +82,7 @@ func complete_tutorial() -> bool:
 	var candidate:=data.duplicate(true);candidate.tutorial_done=true
 	return _commit(candidate)
 func _valid(candidate: Dictionary) -> bool:
-	if candidate.get("selected_hero","knight") not in ArenaDefinitions.HERO_IDS or not _valid_towers(candidate.get("equipped_towers",ArenaDefinitions.TOWER_IDS)):return false
+	if candidate.get("selected_hero","knight") not in ArenaDefinitions.HERO_IDS or not _valid_towers(candidate.get("equipped_towers",ArenaDefinitions.DEFAULT_TOWERS)):return false
 	if typeof(candidate.get("gems"))!=TYPE_INT or candidate.gems<0 or candidate.gems>1000000000:return false
 	if typeof(candidate.get("levels"))!=TYPE_DICTIONARY or typeof(candidate.get("cleared"))!=TYPE_DICTIONARY:return false
 	for key in ArenaDefinitions.HERO_IDS:
@@ -112,6 +114,6 @@ func _load() -> void:
 		locked=true;last_error="养成存档数据异常，原文件已保留";return
 	data=candidate.duplicate(true)
 	if not data.has("selected_hero"):data.selected_hero="knight"
-	if not data.has("equipped_towers"):data.equipped_towers=ArenaDefinitions.TOWER_IDS.duplicate()
+	if not data.has("equipped_towers"):data.equipped_towers=ArenaDefinitions.DEFAULT_TOWERS.duplicate()
 	for key in ArenaLevelCatalog.IDS:
 		if not data.cleared.has(key):data.cleared[key]=false

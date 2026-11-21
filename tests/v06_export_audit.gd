@@ -15,7 +15,8 @@ func _initialize() -> void:
 		check(FileAccess.file_exists("res://assets/v017/"+file+".json"),"v017 runtime metadata ships "+file)
 	for file in ["map_ruins","map_ruins_open","towers","core_ruins"]:
 		check(ResourceLoader.exists("res://assets/v017/"+file+".png"),"v017 current artwork ships "+file)
-	for kind in ArenaDefinitions.TOWER_IDS:
+	check(ResourceLoader.exists("res://assets/v021/towers.png"),"new tower tiers ship")
+	for kind in ArenaDefinitions.DEFAULT_TOWERS:
 		for tier in range(1,4):
 			for part in ["base","part"]:
 				check(ResourceLoader.exists("res://assets/v017/tower_"+kind+"_"+str(tier)+"_"+part+".png"),"tower mechanism ships "+kind+str(tier)+part)
@@ -35,9 +36,9 @@ func _initialize() -> void:
 	for file in ["title","world_atlas","hall_bg","ui_icons","ui_controls","ui_skin","perk_icons","widget_dark","widget_paper","widget_amber","widget_blue","widget_green"]:check(ResourceLoader.exists("res://assets/v013/"+file+".png"),"current cartoon front-end asset ships "+file)
 	check(FileAccess.file_exists("res://assets/v013/regions.json"),"inspected UI regions ship")
 	check(not ResourceLoader.exists("res://assets/v010/headquarters.png"),"unused old courtyard excluded from executable")
-	for file in ["weapon_rig.gd","actor_visual.gd","arena/arena_weapon_catalog.gd","arena/arena_drop.gd","arena/arena_minimap.gd"]:
+	for file in ["weapon_rig.gd","actor_visual.gd","arena/arena_weapon_catalog.gd","arena/arena_drop.gd","arena/arena_minimap.gd","arena/arena_camp.gd","arena/arena_nest.gd"]:
 		check(not ResourceLoader.exists("res://scripts/"+file),"retired script absent")
-	for path in ["weapons","tiny_swords","ui"]:
+	for path in ["weapons","tiny_swords","ui","v020"]:
 		check(not DirAccess.dir_exists_absolute("res://assets/"+path),"retired resources absent")
 	check(ResourceLoader.exists("res://assets/v09/portrait_mage.png"),"new portraits shipped")
 	check(ResourceLoader.exists("res://assets/v09/mage_side.png") and ResourceLoader.exists("res://assets/v09/site_pad.png"),"current animation and foundation shipped")

@@ -19,7 +19,6 @@ func _process(delta: float) -> bool:
 	if finished or game==null or not game.started:return false
 	elapsed+=delta
 	if game.choice_open:game.choose_perk(game.choices[0])
-	if game.camp_reward_open:game.choose_camp_reward(game.open_camp_id,"gold")
 	if game.enemies.size()<105:game.spawn_enemy(["construct_hound","rune_warden","astral_prism","rift_bomber","void_harvester"][int(elapsed*100)%5],int(elapsed*100)%game.routes.size(),200+fmod(elapsed*70,1200))
 	if elapsed>3:samples.append(delta*1000.0)
 	if elapsed>18:
