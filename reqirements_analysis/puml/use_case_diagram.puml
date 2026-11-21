@@ -1,0 +1,27 @@
+@startuml
+left to right direction
+skinparam shadowing false
+skinparam dpi 150
+title 图5 边境守望系统级用例图
+actor 玩家 as player
+rectangle "边境守望系统" {
+  package "局外备战" {
+    usecase "UC-01\n设定备战" as UC01
+  }
+  package "局内战斗" {
+    usecase "UC-02\n管理轮次" as UC02
+    usecase "UC-03\n操作英雄战斗" as UC03
+    usecase "UC-04\n管理防御塔" as UC04
+  }
+  package "全局" {
+    usecase "UC-05\n调整设置" as UC05
+    usecase "UC-06\n管理战斗" as UC06
+  }
+}
+player -- UC01
+player -- UC02
+player -- UC03
+player -- UC04
+player -- UC05
+player -- UC06
+@enduml

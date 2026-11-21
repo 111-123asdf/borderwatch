@@ -1,0 +1,55 @@
+@startuml
+skinparam shadowing false
+skinparam dpi 150
+title 图6 UC-01 设定备战系统顺序图
+actor 玩家
+participant "边境守望系统" as 系统
+
+玩家 -> 系统 : 1. 进入英雄大厅()
+activate 系统
+系统 --> 玩家 : 英雄列表·当前出战·钻石
+deactivate 系统
+
+玩家 -> 系统 : 2. 查看英雄详情(英雄编号)
+activate 系统
+系统 --> 玩家 : 属性·技能·天赋·升级价
+deactivate 系统
+
+玩家 -> 系统 : 3. 升级英雄(英雄编号)
+activate 系统
+alt 钻石充足且未满级
+  系统 --> 玩家 : 升级成功(新等级, 剩余钻石)
+else 校验失败(钻石不足/已满级/档案锁定)
+  系统 --> 玩家 : 升级失败(原因)
+end
+deactivate 系统
+
+玩家 -> 系统 : 4. 设为出战(英雄编号)
+activate 系统
+系统 --> 玩家 : 确认(当前出战)
+deactivate 系统
+
+玩家 -> 系统 : 5. 进入塔工坊()
+activate 系统
+系统 --> 玩家 : 四塔三阶预览·III阶流派·当前塔组
+deactivate 系统
+
+玩家 -> 系统 : 6. 装备/卸下防御塔(塔编号)
+activate 系统
+alt 校验通过(1~4类·不重复)
+  系统 --> 玩家 : 保存成功(新塔组)
+else 校验失败(少于1类/超4类/类型重复)
+  系统 --> 玩家 : 保存失败(原因)
+end
+deactivate 系统
+
+玩家 -> 系统 : 7. 查阅成长图鉴()
+activate 系统
+系统 --> 玩家 : 40卡图鉴·联动·套装(系统暂停)
+deactivate 系统
+
+玩家 -> 系统 : 8. 关闭成长图鉴()
+activate 系统
+系统 --> 玩家 : 恢复打开前状态
+deactivate 系统
+@enduml

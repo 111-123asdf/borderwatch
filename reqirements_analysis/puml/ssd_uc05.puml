@@ -1,0 +1,21 @@
+@startuml
+skinparam shadowing false
+skinparam dpi 150
+title 图10 UC-05 调整设置系统顺序图
+actor 玩家
+participant "边境守望系统" as 系统
+
+玩家 -> 系统 : 1. 打开设置面板()
+activate 系统
+系统 --> 玩家 : 当前音量·减少动态状态
+deactivate 系统
+
+玩家 -> 系统 : 2. 保存设置(音量, 减少动态)
+activate 系统
+alt 校验通过且写盘成功
+  系统 --> 玩家 : 保存成功(立即生效)
+else 校验失败或写盘失败
+  系统 --> 玩家 : 保存失败(原因, 配置不变)
+end
+deactivate 系统
+@enduml
