@@ -1,5 +1,5 @@
 extends SceneTree
-# Authored wave data, elite count, resistance coverage, leak tiers and raid budget.
+# Authored wave data, elite count, resistance coverage, leak tiers and wave dispatch.
 var checks:=0
 var failures:=0
 var game: ArenaGame
@@ -11,7 +11,7 @@ func run() -> void:
 	check_elite_data()
 	check_profiles()
 	check_leaks()
-	await check_raid()
+	await check_wave_dispatch()
 	game.running=false;game.audio.shutdown();await process_frame;OS.delay_msec(150);game.queue_free();await process_frame
 	paused=false
 	print("V08 WAVE CHECKS: %d, FAILURES: %d"%[checks,failures]);quit(0 if failures==0 else 1)
@@ -45,13 +45,10 @@ func check_leaks() -> void:
 	check(ArenaDefinitions.leak_damage("brute")==36,"brute keeps the heavy leak")
 	check(ArenaDefinitions.leak_damage("fox",true)==24 and ArenaDefinitions.leak_damage("spore",true)==24,"elites leak for at least twenty-four")
 	check(ArenaDefinitions.leak_damage("brute",true)==36,"elite brute keeps the higher leak")
-func check_raid() -> void:
+func check_wave_dispatch() -> void:
 	game=load("res://scenes/arena.tscn").instantiate();root.add_child(game);await process_frame
 	game.start_run("knight","forest")
 	game.cycle=2;game.phase="rest";game.phase_clock=10;game.begin_wave()
-	var guards:=game.enemies.size()
-	game.cycle=5;game.phase="rest";game.phase_clock=10;game.begin_wave()
-	var spawned:=game.enemies.size()-guards
-	check(spawned==6,"each uncleared camp sends three foxes")
-	var raid_hp:=3.0*float(ArenaDefinitions.enemy("fox").health)*(1.0+0.11*4.0)
-	check(raid_hp<=0.15*ArenaLevelCatalog.wave_profile("forest",5).hp,"raid stays under fifteen percent of wave five")
+	check(game.enemies.is_empty() and not game.spawn_queue.is_empty(),"wave two uses the scheduled packets")
+	game.cycle=5;game.phase="rest";game.begin_wave()
+	check(game.enemies.is_empty() and game.spawn_queue==game.wave_packets(game.wave_pattern()),"wave five only dispatches the scheduled roster")

@@ -26,8 +26,8 @@ func run() -> void:
 	shot=game.fire_projectile(Vector2(400,400),Vector2(800,400),15,0,"hero",{"pierce":2});shot.speed=1000;shot._physics_process(0.3)
 	check(is_equal_approx(fresh.health,first_hp-15) and is_equal_approx(second.health,second_hp-15),"piercing preserves both hits and target order")
 	game.gold=10000;game.cycle=5
-	for kind in ArenaDefinitions.TOWER_IDS:
-		var index: int=ArenaDefinitions.TOWER_IDS.find(kind)
+	for kind in ArenaDefinitions.DEFAULT_TOWERS:
+		var index: int=ArenaDefinitions.DEFAULT_TOWERS.find(kind)
 		check(game.build_tower(index,kind),"foundation fixture builds "+kind)
 		var tower:=game.site_tower(index)
 		for tier in range(1,4):

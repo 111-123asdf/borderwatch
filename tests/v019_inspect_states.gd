@@ -30,7 +30,6 @@ func _run() -> void:
 	game.start_run("knight", "ruins")
 	await _wait_frames(3)
 	game.gold = 2000
-	game.doctrine_tokens = 2
 	game.phase = "wave"
 
 	# Build one Archer & one Cannon (built state), keep other sites open/locked
@@ -47,8 +46,8 @@ func _run() -> void:
 		game.build_tower(unlocked[1], "mage")
 		for t in game.towers:
 			if t.site_id == unlocked[1]:
-				t.upgrade("", true)
-				t.upgrade("", true)
+				t.upgrade()
+				t.upgrade()
 		# Select unlocked[2] to show selected plinth + compact icon+numeric build menu
 		game.hud.show_context(unlocked[2])
 	if game.camera != null:
@@ -93,13 +92,12 @@ func _run() -> void:
 	game.start_run("ranger", "forest")
 	await _wait_frames(3)
 	game.gold = 2500
-	game.doctrine_tokens = 2
 	game.phase = "wave"
 	game.build_tower(0, "barracks")
 	game.build_tower(1, "mage")
 	for t in game.towers:
-		t.upgrade("", true)
-		t.upgrade("", true)
+		t.upgrade()
+		t.upgrade()
 	game.spawn_enemy("fox", 0, 460.0, false)
 	game.spawn_enemy("brute", 0, 380.0, false)
 	await _wait_frames(38)
@@ -121,13 +119,12 @@ func _run() -> void:
 	game.start_run("mage", "creek")
 	await _wait_frames(3)
 	game.gold = 2500
-	game.doctrine_tokens = 2
 	game.phase = "wave"
 	game.build_tower(0, "cannon")
 	game.build_tower(1, "archer")
 	for t in game.towers:
-		t.upgrade("", true)
-		t.upgrade("", true)
+		t.upgrade()
+		t.upgrade()
 	game.spawn_enemy("spearman", 0, 460.0, false)
 	game.spawn_enemy("wisp", 0, 380.0, false)
 	await _wait_frames(38)

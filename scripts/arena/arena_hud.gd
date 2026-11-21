@@ -6,6 +6,12 @@ var menu: Control
 var modal: Control
 var context: Panel
 var wave_button: Button
+var orders_button: Button
+var orders_panel: Panel
+var order_buttons := {}
+var orders_status: Label
+var order_hint: Label
+var chest_button: Button
 var wave_glyph: ArenaGlyph
 var preview: Panel
 var hero_badge: TextureRect
@@ -16,9 +22,6 @@ var coins: Label
 var wave_label: Label
 var hero_level: Label
 var revival: Label
-var tokens: Label
-var token_glyph: ArenaGlyph
-var debuff: Label
 var unlock_hint: Panel
 var unlock_clock:=0.0
 var objective: Panel
@@ -28,6 +31,7 @@ var objective_body: Label
 var phase_label: Label
 var xp_label: Label
 var build_label: Label
+var preview_stats: Label
 var last_objective:=""
 var tutorial_finished:=false
 var skills: Array[Button]=[]
@@ -79,7 +83,7 @@ func button(parent: Node,message: String,rect: Rect2,callback: Callable,primary:
 	node.add_theme_font_size_override("font_size",18 if rect.size.y<56 else 20)
 	var reduced:=bool(game.campaign.data.get("reduced_motion",false)) if game!=null and game.campaign!=null else false
 	ArenaMenuArt.interact(node,reduced)
-	node.pressed.connect(func():game.suppress_primary=true;callback.call());parent.add_child(node);return node
+	node.pressed.connect(func():game.suppress_primary=Input.is_action_pressed("shoot");callback.call());parent.add_child(node);return node
 func icon(parent: Node,key: String,rect: Rect2,tint:=GOLD) -> ArenaGlyph:
 	var node:=ArenaGlyph.new();node.kind=key;node.position=rect.position;node.size=rect.size;node.tint=tint;parent.add_child(node);return node
 func image(parent: Node,texture: Texture2D,rect: Rect2,cover:=false) -> TextureRect:
@@ -109,8 +113,7 @@ func hero_badge_image(key: String) -> Texture2D:
 	var portrait:=hero_portrait(key);var atlas:=AtlasTexture.new();atlas.atlas=portrait
 	var ratio:=ArenaHeroArt.badge(key,game.feel.enabled);atlas.region=Rect2(ratio.position*portrait.get_size(),ratio.size*portrait.get_size());return atlas
 func tower_image(kind: String,tier:=1) -> Texture2D:
-	var sheet: Texture2D=load(ArenaBattleArt.towers_path());var atlas:=AtlasTexture.new();atlas.atlas=sheet
-	atlas.region=Rect2(ArenaDefinitions.TOWER_IDS.find(kind)*sheet.get_width()/4.0,(tier-1)*sheet.get_height()/3.0,sheet.get_width()/4.0,sheet.get_height()/3.0);return atlas
+	return ArenaBattleArt.tower_texture(kind,tier)
 func reset_menu() -> void:
 	if is_instance_valid(menu):root.remove_child(menu);menu.queue_free()
 	menu=Control.new();menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT);menu.mouse_filter=Control.MOUSE_FILTER_STOP;root.add_child(menu)
@@ -120,7 +123,7 @@ func backdrop() -> void:
 	else:
 		var bg:=ColorRect.new();bg.color=Color("607447");bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT);menu.add_child(bg)
 func show_codex() -> void:
-	if is_instance_valid(codex) or game.choice_open or game.camp_reward_open:
+	if game.condition_lab or is_instance_valid(codex) or game.choice_open:
 		return
 	codex_was_paused=get_tree().paused
 	get_tree().paused=true
@@ -130,7 +133,7 @@ func show_codex() -> void:
 func _on_codex_closed() -> void:
 	codex = null
 	get_tree().paused=codex_was_paused
-	game.suppress_primary=true
+	game.suppress_primary=Input.is_action_pressed("shoot")
 	if not codex_was_paused:game.pump_modals()
 func show_entry() -> void:frontend.entry()
 func show_heroes() -> void:frontend.hall()
@@ -143,11 +146,12 @@ func show_battle() -> void:
 	var hero_pod:=Panel.new();hero_pod.name="HeroPod";hero_pod.position=Vector2(12,10);hero_pod.size=Vector2(294,58);hero_pod.mouse_filter=Control.MOUSE_FILTER_IGNORE;pod_style(hero_pod);root.add_child(hero_pod);battle_nodes.append(hero_pod)
 	hero_badge=image(hero_pod,hero_badge_image(game.hero.class_id),Rect2(4,3,48,50))
 	revival=label(hero_pod,"",Rect2(8,13,40,30),20,GOLD)
-	hero_health=meter(hero_pod,Rect2(58,12,124,12),Color("d87d73"));experience=meter(hero_pod,Rect2(58,34,124,5),Color("c6d899"))
+	hero_health=meter(hero_pod,Rect2(58,12,124,12),Color("d87d73"))
 	hero_level=label(hero_pod,"1",Rect2(58,41,28,14),10,MUTED)
-	xp_label=label(hero_pod,"",Rect2(88,41,92,14),10,MUTED);xp_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT
+	if not game.defense_rules:
+		experience=meter(hero_pod,Rect2(58,34,124,5),Color("c6d899"))
+		xp_label=label(hero_pod,"",Rect2(88,41,92,14),10,MUTED);xp_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT
 	icon(hero_pod,"coin",Rect2(193,12,23,23));coins=label(hero_pod,str(game.gold),Rect2(219,11,66,27),19,GOLD)
-	token_glyph=icon(hero_pod,"upgrade",Rect2(213,40,12,12));tokens=label(hero_pod,"",Rect2(230,39,44,15),11,GOLD)
 	var core_pod:=Panel.new();core_pod.name="CorePod";core_pod.position=Vector2(1378,10);core_pod.size=Vector2(210,48);core_pod.mouse_filter=Control.MOUSE_FILTER_IGNORE;pod_style(core_pod);root.add_child(core_pod);battle_nodes.append(core_pod)
 	icon(core_pod,"core",Rect2(8,9,23,28),Color("a0d9cd"));core_health=meter(core_pod,Rect2(40,19,110,10),Color("79c69d"))
 	var pause_button:=button(core_pod,"Ⅱ",Rect2(158,2,48,44),show_pause);pause_button.name="Pause";pause_button.tooltip_text="暂停 · Esc"
@@ -157,7 +161,6 @@ func show_battle() -> void:
 		breach_notice=button(root,"",Rect2(1324,64,44,44),func():game.camera.focus(game.siege.point()));breach_notice.name="BreachAlert";breach_notice.tooltip_text="东北破障：击败蓄力中的破障者可延缓至下一波。点击定位。";icon(breach_notice,"wave",Rect2(8,8,28,28),GOLD);breach_notice.hide();battle_nodes.append(breach_notice)
 	wave_label=label(root,"1 / 8",Rect2(1515,64,66,20),13,CREAM);wave_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT;battle_nodes.append(wave_label)
 	phase_label=label(root,"",Rect2(0,0,1,1),10);phase_label.hide();battle_nodes.append(phase_label)
-	debuff=label(root,"",Rect2(1408,63,100,20),11,Color("f08c75"));battle_nodes.append(debuff)
 	wave_button=button(root,"",Rect2(0,0,48,48),game.request_wave);wave_button.name="CallWave";wave_button.tooltip_text="预览下一波；再点提前开始";battle_nodes.append(wave_button)
 	wave_glyph=icon(wave_button,"wave",Rect2(7,7,34,34))
 	var skill_dock:=Control.new();skill_dock.position=Vector2(12,818);skill_dock.size=Vector2(220,70);skill_dock.mouse_filter=Control.MOUSE_FILTER_IGNORE;root.add_child(skill_dock);battle_nodes.append(skill_dock)
@@ -176,11 +179,116 @@ func show_battle() -> void:
 		bridge_button=button(root,"",Rect2(game.bridge_gate_point()+Vector2(-22,36),Vector2(44,44)),game.trigger_bridge_gate);bridge_button.name="BridgeGate";bridge_button.tooltip_text="吊桥 · G：封锁14秒。未到岔路的敌军绕行，已选路单位继续通过。冷却28秒。";battle_nodes.append(bridge_button)
 		icon(bridge_button,"flag",Rect2(8,6,26,26),GOLD);keycap(bridge_button,"G",Rect2(25,24,17,17));bridge_meter=meter(bridge_button,Rect2(4,39,36,3),GOLD);bridge_label=label(bridge_button,"",Rect2(0,0,1,1),10);bridge_label.hide()
 	preview=Panel.new();preview.size=Vector2(300,102);preview.mouse_filter=Control.MOUSE_FILTER_IGNORE;panel_style(preview);preview.hide();root.add_child(preview);battle_nodes.append(preview)
+	if game.defense_rules: create_orders_panel()
 	objective=Panel.new();objective.position=Vector2(660,835);objective.size=Vector2(280,46);objective.mouse_filter=Control.MOUSE_FILTER_IGNORE;root.add_child(objective);pod_style(objective);battle_nodes.append(objective)
 	objective_step=label(objective,"",Rect2(0,0,1,1),10);objective_step.hide();objective_title=label(objective,"",Rect2(12,9,258,26),14,CREAM);objective_body=label(objective,"",Rect2(0,0,1,1),10);objective_body.hide()
 	var build:=Control.new();build.hide();root.add_child(build);battle_nodes.append(build);build_label=label(build,"",Rect2(0,0,1,1),10)
 	root.move_child(context,root.get_child_count()-1)
+func create_orders_panel() -> void:
+	chest_button=button(root,"",Rect2(14,72,169,34),use_order.bind("chest"))
+	chest_button.name="CashChest"
+	chest_button.hide()
+	battle_nodes.append(chest_button)
+	orders_button=button(root,"战场指令",Rect2(214,827,118,48),toggle_orders)
+	orders_button.name="BattleOrders"
+	orders_button.hide()
+	battle_nodes.append(orders_button)
+	orders_panel=Panel.new()
+	orders_panel.position=Vector2(210,515)
+	orders_panel.size=Vector2(424,302)
+	orders_panel.mouse_filter=Control.MOUSE_FILTER_STOP
+	pod_style(orders_panel)
+	root.add_child(orders_panel)
+	orders_panel.hide()
+	battle_nodes.append(orders_panel)
+	orders_status=label(orders_panel,"",Rect2(12,8,400,65),14,CREAM)
+	orders_status.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+	order_hint=label(root,"",Rect2(348,832,650,40),16,GOLD)
+	battle_nodes.append(order_hint)
+	for id in ["flag_a","flag_b","relay","riposte","wall","beacon","bounty","chest","gate","lure","bridge","battery","muster"]:
+		var b:=button(orders_panel,"",Rect2(0,0,196,34),use_order.bind(id))
+		b.name="Order_"+id
+		b.add_theme_font_size_override("font_size",15)
+		order_buttons[id]=b
+
+func toggle_orders() -> void:
+	if not game.running or game.game_over or has_modal(): return
+	game.orders.cancel_target()
+	orders_panel.visible=not orders_panel.visible
+	refresh_orders()
+
+func use_order(id: String) -> void:
+	var ok := game.orders.command(id)
+	if not ok and game.orders.hint.is_empty(): game.orders.hint="当前无法执行这个指令"
+	if not game.orders.targeting.is_empty(): orders_panel.hide()
+	refresh_orders()
+
+func refresh_orders() -> void:
+	if not is_instance_valid(orders_panel): return
+	var o:=game.orders
+	var prep:=game.phase=="rest"
+	var visible_orders := {}
+	if o.has("relay"):
+		if prep:
+			visible_orders.flag_a="设甲旗（出发）" if o.has("one_way") else "设甲旗"
+			visible_orders.flag_b="设乙旗"
+		else: visible_orders.relay="两旗接应"
+	if not prep and o.has("riposte"): visible_orders.riposte="回马一击"
+	if o.has("wall"):
+		if not prep: visible_orders.wall="收墙反推" if o.wall_left>0 else "升起城墙"
+		elif o.has("open_gate"): visible_orders.gate="敞开 · "+o.lane_name(o.gate_lane)
+	if not prep and o.has("beacon"): visible_orders.beacon="烽火齐射"
+	if prep and o.has("bounty"): visible_orders.bounty="接悬赏 · "+o.lane_name(o.bounty_lane)
+	if o.has("chest"):
+		if prep: visible_orders.chest="钱箱 · "+o.lane_name(o.chest_lane)
+		elif o.chest_open: visible_orders.chest="收箱 · %d 金"%o.cash_amount()
+	if prep and o.has("lure"): visible_orders.lure="诱敌 · "+o.lane_name(o.lure_lane)
+	if prep and o.has("bridge"): visible_orders.bridge="吊桥 · "+("长路" if o.long_bridge else "短路")
+	if prep and o.has("battery"): visible_orders.battery="配对借台"
+	if o.has("muster"): visible_orders.muster="两营会师／召回"
+	var usable:=game.can_manage_defense() and not has_modal()
+	chest_button.visible=usable and not prep and o.chest_open
+	if chest_button.visible:
+		chest_button.text="收箱  %d 金 · %d/5"%[o.cash_amount(),o.chest_count]
+		chest_button.tooltip_text="三笔起领 1.5 倍，五笔领双倍。同路主队触核会失去未领取的金币。"
+	orders_button.visible=usable and not visible_orders.is_empty()
+	if not orders_button.visible: orders_panel.hide()
+	order_hint.visible=usable
+	order_hint.text=o.hint
+	if o.bounty_active: order_hint.text+="  悬赏 %d/3"%o.bounty_kills
+	if o.wall_left>0: order_hint.text+="  城墙 %d／300 · %.1f 秒"%[ceili(o.wall_hp),o.wall_left]
+	if not orders_panel.visible: return
+	var top := 60 if (prep and o.bounty_lane>=0) or (not prep and o.chest_open) else 42
+	var n:=0
+	for id: String in order_buttons:
+		var b: Button=order_buttons[id]
+		b.visible=id in visible_orders
+		if not b.visible: continue
+		b.text=visible_orders[id]
+		b.position=Vector2(12+202*(n%2),top+40*floori(n/2.0))
+		b.disabled=(id=="relay" and (o.transfer_used or o.transfer_left>0)) or (id=="riposte" and o.push_ready>0) or (id=="wall" and o.wall_used and o.wall_left<=0) or (id=="beacon" and o.beacon_used)
+		n+=1
+	orders_panel.size.y=top+40*ceili(n/2.0)+8
+	orders_panel.position.y=817-orders_panel.size.y
+	if prep:
+		var packets:=game.wave_packets(game.wave_pattern())
+		var lanes:=o.counts(packets,false)
+		var parts:=PackedStringArray()
+		for lane in lanes:
+			var group:=packets.filter(func(p): return p.route==lane)
+			parts.append("%s %d只／精英%d／%.1f秒"%( [o.lane_name(lane),group.size(),group.filter(func(p):return p.elite).size(),group[0].at] ))
+		orders_status.text="  ".join(parts)
+		if o.bounty_lane>=0:
+			var names:=PackedStringArray()
+			for p in packets:
+				if p.get("bounty",false): names.append(ArenaDefinitions.enemy(p.kind).name)
+			orders_status.text+="\n悬赏  "+"、".join(names)
+	else:
+		orders_status.text="选择指令，点选地图目标。右键取消。"
+		if o.chest_open: orders_status.text+="\n钱箱 %d/5 笔 · 当前可领 %d 金"%[o.chest_count,o.cash_amount()]
+
 func show_context(index: int) -> void:
+	if not game.can_manage_defense():return
 	game.selected_site=index;refresh_context()
 func clear_children(node: Node) -> void:
 	for child in node.get_children():node.remove_child(child);child.queue_free()
@@ -194,23 +302,40 @@ func _trait_badge(parent: Control,site_trait: String,trait_name: String,trait_de
 	var lbl:=label(badge,stat,Rect2(24,3,rect.size.x-28,20),13,trait_tint);lbl.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT;lbl.mouse_filter=Control.MOUSE_FILTER_IGNORE
 	parent.add_child(badge)
 func refresh_context() -> void:
-	if game.selected_site<0:return
+	if game.selected_site<0 or not game.can_manage_defense():return
 	clear_children(context);context.show()
 	var tower: ArenaTower=game.site_tower(game.selected_site)
 	if tower!=null and tower.awaiting_doctrine:
 		doctrine_context(tower);return
 	var locked:=tower==null and game.site_locked(game.selected_site)
+	var work_allowed := game.can_change_towers()
 	var has_doctrine:=tower!=null and tower.doctrine_id!=""
-	context.size=Vector2(328,154) if locked else (Vector2(372,172) if tower==null else (Vector2(442,270) if has_doctrine else Vector2(316,228)))
+	var cannon_order:=tower!=null and tower.can_set_bombard()
+	var fixed_order:=cannon_order and tower.bombard_point.is_finite()
+	context.size=Vector2(328,154) if locked else (Vector2(372,172) if tower==null else (Vector2(442,314 if fixed_order else 270) if has_doctrine else Vector2(316,260 if fixed_order else 228)))
+	if tower!=null and tower.project_level==0:
+		var order_id:=""
+		if tower.kind=="barracks" and game.orders.has("muster"): order_id="muster"
+		elif game.phase=="rest" and tower.kind in ["archer","mage"] and game.orders.has("battery"): order_id="battery"
+		if not order_id.is_empty():
+			var row_y:=context.size.y
+			context.size.y+=42
+			button(context,"从本营会师／召回" if order_id=="muster" else "从本塔借台射击",Rect2(16,row_y-4,context.size.x-32,36),start_tower_order.bind(order_id,tower))
 	var point: Vector2=game.world_to_hud(game.level_definition.sites[game.selected_site])
 	context.position=Vector2(clampf(point.x-context.size.x*0.5,12,1600-context.size.x-12),clampf(point.y+38,86,900-context.size.y-15))
 	var traits: Array=game.level_definition.get("site_traits",[])
 	var site_trait: String=str(traits[game.selected_site]) if game.selected_site<traits.size() else ""
 	var trait_name: String=ArenaTower.trait_label(site_trait)
 	var trait_desc: String=ArenaTower.trait_summary(site_trait)
+	if game.tower_lab and site_trait=="choke": trait_desc="兵营生命 +18%"
 	var trait_tint: Color={"highground":Color("f6c862"),"choke":Color("ee7b56"),"conduit":Color("6ce8ff")}.get(site_trait,GOLD)
 	var roles: Array=game.level_definition.get("site_roles",[])
 	var role_name: String=str(roles[game.selected_site]) if game.selected_site<roles.size() else ""
+	if not work_allowed and tower==null:
+		label(context,"战中封工",Rect2(18,12,200,28),19,GOLD)
+		label(context,"下次整备可建塔或解锁塔位",Rect2(18,55,284,30),17,MUTED)
+		button(context,"关闭",Rect2(18,100,118,38),close_context)
+		return
 	if locked:
 		var price:=game.unlock_price(game.selected_site)
 		label(context,"解锁塔位",Rect2(18,12,180,30),20,GOLD)
@@ -223,10 +348,12 @@ func refresh_context() -> void:
 		label(context,"建造防御塔",Rect2(18,10,160,28),19,GOLD)
 		_trait_badge(context,site_trait,trait_name,trait_desc,trait_tint,Rect2(272,10,84,26))
 		for column in range(game.run_towers.size()):
-			var key: String=game.run_towers[column];var data: Dictionary=ArenaDefinitions.TOWERS[key]
+			var key: String=game.run_towers[column];var data:=game.tower_display_data(key)
 			var b:=button(context,"",Rect2(14+column*86,44,80,108),_build.bind(key));b.name="Build_"+key;b.disabled=key not in game.available_towers() or game.gold<int(data.cost)
 			image(b,tower_image(key),Rect2(5,2,70,70));icon(b,"coin",Rect2(12,79,18,18));label(b,str(data.cost),Rect2(34,78,42,22),16,GOLD)
-			b.tooltip_text=data.name+" · "+ArenaCombat.label(data.type)+"\n"+(trait_name+"："+trait_desc if trait_name!="" else data.description)+("\n第"+str(game.level_definition.towers[key])+"波开放" if key not in game.available_towers() else "")
+			b.tooltip_text=data.name+" · "+ArenaCombat.label(data.type)+"\n"+data.description
+			if trait_name!="": b.tooltip_text+="\n"+trait_name+" · "+trait_desc
+			if key not in game.available_towers(): b.tooltip_text+="\n第"+str(game.level_definition.towers[key])+"波开放"
 	elif has_doctrine:
 		var entry: Dictionary=ArenaDoctrines.by_id(tower.doctrine_id)
 		label(context,str(tower.data.name)+" · "+str(entry.name),Rect2(18,12,280,30),21,GOLD)
@@ -240,7 +367,7 @@ func refresh_context() -> void:
 			var b_info: Dictionary=b_list[b]
 			var rank: int=tower.branch_rank(b);var b_price: int=tower.branch_price(b);var maxed: bool=rank>=3
 			var btn:=button(context,"",Rect2(14+b*210,76,202,126),_upgrade_branch.bind(b));btn.name="Branch_"+str(b)
-			btn.disabled=maxed or game.gold<b_price
+			btn.disabled=not work_allowed or maxed or game.gold<b_price
 			var accent_tint:=Color("f5cd6a") if b==0 else Color("7fd8ff")
 			label(btn,str(b_info.name),Rect2(12,8,136,24),16,accent_tint)
 			label(btn,str(rank)+"/3",Rect2(150,9,40,22),15,accent_tint).horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT
@@ -248,21 +375,56 @@ func refresh_context() -> void:
 			var price_text:="✓ 已满阶" if maxed else ("↑  %d ◉"%b_price)
 			var price_tint:=Color("9ee4a8") if maxed else (GOLD if game.gold>=b_price else Color("e7a28a"))
 			label(btn,price_text,Rect2(12,92,178,24),15,price_tint).horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
-		var target:=button(context,"⚑ 集结" if tower.kind=="barracks" else "◎ 目标",Rect2(14,214,126,42),_rally if tower.kind=="barracks" else _target)
-		target.tooltip_text="调整集结点" if tower.kind=="barracks" else "切换优先目标"
-		button(context,"出售",Rect2(154,214,148,42),tower.sell)
+		var ground_order:=tower.kind in ["barracks","snare"] or cannon_order
+		var order_label:="设落点" if cannon_order else ("⚑ 集结" if tower.kind=="barracks" else "◎ 目标")
+		var target:=button(context,order_label,Rect2(14,214,126,42),_rally if ground_order else _target)
+		if tower.kind=="snare": target.text="设绊索"
+		target.tooltip_text="点选射程内的道路，移索后需要重新布设" if tower.kind=="snare" else "选择射程内的炮击点" if cannon_order else ("调整集结点" if ground_order else "切换优先目标")
+		_sale_button(tower,Rect2(154,214,148,42),work_allowed)
 		button(context,"×",Rect2(316,214,110,42),close_context)
+		if fixed_order: button(context,"恢复自动瞄准",Rect2(14,266,288,36),tower.clear_bombard)
 	else:
 		label(context,str(tower.data.name)+"  "+str(tower.level)+"/3",Rect2(18,12,160,30),21,GOLD)
 		_trait_badge(context,site_trait,trait_name,trait_desc,trait_tint,Rect2(216,12,84,26))
-		icon(context,"physical" if tower.data.type==0 else "magic",Rect2(18,48,22,22),ArenaCombat.colour(tower.data.type));label(context,ArenaCombat.label(tower.data.type)+" · "+str(tower.data.description),Rect2(48,46,252,26),14,MUTED)
-		var price:=tower.upgrade_price();var token:=game.doctrine_tokens>0 and tower.level==2
-		var caption: String="免费 L3 改造（剩 %d）"%game.doctrine_tokens if token else "↑    %d  ◉"%price
-		var up:=button(context,caption,Rect2(16,88,284,46),tower.upgrade.bind("",true) if token else tower.upgrade,true)
-		up.name="Upgrade";up.disabled=tower.level>=3 or (not token and game.gold<price)
-		var target:=button(context,"⚑" if tower.kind=="barracks" else "◎",Rect2(16,150,84,44),_rally if tower.kind=="barracks" else _target);target.tooltip_text="调整集结点" if tower.kind=="barracks" else "切换优先目标"
-		button(context,"出售",Rect2(114,150,90,44),tower.sell)
-		button(context,"×",Rect2(218,150,82,44),close_context)
+		icon(context,"physical" if tower.data.type==0 else "magic",Rect2(18,48,22,22),ArenaCombat.colour(tower.data.type))
+		var description:=label(context,ArenaCombat.label(tower.data.type)+" · "+str(tower.data.description),Rect2(48,44,250,40),14,MUTED)
+		description.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+		var price:=tower.upgrade_price()
+		if tower.project_level!=0:
+			var caption:="建造中 · 取消" if tower.project_level==1 else "升级中 · 取消"
+			var cancel:=button(context,caption,Rect2(16,88,284,46),tower.cancel_project)
+			cancel.name="CancelTowerWork"
+			cancel.tooltip_text="返还本次投入"
+		else:
+			var caption:="↑    %d  ◉"%price if tower.level<3 else "已达三级"
+			var up:=button(context,caption,Rect2(16,88,284,46),tower.upgrade,true)
+			up.name="Upgrade";up.disabled=not work_allowed or tower.level>=3 or game.gold<price
+		if not game.tower_lab or tower.kind=="barracks" or cannon_order:
+			var title:="改落点" if fixed_order else ("设落点" if cannon_order else ("⚑" if tower.kind=="barracks" else "◎"))
+			var ground_order:=tower.kind in ["barracks","snare"] or cannon_order
+			var target:=button(context,title,Rect2(16,150,84,44),_rally if ground_order else _target)
+			target.name="TowerGroundOrder" if ground_order else "TowerPriority"
+			if tower.kind=="snare": target.text="设绊索"
+			target.tooltip_text="点选射程内的道路，移索后需要重新布设" if tower.kind=="snare" else "选择射程内的炮击点。爆炸范围内有敌时开炮。" if cannon_order else ("调整集结点" if ground_order else "切换优先目标")
+			target.disabled=tower.project_level==1
+		if fixed_order:
+			var automatic:=button(context,"恢复自动瞄准",Rect2(16,201,284,36),tower.clear_bombard)
+			automatic.name="ResetBombard"
+		_sale_button(tower,Rect2(110,150,120,44),work_allowed)
+		button(context,"×",Rect2(240,150,60,44),close_context)
+func start_tower_order(order_id: String,tower: ArenaTower) -> void:
+	if is_instance_valid(tower) and game.orders.command(order_id):
+		game.orders.choose_point(tower.position)
+
+func _sale_button(tower: ArenaTower,rect: Rect2,work_allowed: bool) -> void:
+	var caption := "出售 %d ◉" % tower.sale_value() if game.defense_rules else "出售"
+	if not work_allowed: caption="整备时出售"
+	elif game.defense_rules and tower.project_level!=0: caption="完工后出售"
+	var sale:=button(context,caption,rect,tower.sell)
+	sale.name="SellTower"
+	sale.disabled=not work_allowed or tower.project_level!=0
+	sale.tooltip_text="战中封工 · 建造、升级和出售在整备时开放" if not work_allowed else "售价 %d 金币" % tower.sale_value()
+	if work_allowed and tower.project_level!=0: sale.tooltip_text="当前项目可从塔位菜单取消"
 func doctrine_context(tower: ArenaTower) -> void:
 	var options: Array=ArenaDoctrines.for_tower(tower.kind)
 	context.size=Vector2(516,312)
@@ -284,16 +446,15 @@ func _upgrade_branch(index: int) -> void:
 	if tower!=null and tower.upgrade_branch(index):refresh_context()
 func _build(key: String) -> void:
 	if game.build_tower(game.selected_site,key):refresh_context()
-func _rally() -> void:game.rally_site=game.selected_site;close_context()
+func _rally() -> void:
+	if not game.can_manage_defense():return
+	game.rally_site=game.selected_site;close_context()
 func _target() -> void:
+	if not game.can_manage_defense():return
 	var tower:=game.site_tower(game.selected_site)
 	if tower!=null and tower.forced_target()=="":
 		tower.target_mode="strongest" if tower.target_mode=="first" else "first";refresh_context()
 func close_context() -> void:context.hide();game.selected_site=-1
-func refresh_tokens() -> void:
-	if not is_instance_valid(tokens):return
-	tokens.text=("×%d"%game.doctrine_tokens) if game.doctrine_tokens>0 else ""
-	if is_instance_valid(token_glyph):token_glyph.modulate.a=1.0 if game.doctrine_tokens>0 else 0.25
 func announce_unlock() -> void:
 	if not game.started:return
 	var unlocked: Array=[]
@@ -313,11 +474,32 @@ func close_modal() -> void:
 	if is_instance_valid(modal):root.remove_child(modal);modal.queue_free()
 	modal=null
 func has_modal() -> bool:return is_instance_valid(modal) or is_instance_valid(codex)
+func show_rule_choice(offers: Array[Dictionary]) -> void:
+	close_context()
+	game.rally_site=-1
+	game.targeting_slot=-1
+	var width := maxf(580.0, 40.0 + 380.0 * offers.size())
+	var panel:=modal_panel(Vector2(width,390))
+	label(panel,"第一波 · 选本局打法" if game.cycle==1 else "第 %d 波 · 加选打法" % game.cycle,Rect2(24,30,width-48,38),28,GOLD).horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+	label(panel,"选中的祝福和诅咒持续到本局结束",Rect2(24,76,width-48,25),17,MUTED).horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+	var left := (width-380.0*offers.size())*0.5
+	for i in range(offers.size()):
+		var rule := offers[i]
+		var card := button(panel,"",Rect2(left+380*i+6,118,368,174),game.choose_defense_rule.bind(str(rule.id)))
+		card.name="DefenseRule_"+str(rule.id)
+		label(card,str(rule.name),Rect2(22,19,324,34),25,GOLD)
+		var blessing:=label(card,"祝福  "+str(rule.blessing),Rect2(22,68,324,42),18,Color("a9e2bd"))
+		var curse:=label(card,"诅咒  "+str(rule.curse),Rect2(22,117,324,42),18,Color("f1aa98"))
+		blessing.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+		curse.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+	if game.cycle==1:
+		var control:=button(panel,"常规守线",Rect2((width-202.0)*0.5,323,202,44),game.choose_defense_rule.bind(""))
+		control.name="StandardDefense"
 func show_choices(keys: Array[String]) -> void:
 	close_context();game.targeting_slot=-1;game.rally_site=-1
 	var panel:=modal_panel(Vector2(1060,510))
 	var head:=label(panel,"★ 觉醒抉择 · 三选一",Rect2(40,22,980,44),28,GOLD);head.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
-	var sub:=label(panel,"仅于关键节点（Lv.2 / Lv.5 / Lv.8）与营地触发 · 直赋满阶觉醒威力",Rect2(40,66,980,26),15,MUTED);sub.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+	var sub:=label(panel,"仅于关键节点（Lv.2 / Lv.5 / Lv.8）触发 · 直赋满阶觉醒威力",Rect2(40,66,980,26),15,MUTED);sub.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
 	for index in range(keys.size()):
 		var key: String=keys[index];var data: Dictionary=ArenaPerks.card(key)
 		var colour: Color=data.get("color",GOLD)
@@ -357,6 +539,39 @@ func show_choices(keys: Array[String]) -> void:
 			b.tooltip_text="联动："+"、".join(peers)
 		else:
 			label(b,"点击或按数字键选取",Rect2(16,320,280,24),12,MUTED).horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+func show_passive_choices(keys: Array[String]) -> void:
+	close_context();game.targeting_slot=-1;game.rally_site=-1
+	var panel:=modal_panel(Vector2(1060,486))
+	var head:=label(panel,"被动抉择" if game.condition_lab else "被动抉择 · 三选一（原型）",Rect2(40,22,980,44),28,GOLD);head.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+	var sub:=label(panel,"选取一张，重复选取升至 2 阶" if game.condition_lab else "事件 / 动作卡 · 每张 2 阶 · 每局 1 次重抽",Rect2(40,66,980,26),15,MUTED);sub.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+	for index in range(keys.size()):
+		var key: String=keys[index];var data: Dictionary=ArenaConditions.CARDS[key] if game.condition_lab else ArenaPassives.card(key)
+		var colour: Color=data.get("color",{"common":CREAM,"rare":Color("99dfff"),"epic":Color("d8b7ff")}.get(data.rarity,GOLD))
+		var b:=button(panel,"",Rect2(34+index*340,104,312,300),game.choose_passive.bind(key));b.name="Passive_"+key
+		keycap(b,str(index+1),Rect2(14,12,28,24))
+		var rank:=game.passive_rank(key)
+		var title:=label(b,"%s · %d/2"%[str(data.get("name",key)),rank+1 if game.condition_lab else rank],Rect2(46,10,252,28),19,colour)
+		title.horizontal_alignment=HORIZONTAL_ALIGNMENT_LEFT
+		var rarity_name: String=str({"common":"普通","rare":"稀有","epic":"史诗"}.get(str(data.get("rarity","common")),"普通"))
+		var type_name: String=str(data.type) if game.condition_lab else ("事件" if str(data.get("type",""))=="event" else "动作")
+		label(b,"%s · %s"%[type_name,rarity_name],Rect2(16,44,280,22),13,MUTED)
+		var lines: Array=data.get("desc",[])
+		var text: String=""
+		if not lines.is_empty():text=str(lines[mini(rank,lines.size()-1)])
+		if rank>=2:text+="\n（已满阶）"
+		if game.condition_lab:
+			var card_icon:=ArenaConditions.icon(key)
+			if card_icon!=null: image(b,card_icon,Rect2(126,84,60,60))
+			if key=="breaker": b.tooltip_text="物理英雄看护甲，法术英雄看抗性。达到 40% 即为高防。"
+		var body_rect:=Rect2(20,164,272,104) if game.condition_lab else Rect2(20,80,272,150)
+		var body:=label(b,text,body_rect,19 if game.condition_lab else 17,CREAM)
+		body.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+		body.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+	if game.passive_reroll_used:
+		label(panel,"本局重抽已用",Rect2(430,424,200,36),15,MUTED).horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+	else:
+		button(panel,"重抽一次",Rect2(430,418,200,42),game.reroll_passives)
+
 func show_keystone_choices(keys: Array[String]) -> void:
 	close_context();game.targeting_slot=-1;game.rally_site=-1
 	var panel:=modal_panel(Vector2(1060,486))
@@ -378,30 +593,8 @@ func show_keystone_choices(keys: Array[String]) -> void:
 		effect.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART;effect.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
 		var hint_lbl:=label(plate,str(data.get("hint","")),Rect2(18,210,248,22),12,Color("7a4c14"));hint_lbl.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
 		label(b,"点击或按 ["+str(index+1)+"] 刻印核心",Rect2(16,308,280,24),13,MUTED).horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
-func show_camp_reward(id: int) -> void:
-	close_context();get_tree().paused=true
-	var panel:=modal_panel(Vector2(1060,478))
-	var head:=label(panel,"营地已清 · 三选一",Rect2(40,22,980,44),28,GOLD);head.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
-	var sub:=label(panel,"选择一项战利品带回防线",Rect2(40,66,980,26),15,MUTED);sub.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
-	var l2:=game.l2_count()
-	var hero_opt: Dictionary={"key":"hero","icon":"star","title":"星界祈愿","body":"立即为英雄提供 +160 经验与 40% 生命回复，并为守护祭坛与星界共鸣 +35% 充能。","foot":"当前共鸣 %d%%"%int(game.resonance)} if game.keystone_mode else {"key":"hero","icon":"star","title":"英雄觉醒","body":"立即开启一次英雄满阶觉醒三选一，强化本局战力与羁绊联动。","foot":"当前英雄 Lv.%d"%game.hero.level}
-	var options: Array=[
-		hero_opt,
-		{"key":"token","icon":"shield","title":"防线秘券","body":"获得 1 枚免费三级改造券（本局保留），可免费将任意 2 级塔升至 3 阶流派。","foot":"当前二级塔 %d 座%s"%[l2,"" if l2>0 else " · 可留后用"]},
-		{"key":"gold","icon":"coin","title":"军备金库","body":"立即获得 100 金币，用于快速建造新塔、升级流派或点满双分支。","foot":"当前金币 %d"%game.gold}]
-	for index in range(options.size()):
-		var option: Dictionary=options[index]
-		var card:=button(panel,"",Rect2(34+index*340,104,312,338),game.choose_camp_reward.bind(id,str(option.key)))
-		card.name="CampReward_"+str(option.key)
-		keycap(card,str(index+1),Rect2(14,12,28,24))
-		var plate:=sub_card(card,Rect2(14,44,284,234),true)
-		image(plate,ArenaMenuArt.utility(str(option.icon)),Rect2(114,16,56,56))
-		label(plate,str(option.title),Rect2(16,80,252,34),24,ArenaMenuArt.PAPER).horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
-		colour_block(plate,Rect2(28,118,228,1),Color(ArenaMenuArt.PAPER_MUTED,0.35))
-		var body:=label(plate,str(option.body),Rect2(20,130,244,92),15,ArenaMenuArt.PAPER);body.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
-		label(card,str(option.foot),Rect2(16,292,280,28),14,Color("9ee4a8")).horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
 func show_pause() -> void:
-	if game.choice_open or game.camp_reward_open or game.game_over:return
+	if game.choice_open or not game.rule_offers.is_empty() or game.game_over:return
 	if has_modal():resume();return
 	get_tree().paused=true;close_context();game.targeting_slot=-1;game.rally_site=-1
 	var panel:=modal_panel(Vector2(860,546))
@@ -421,12 +614,49 @@ func show_pause() -> void:
 		keycap(left,"Q" if slot==0 else "E",Rect2(92,y_off,26,24))
 		label(left,sk_name+(" (已解锁)" if unlocked else " (%d级解锁)"%(2 if slot==0 else 4)),Rect2(124,y_off,246,26),16,ArenaMenuArt.PAPER if unlocked else ArenaMenuArt.PAPER_MUTED)
 		var sk_desc:=label(left,ArenaDefinitions.skill_text(game.hero.class_id,slot),Rect2(92,y_off+28,278,64),13,ArenaMenuArt.PAPER_MUTED);sk_desc.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+	if game.condition_lab:
+		label(left,"可边走边普攻",Rect2(26,322,342,26),14,ArenaMenuArt.PAPER)
 	var right:=sub_card(panel,Rect2(438,90,394,364),true)
 	label(right,"防线规则 · 本局构筑",Rect2(30,18,334,26),19,ArenaMenuArt.PAPER)
 	var rule_text: String="• 三路合围 + 第4波东北破障；[G] 吊桥分流改道\n• 高台+射程 · 隘口强兵营 · 脉座+攻速穿透\n• 战斗零打断！第 2/4/6 波后整备三选一质变秘石" if game.keystone_mode else "• L3 转职后可同修双分支（最高 10 阶）\n• 物理克轻甲、法术破重甲；英雄 15 秒复活\n• Lv.2 / Lv.5 / Lv.8 触发满阶觉醒三选一"
+	if game.condition_lab:
+		var level_rule: String="• 第 4 波东北破障，按 G 切换吊桥" if game.keystone_mode else "• 塔升至三级后可选改造，再升双分支"
+		rule_text=level_rule+"\n• 局内 2–11 级各三选一，重复选取升阶\n• 本局重抽"+("已用" if game.passive_reroll_used else "剩余 1 次")
+	if game.defense_rules:
+		rule_text="守住核心并清完所有波次。有首领的关卡还需击败首领。"
 	var rules:=label(right,rule_text,Rect2(26,48,342,68),13,ArenaMenuArt.PAPER_MUTED);rules.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
 	colour_block(right,Rect2(26,124,342,1),Color(ArenaMenuArt.PAPER_MUTED,0.3))
-	if game.keystone_mode:
+	if game.defense_rules:
+		if game.selected_defense_cards.is_empty(): label(right,"常规守线",Rect2(26,134,342,24),16,ArenaMenuArt.PAPER)
+		var rule_list:=VBoxContainer.new()
+		var scroll:=ScrollContainer.new()
+		scroll.position=Vector2(24,134);scroll.size=Vector2(346,215)
+		scroll.horizontal_scroll_mode=ScrollContainer.SCROLL_MODE_DISABLED
+		right.add_child(scroll);scroll.add_child(rule_list)
+		for rule in game.selected_defense_cards:
+			var entry:=Label.new()
+			entry.custom_minimum_size.x=326
+			entry.text="%s\n祝福  %s\n诅咒  %s" % [rule.name,rule.blessing,rule.curse]
+			entry.add_theme_color_override("font_color",ArenaMenuArt.PAPER)
+			entry.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+			rule_list.add_child(entry)
+	elif game.condition_lab:
+		label(right,"本局被动",Rect2(26,134,342,24),16,ArenaMenuArt.PAPER)
+		if game.passive_ranks.is_empty():
+			label(right,"到达局内 2 级后选择第一张卡。",Rect2(26,169,342,26),14,ArenaMenuArt.PAPER_MUTED)
+		var index:=0
+		for key in game.passive_ranks:
+			var card: Dictionary=ArenaConditions.CARDS[key]
+			var rank: int=game.passive_rank(key)
+			var x:=26+(index%2)*171
+			var y:=168+int(index/2.0)*36
+			var badge:=label(right,"%s · %d 阶" % [card.name,rank],Rect2(x+32,y,132,28),14,ArenaMenuArt.PAPER)
+			badge.mouse_filter=Control.MOUSE_FILTER_PASS
+			badge.tooltip_text=card.desc[rank-1]
+			var texture:=ArenaConditions.icon(key)
+			if texture!=null: image(right,texture,Rect2(x,y,26,26))
+			index+=1
+	elif game.keystone_mode:
 		label(right,"已刻印质变秘石（%d / 3）"%game.keystones.size(),Rect2(26,134,342,24),16,ArenaMenuArt.PAPER)
 		if game.keystones.is_empty():
 			var none_k:=label(right,"尚未觉醒秘石核心\n撑过第 2、4、6 波后的整备阶段将自动三选一",Rect2(26,168,342,64),13,ArenaMenuArt.PAPER_MUTED);none_k.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
@@ -444,7 +674,7 @@ func show_pause() -> void:
 		for k in game.hero.perks:
 			if game.hero.perk(str(k))>0:owned.append(str(k))
 		if owned.is_empty():
-			var none:=label(right,"尚未觉醒被动\n升至 Lv.2 / Lv.5 / Lv.8 或清理营地可获得满阶成长卡",Rect2(22,188,350,80),14,ArenaMenuArt.PAPER_MUTED);none.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+			var none:=label(right,"尚未觉醒被动\n升至 Lv.2 / Lv.5 / Lv.8 可获得满阶成长卡",Rect2(22,188,350,80),14,ArenaMenuArt.PAPER_MUTED);none.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
 		else:
 			for i in range(mini(owned.size(),6)):
 				var pk:=owned[i];var pcard: Dictionary=ArenaPerks.card(pk)
@@ -453,11 +683,13 @@ func show_pause() -> void:
 				if ptex!=null:image(right,ptex,Rect2(cx,cy,44,44))
 				label(right,str(pcard.get("name",pk)),Rect2(cx+50,cy+4,122,22),15,ArenaMenuArt.PAPER)
 				label(right,"★ 已觉醒" if bool(game.hero.awakened_perks.get(pk,false)) else "Lv."+str(game.hero.perk(pk)),Rect2(cx+50,cy+26,122,18),12,Color("7a4c14"))
-	var codex_button:=button(panel,"被动图鉴",Rect2(28,472,232,52),show_codex);codex_button.name="被动图鉴";ArenaMenuArt.accent(codex_button,"blue")
+	if not game.condition_lab and not game.defense_rules:
+		var codex_button:=button(panel,"被动图鉴",Rect2(28,472,232,52),show_codex);codex_button.name="被动图鉴";ArenaMenuArt.accent(codex_button,"blue")
 	var go_btn:=button(panel,"继续守望",Rect2(294,472,272,52),resume,true);ArenaMenuArt.accent(go_btn,"green")
 	var back_btn:=button(panel,"返回地图",Rect2(600,472,232,52),game.return_to_menu);ArenaMenuArt.accent(back_btn,"amber")
 func resume() -> void:
-	get_tree().paused=false;close_modal();game.suppress_primary=true
+	if not game.rule_offers.is_empty(): return
+	get_tree().paused=false;close_modal();game.suppress_primary=Input.is_action_pressed("shoot")
 	game.pump_modals()
 func show_guide() -> void:
 	var panel:=modal_panel(Vector2(820,544))
@@ -465,7 +697,12 @@ func show_guide() -> void:
 	var card:=sub_card(panel,Rect2(34,76,752,374),true)
 	label(card,"1  部署防线",Rect2(28,22,150,28),18,Color("7a4c14"));label(card,"在金色塔位建塔与升级；L3 转职后可双分支冲至 10 阶。",Rect2(178,22,544,28),17,ArenaMenuArt.PAPER)
 	label(card,"2  英雄出战",Rect2(28,76,150,28),18,Color("7a4c14"));label(card,"WASD/右键移动，左键普攻；养成至 2/4 级解锁 Q/E 技能。",Rect2(178,76,544,28),17,ArenaMenuArt.PAPER)
-	label(card,"3  觉醒成长",Rect2(28,130,150,28),18,Color("7a4c14"));label(card,"每级瞬发回血爆气，Lv.2/5/8 及清营选满阶觉醒被动。",Rect2(178,130,544,28),17,ArenaMenuArt.PAPER)
+	var growth_title: String="3  被动成长" if game.condition_lab else "3  觉醒成长"
+	var growth_text: String="局内 2–11 级各选一张被动，重复升阶，每局可重抽一次。" if game.condition_lab else "每级瞬发回血爆气，Lv.2/5/8 选满阶觉醒被动。"
+	if game.defense_rules:
+		growth_title="3  自选打法"
+		growth_text="开局选打法，祝福和诅咒持续到本局结束。"
+	label(card,growth_title,Rect2(28,130,150,28),18,Color("7a4c14"));label(card,growth_text,Rect2(178,130,544,28),17,ArenaMenuArt.PAPER)
 	colour_block(card,Rect2(28,184,696,1),Color(ArenaMenuArt.PAPER_MUTED,0.35))
 	label(card,"物理",Rect2(28,210,90,28),18,Color("8d5418"));label(card,"弓箭、火炮、骑士、游侠与士兵 · 适合清理轻甲与兽群",Rect2(140,210,580,28),17,ArenaMenuArt.PAPER)
 	label(card,"法术",Rect2(28,254,90,28),18,Color("2e5d8f"));label(card,"法师与法师塔 · 穿透高护甲并施加强力控制",Rect2(140,254,580,28),17,ArenaMenuArt.PAPER)
@@ -478,8 +715,8 @@ func show_result() -> void:
 	label(card,"本局战报",Rect2(28,16,200,28),18,Color("7a4c14"));colour_block(card,Rect2(28,50,616,1),Color(ArenaMenuArt.PAPER_MUTED,0.35))
 	label(card,"抵达波次",Rect2(28,70,150,24),14,ArenaMenuArt.PAPER_MUTED);label(card,str(game.cycle)+" / 8",Rect2(28,96,150,32),24,ArenaMenuArt.PAPER)
 	label(card,"击败敌人",Rect2(246,70,150,24),14,ArenaMenuArt.PAPER_MUTED);label(card,str(game.kills),Rect2(246,96,150,32),24,ArenaMenuArt.PAPER)
-	label(card,"英雄等级",Rect2(464,70,150,24),14,ArenaMenuArt.PAPER_MUTED);label(card,"Lv."+str(game.hero.level),Rect2(464,96,150,32),24,ArenaMenuArt.PAPER)
-	label(card,"建造 "+str(game.built)+" 座防御塔   ·   清理营地 "+str(game.camps_cleared)+" / 2",Rect2(28,154,616,28),17,ArenaMenuArt.PAPER_MUTED)
+	label(card,"英雄等级",Rect2(464,70,150,24),14,ArenaMenuArt.PAPER_MUTED);label(card,"Lv."+str(game.hero.meta_level if game.defense_rules else game.hero.level),Rect2(464,96,150,32),24,ArenaMenuArt.PAPER)
+	label(card,"建造 %d 座防御塔   ·   核心耐久 %d"%[game.built,ceili(game.core_health)],Rect2(28,154,616,28),17,ArenaMenuArt.PAPER_MUTED)
 	colour_block(card,Rect2(28,198,616,1),Color(ArenaMenuArt.PAPER_MUTED,0.25))
 	image(card,ArenaMenuArt.utility("diamond"),Rect2(28,218,32,32))
 	var saved:=bool(game.settlement.get("ok",false))
@@ -494,10 +731,6 @@ func objective_state() -> Dictionary:
 	if game.built==0:return {"step":"守望指引 · 1 / 3","title":"部署第一座防御塔","body":"点击道路旁的金色塔位，然后选择建筑。"}
 	if game.phase=="rest" and game.cycle==1:return {"step":"守望指引 · 2 / 3","title":"侦察第一波敌人","body":"点击入口旁怪物图标预览，再点一次提前开波。"}
 	if game.cycle==1:return {"step":"守望指引 · 3 / 3","title":"英雄加入防守","body":"WASD / 右键移动，按住左键攻击；技能在英雄2级、4级解锁。"}
-	if game.camps_cleared<game.camps.size():
-		if game.cycle<2:return {"step":"当前目标","title":"准备迎接营地威胁","body":"第2波营地激活；调度英雄，兼顾主路。"}
-		if game.overdue_camps()>0:return {"step":"营地警报","title":"解除全场图腾压制","body":"清除营地守卫后，选择成长、改造券或金币。"}
-		return {"step":"当前目标","title":"清理精英营地","body":"第4波威胁扩散，第5波派出突袭队；清营后三选一。"}
 	if game.phase=="rest":return {"step":"整备阶段","title":"升级防线，准备第 "+str(game.cycle)+" 波","body":"利用金币升级塔；提前开波奖励至多12金币。"}
 	return {"step":"防守阶段","title":"守住第 "+str(game.cycle)+" 波","body":"观察敌人抗性，英雄随时回防；基地失守才会失败。"}
 
@@ -505,10 +738,11 @@ func refresh_objective() -> void:
 	if not is_instance_valid(objective):return
 	if not tutorial_finished and game.built>0 and game.hero.shots>0 and game.phase!="rest":
 		tutorial_finished=true;game.campaign.complete_tutorial()
-	objective.visible=not tutorial_finished and not bool(game.campaign.data.get("tutorial_done",false)) and game.cycle==1 and game.built==0
+	objective.visible=game.can_manage_defense() and not tutorial_finished and not bool(game.campaign.data.get("tutorial_done",false)) and game.cycle==1 and game.built==0
 	var state:=objective_state();var signature: String=str(state.step)+str(state.title)
 	if signature!=last_objective:
 		last_objective=signature;objective_step.text=state.step;objective_title.text=state.title;objective_body.text=state.body
+	if game.defense_rules: return
 	var summary: Array[String]=[]
 	if game.keystone_mode:
 		for key in game.keystones:
@@ -526,20 +760,23 @@ func _input(event: InputEvent) -> void:
 	if not game.started and event is InputEventMouseButton and event.pressed and event.button_index==MOUSE_BUTTON_LEFT and is_instance_valid(frontend.stage_panel):
 		if not frontend.stage_panel.get_global_rect().has_point(event.position):frontend.close_stage()
 	if not (event is InputEventKey and event.pressed and not event.echo):return
+	if game.game_over:return
+	if not game.rule_offers.is_empty():
+		if event.keycode in [KEY_1, KEY_2, KEY_3]:
+			var index: int=event.keycode-KEY_1
+			if index<game.rule_offers.size(): game.choose_defense_rule(str(game.rule_offers[index].id))
+		get_viewport().set_input_as_handled()
+		return
 	if game.choice_open:
 		if event.keycode in [KEY_1,KEY_2,KEY_3]:
 			var index: int=event.keycode-KEY_1
-			if index<game.choices.size():game.choose_perk(game.choices[index])
+			if index<game.choices.size():
+				if game.passive_lab or game.condition_lab:game.choose_passive(game.choices[index])
+				else:game.choose_perk(game.choices[index])
 			get_viewport().set_input_as_handled()
 		return
 	if not game.started:
 		if event.keycode==KEY_ESCAPE:frontend.escape();get_viewport().set_input_as_handled()
-		return
-	if game.camp_reward_open:
-		if event.keycode in [KEY_1,KEY_2,KEY_3]:
-			var keys:=["hero","token","gold"]
-			game.choose_camp_reward(game.open_camp_id,keys[event.keycode-KEY_1])
-		get_viewport().set_input_as_handled()
 		return
 	if event.keycode==KEY_H or (event.keycode==KEY_ESCAPE and has_modal() and not game.game_over):
 		if has_modal():resume()
@@ -552,14 +789,20 @@ func _process(delta: float) -> void:
 	update_clock-=delta
 	if update_clock>0 or not game.started or hero_health==null:return
 	update_clock=0.08
+	refresh_orders()
 	var h: ArenaHero=game.hero
-	hero_badge.tooltip_text="英雄养成 Lv."+str(h.meta_level)+" · 本局成长 Lv."+str(h.level)
+	hero_badge.tooltip_text="英雄养成 Lv."+str(h.meta_level)
+	if not game.defense_rules: hero_badge.tooltip_text+=" · 本局成长 Lv."+str(h.level)
 	hero_health.max_value=h.max_health;hero_health.value=h.health;hero_health.tooltip_text=str(int(h.health))+" / "+str(int(h.max_health))
-	experience.max_value=h.xp_target;experience.value=h.xp;hero_level.text="Lv."+str(h.level);xp_label.text=str(h.xp)+" / "+str(h.xp_target)
+	if h.conditions!=null:
+		hero_health.low_threshold=h.conditions.hero_hp_threshold()
+		hero_health.full_threshold=h.conditions.rank("fresh")>0 or h.conditions.rank("composure")>0
+		hero_health.step_thresholds=h.conditions.rank("bloodprice")>0
+	hero_level.text="Lv."+str(h.meta_level if game.defense_rules else h.level)
+	if not game.defense_rules:
+		experience.max_value=h.xp_target;experience.value=h.xp;xp_label.text=str(h.xp)+" / "+str(h.xp_target)
 	core_health.max_value=game.core_max;core_health.value=game.core_health;core_health.tooltip_text=str(int(game.core_health))+" / "+str(int(game.core_max))
 	coins.text=str(game.gold);revival.text=str(int(ceil(h.revive_clock))) if h.knocked_out else "";hero_badge.modulate=Color(0.6,0.6,0.6) if h.knocked_out else Color.WHITE
-	refresh_tokens();var siege:=game.overdue_camps()
-	debuff.text=("图腾压制 ×%d"%siege) if siege>0 else ""
 	for slot in range(2):
 		var unlocked:=h.skill_unlocked(slot)
 		skills[slot].disabled=not unlocked or h.knocked_out or h.cooldowns[slot]>0 or game.game_over
@@ -574,7 +817,7 @@ func _process(delta: float) -> void:
 		resonance_label.text="★ 就绪" if r_ready else "%d%%"%int(game.resonance)
 		resonance_label.modulate=Color("9eeeff") if r_ready else CREAM
 	if is_instance_valid(bridge_button) and not game.bridge_gate_config.is_empty():
-		var b_ready:=not game.bridge_sealed and game.bridge_cooldown<=0.0 and not game.game_over
+		var b_ready:=not game.bridge_sealed and game.bridge_cooldown<=0.0 and not game.game_over and not (game.phase!="rest" and game.orders.has("fixed_bridge"))
 		bridge_button.position=game.world_to_hud(game.bridge_gate_point())+Vector2(-22,36)
 		bridge_button.visible=Rect2(0,80,1556,760).has_point(bridge_button.position)
 		bridge_button.disabled=not b_ready
@@ -588,25 +831,34 @@ func _process(delta: float) -> void:
 	wave_label.text=str(game.cycle)+" / 8";wave_button.disabled=game.phase!="rest" or game.game_over
 	if is_instance_valid(breach_notice) and game.siege!=null:breach_notice.visible=game.siege.warned and (not game.siege.opened or game.siege.warning_clock>0.0)
 	phase_label.text=("整备 · "+str(int(ceil(game.phase_clock)))+" 秒" if game.phase=="rest" else "敌军来袭")
-	var wave_data:=ArenaLevelCatalog.wave(game.level_id,game.cycle)
+	var wave_data:=game.wave_pattern()
 	var lead:=int(wave_data.get("lead",0));lead=maxi(0,lead)
 	var entry: Vector2=game.world_to_hud(game.level_definition.routes[lead][0])
 	var button_pos:=Vector2(clampf(entry.x,20,1530),clampf(entry.y,94,770))
-	wave_button.position=button_pos;wave_button.visible=game.phase=="rest" and not game.game_over
+	var defense_visible:=game.can_manage_defense()
+	wave_button.position=button_pos;wave_button.visible=game.phase=="rest" and not game.game_over and defense_visible
 	preview.position=Vector2(clampf(button_pos.x+54,12,1288),clampf(button_pos.y,86,700))
 	wave_button.tooltip_text="%d / 8 · %ds\n预览后再点提前开波"%[game.cycle,maxi(0,int(ceil(game.phase_clock)))]
 	wave_glyph.progress=game.phase_clock/game.rest_duration if game.phase=="rest" else 1.0;wave_glyph.tint=GOLD if game.wave_preview else CREAM;wave_glyph.queue_redraw()
 	refresh_objective()
-	if preview.visible!=game.wave_preview:
-		preview.visible=game.wave_preview
+	var show_preview: bool=game.wave_preview and defense_visible
+	if preview.visible!=show_preview:
+		preview.visible=show_preview
 		if preview.visible:
 			clear_children(preview)
 			var pool: Array=[]
-			for group in ArenaLevelCatalog.wave(game.level_id,game.cycle).units:pool.append(group[0])
+			for group in wave_data.units:
+				if group[0] not in pool: pool.append(group[0])
 			if game.cycle==8 and game.level_definition.boss:pool.append(str(game.level_definition.get("boss_kind","moth")))
 			for index in range(pool.size()):
 				var path: String=ArenaCreature.sheet_path(str(pool[index]))
 				if ResourceLoader.exists(path):
 					var sheet: Texture2D=load(path);var frame:=AtlasTexture.new();frame.atlas=sheet;frame.region=Rect2(0,0,sheet.get_width()/6.0,sheet.get_height()/3.0);image(preview,frame,Rect2(8+index*61,5,58,62))
-			var profile:=ArenaLevelCatalog.wave_profile(game.level_id,game.cycle)
-			label(preview,"重甲 %d%% · 高法抗 %d%% · 精英 %d" % [int(round(profile.heavy*100.0)),int(round(profile.high_res*100.0)),int(profile.elites)],Rect2(10,72,300,26),14,MUTED)
+			preview_stats=label(preview,"",Rect2(10,72,290,26),14,MUTED)
+			if game.orders.has("lure") or game.orders.has("bounty") or game.orders.has("chest") or game.orders.has("bridge") or game.orders.has("open_gate"):
+				preview.size.y=148
+				button(preview,"部署本波",Rect2(10,104,130,34),func(): orders_panel.show(); refresh_orders())
+			else: preview.size.y=102
+	if preview.visible:
+		var profile:=ArenaLevelCatalog.wave_profile(game.level_id,game.cycle,wave_data)
+		preview_stats.text="重甲 %d%% · 高法抗 %d%% · 精英 %d"%[roundi(profile.heavy*100.0),roundi(profile.high_res*100.0),profile.elites]

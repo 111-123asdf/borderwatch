@@ -135,7 +135,7 @@ func _process(delta: float) -> void:
 			hover_y=-3.5+sin(hover_clock*f_spd+phase_seed)*f_amp
 			if not reduced:
 				hover_rot=sin(hover_clock*(f_spd*0.65)+phase_seed)*0.025
-		elif not is_floater and construct_rig==null and animation=="walk" and not stunned and not reduced:
+		elif not is_floater and construct_rig==null and animation=="walk" and is_playing() and not stunned and not reduced:
 			var step_freq: float=9.2 if identity in ["fox","spearman"] else 5.2
 			var band:=int(floor((hover_clock*step_freq+phase_seed)/PI))
 			if band!=prev_step_band:
