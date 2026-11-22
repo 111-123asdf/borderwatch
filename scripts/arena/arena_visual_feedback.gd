@@ -7,6 +7,7 @@ var base_speed := 1.0
 var age := 1.0
 var stop_left := 0.0
 var strength := 0.0
+var incoming := Vector2.ZERO
 var enabled := true
 var reduced := false
 var disable_squash := false
@@ -15,8 +16,9 @@ func set_environment(sprite: AnimatedSprite2D,tint: Color,saturation: float) -> 
 	if material==null:material=ShaderMaterial.new();material.shader=FLASH;sprite.material=material
 	material.set_shader_parameter("environment_tint",tint);material.set_shader_parameter("environment_saturation",saturation)
 
-func impact(sprite: AnimatedSprite2D, heavy := false) -> void:
+func impact(sprite: AnimatedSprite2D, heavy := false, direction := Vector2.ZERO) -> void:
 	if not enabled:return
+	incoming = direction.normalized()
 	age=0.0;strength=1.0 if heavy else 0.72
 	if not reduced:
 		stop_left=maxf(stop_left,0.055 if heavy else 0.032)

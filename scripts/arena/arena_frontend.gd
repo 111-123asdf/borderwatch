@@ -3,7 +3,7 @@ extends RefCounted
 var hud: ArenaHUD
 var game: ArenaGame
 var stage:="forest"
-var hero_id:="knight"
+var hero_id:="lord"
 var tower_id:="archer"
 var preview_tier:=1
 var page_id:=""
@@ -37,7 +37,7 @@ var route_icons: Array[TextureRect]=[]
 var route_name: Label
 var route_body: RichTextLabel
 var selected_route:=0
-const ROLES:={"knight":"近战 · 拦截守线","ranger":"远程 · 穿透点杀","mage":"法术 · 范围控制"}
+const ROLES:={"lord":"重装 · 拦截护盾","druid":"召唤 · 双狼协同","healer":"辅助 · 治愈增益","werewolf":"狂战 · 冰狼变身","gunner":"游射 · 灵动暴击"}
 func _init(owner: ArenaHUD) -> void:
 	hud=owner;game=owner.game;hero_id=game.campaign.selected_hero()
 func reduced() -> bool:return bool(game.campaign.data.reduced_motion)
@@ -139,7 +139,7 @@ func _title_status() -> void:
 	text(hud.menu,"%s · LV.%d"%[ArenaDefinitions.HEROES[identity].name,game.campaign.level(identity)],Rect2(1352,780,200,38),24)
 	var profile_text: String="自由试玩 · 独立存档" if game.campaign.path==ArenaCampaign.PLAYTEST_PATH else "英雄塔防 · 战役模式"
 	text(hud.menu,profile_text,Rect2(48,846,340,30),20).add_theme_color_override("font_color",Color("9aadb7"))
-	var version:=text(hud.menu,"v"+str(ProjectSettings.get_setting("application/config/version","0.19.0")),Rect2(1390,846,162,30),20)
+	var version:=text(hud.menu,"v"+str(ProjectSettings.get_setting("application/config/version")),Rect2(1390,846,162,30),20)
 	version.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT
 	version.add_theme_color_override("font_color",Color("9aadb7"))
 func levels() -> void:
@@ -161,13 +161,16 @@ func levels() -> void:
 func dock() -> void:
 	var tray:=Control.new();tray.name="WorldLoadout";tray.position=Vector2(32,755);tray.size=Vector2(474,104);tray.mouse_filter=Control.MOUSE_FILTER_IGNORE;hud.menu.add_child(tray)
 	var hero_button:=action(tray,"",Rect2(0,0,90,90),hall,"WorldHero");hero_button.tooltip_text=ArenaDefinitions.HEROES[game.campaign.selected_hero()].name
-	hud.image(hero_button,hud.hero_badge_image(game.campaign.selected_hero()),Rect2(8,5,74,78))
+	var hero_img:=hud.image(hero_button,hud.hero_badge_image(game.campaign.selected_hero()),Rect2(8,5,74,78));hero_img.texture_filter=CanvasItem.TEXTURE_FILTER_NEAREST
 	var equipped:=game.campaign.tower_loadout()
 	for index in range(4):
 		var button:=action(tray,"",Rect2(106+index*88,4,80,82),towers,"WorldTower_"+str(index))
-		if index<equipped.size():hud.image(button,hud.tower_image(equipped[index]),Rect2(3,1,74,76));button.tooltip_text=ArenaDefinitions.TOWERS[equipped[index]].name
+		if index<equipped.size():
+			var w_img:=hud.image(button,hud.tower_portrait(equipped[index]),Rect2(4,3,72,74));w_img.texture_filter=CanvasItem.TEXTURE_FILTER_NEAREST
+			button.tooltip_text=game.tower_display_data(equipped[index]).name
 		else:hud.image(button,ArenaMenuArt.utility("range"),Rect2(26,26,28,28)).modulate.a=.35
 	for item in [[0,1124,hall,"HeroHall","英雄"],[1,1270,towers,"TowerHall","防御塔"],[2,1416,growth,"被动图鉴","成长"]]:
+		if (game.condition_lab or game.defense_rules) and item[0]==2: continue
 		var button:=action(hud.menu,"",Rect2(item[1],710,132,148),item[2],item[3],false,true)
 		hud.image(button,ArenaMenuArt.icon(item[0]),Rect2(14,0,104,104))
 		var caption:=text(button,item[4],Rect2(0,106,132,36),26);caption.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;caption.add_theme_color_override("font_outline_color",Color("152535"));caption.add_theme_constant_override("outline_size",4)
@@ -179,15 +182,21 @@ func prepare(key: String) -> void:
 	hud.image(stage_panel,load(definition.get("preview_art",definition.get("map_art",ArenaBattleArt.map_path(stage)))),Rect2(24,24,612,166),true)
 	var close:=action(stage_panel,"×",Rect2(562,18,72,72),close_stage,"CloseStage");close.add_theme_font_size_override("font_size",38)
 	text(stage_panel,definition.name,Rect2(34,209,530,48),34)
-	text(stage_panel,"8 波",Rect2(34,260,150,36),25)
+	text(stage_panel,str(int(definition.get("waves",8)))+" 波",Rect2(34,260,150,36),25)
 	hud.image(stage_panel,ArenaMenuArt.utility("diamond"),Rect2(480,257,34,34));text(stage_panel,"+"+str(6 if bool(game.campaign.data.cleared.get(stage,false)) else 8),Rect2(524,258,90,38),26)
-	var preview_list: Array=definition.get("preview_enemies",["fox","brute","wisp","moth" if stage=="forest" else "spearman"])
+	var preview_list: Array=definition.get("preview_enemies",["pigsoldier","tusk_fighter","dreadeye_viper","bear_vanguard"])
 	for index in range(min(4,preview_list.size())):
 		var enemy: String=str(preview_list[index])
-		var image:=hud.image(stage_panel,ArenaMenuArt.creature(enemy),Rect2(31+index*66,317,62,72));image.tooltip_text=ArenaDefinitions.ENEMIES[enemy].name;image.mouse_filter=Control.MOUSE_FILTER_PASS
-	var tagline: String="\n单路守线 · 飞蛾首领" if stage=="forest" else ("\n双路回防 · 精英合流" if stage=="creek" else "\n吊桥改道 · 破障奇袭 · 巨像")
+		var image:=hud.image(stage_panel,ArenaMenuArt.creature(enemy),Rect2(31+index*66,317,62,62))
+		image.texture_filter=CanvasItem.TEXTURE_FILTER_NEAREST
+		var edata := ArenaDefinitions.enemy(enemy)
+		var etrait := str(edata.get("trait",""))
+		image.tooltip_text=str(edata.name)+("\n"+etrait if etrait!="" else "")
+		image.mouse_filter=Control.MOUSE_FILTER_PASS
+	var tagline: String="\n"+str(definition.get("tagline",""))
+	if str(definition.get("tagline","")).is_empty():tagline=""
 	var brief:=text(stage_panel,str(definition.story)+tagline,Rect2(330,312,286,88),25);brief.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
-	var ready:=game.campaign.can_deploy(stage)
+	var ready:=game.campaign.can_deploy(stage,game.defense_rules)
 	var deploy:=action(stage_panel,"战斗！",Rect2(222,446,392,84),deploy_stage,"Deploy",true);deploy.disabled=not ready
 	if not ready:
 		text(stage_panel,"需装备首波可建的塔",Rect2(36,401,575,36),24)
@@ -196,7 +205,7 @@ func close_stage() -> void:
 	if is_instance_valid(stage_panel):hud.menu.remove_child(stage_panel);stage_panel.queue_free()
 	stage_panel=null
 func deploy_stage() -> void:
-	if game.campaign.can_deploy(stage):game.start_run(game.campaign.selected_hero(),stage)
+	if game.campaign.can_deploy(stage,game.defense_rules):game.start_run(game.campaign.selected_hero(),stage)
 func _make_card(height: float) -> void:
 	card=Control.new();card.name="PortraitCard";card.position=Vector2(132,154);card.size=Vector2(420,height);card.mouse_filter=Control.MOUSE_FILTER_IGNORE;hud.menu.add_child(card)
 	var clip:=Control.new();clip.name="CardClip";clip.position=Vector2(48,92);clip.size=Vector2(324,height-144);clip.clip_contents=true;clip.mouse_filter=Control.MOUSE_FILTER_IGNORE;card.add_child(clip)
@@ -228,10 +237,10 @@ func hall() -> void:
 	if page_id=="heroes" and is_instance_valid(card):_refresh_hero();return
 	message="";base("hall_bg","heroes");header("英雄大厅",levels)
 	selected_skill=0
-	for index in range(3):
+	for index in range(ArenaDefinitions.HERO_IDS.size()):
 		var id: String=ArenaDefinitions.HERO_IDS[index]
 		var button:=action(hud.menu,"",Rect2(622+index*106,20,84,84),select_hall.bind(id),"Hall_"+id)
-		hud.image(button,hud.hero_badge_image(id),Rect2(6,4,72,76));roster[id]=button;button.tooltip_text=ArenaDefinitions.HEROES[id].name
+		var r_img:=hud.image(button,hud.hero_badge_image(id),Rect2(6,4,72,76));r_img.texture_filter=CanvasItem.TEXTURE_FILTER_NEAREST;roster[id]=button;button.tooltip_text=ArenaDefinitions.HEROES[id].name
 	_make_card(526)
 	equip_button=action(hud.menu,"",Rect2(152,724,380,84),equip_hero,"EquipHero",true)
 	detail_panel=frame(hud.menu,Rect2(646,148,828,680));detail_panel.name="HeroDetails"
@@ -250,14 +259,15 @@ func hall() -> void:
 	upgrade_button=action(detail_panel,"",Rect2(460,580,336,76),upgrade_hero,"UpgradeHero",true);ArenaMenuArt.accent(upgrade_button,"blue")
 	_refresh_hero()
 func _refresh_hero(animated:=false) -> void:
+	hero_id=ArenaDefinitions.resolve_hero_id(hero_id)
 	var data: Dictionary=ArenaDefinitions.HEROES[hero_id];var rank:=game.campaign.level(hero_id);var bonus:=game.campaign.bonuses(hero_id)
 	for id in roster:
 		ArenaMenuArt.selected(roster[id],id==hero_id);roster[id].position.y=16 if id==hero_id else 20
-	card_art.texture=hud.hero_portrait(hero_id);rank_label.text="LV. "+str(rank)
+	card_art.texture=hud.hero_portrait(hero_id);card_art.texture_filter=CanvasItem.TEXTURE_FILTER_NEAREST;rank_label.text="LV. "+str(rank)
 	name_label.text=data.name;role_label.text=ROLES[hero_id]+" · "+ArenaCombat.label(int(data.type))
 	var health:=float(data.health)*(1.0+float(bonus.health));var damage:=float(data.damage)*(1.0+float(bonus.attack))
 	stat_icons[1].texture=ArenaMenuArt.icon(15) if int(data.type)==1 else ArenaMenuArt.utility("sword")
-	_stat_value(0,health,360,str(roundi(health)),animated);_stat_value(1,damage,45,str(snappedf(damage,.1)),animated);_stat_value(2,1.0/float(data.interval),1.8,str(snappedf(1.0/float(data.interval),.01))+" /秒",animated)
+	_stat_value(0,health,480,str(roundi(health)),animated);_stat_value(1,damage,45,str(snappedf(damage,.1)),animated);_stat_value(2,1.0/float(data.interval),2.0,str(snappedf(1.0/float(data.interval),.01))+" /秒",animated)
 	for slot in range(3):
 		skill_images[slot].texture=ArenaMenuArt.skill(hero_id,slot)
 		skill_images[slot].modulate=Color.WHITE if slot==2 or game.campaign.skill_unlocked(hero_id,slot) else Color(.58,.64,.7)
@@ -280,11 +290,25 @@ func select_skill(slot: int) -> void:
 		skill_title.text="职业天赋";skill_body.text=passive_text(hero_id,int(game.campaign.bonuses(hero_id).passive));return
 	var unlocked:=game.campaign.skill_unlocked(hero_id,selected_skill)
 	skill_title.text=str(data.small if selected_skill==0 else data.ultimate)+"  ·  "+str(data.small_cd if selected_skill==0 else data.ultimate_cd)+"秒"
-	var details: Dictionary={"knight":["扇形重斩造成物理伤害，短暂眩晕前方敌人。","战吼持续强化附近英雄、士兵与防御塔，适合守线集火。"],"ranger":["朝移动方向翻滚，立刻获得短暂保护；松开移动时朝面向翻滚。","向指定落点降下六段物理箭雨，覆盖半径135的区域。"],"mage":["对周围半径125内造成法术伤害，并减速3秒。","指定落点0.85秒后受到法术轰击，半径155，附带短暂眩晕。"]}
+	var details: Dictionary={
+		"lord":["向前方挥出血剑重斩，造成中等范围伤害并震慑打断敌军攻势。","展开血棘圣盾，获得45%最大生命护盾、6秒35%减伤与+1拦截上限，并周期反伤周围敌人。"],
+		"druid":["指定位置或敌人，驱使寒霜狼与赤焰狼冲锋集火，同时为双狼回复30%生命。","唤醒双狼野性：立即复活并回满血，体型平滑变大至1.35倍，7秒内移速+25%、攻速+40%、攻击+45%。"],
+		"healer":["绽放花灵星辉造成范围轻法伤，5秒内令周围友军与防御塔攻速+20%、伤害+15%。","召唤5秒圣泉领域，持续为自身（溢出转护盾）与附近士兵回血，并令范围内防御塔攻速+25%。"],
+		"werewolf":["激发寒冰嗜血，5秒内攻速+35%、普攻附带15%吸血并溅射霜伤。","彻底狂化为巨型白狼人8秒：攻速+55%、宽幅冰爪顺劈伤害+30%、22%吸血与+20%移速。"],
+		"gunner":["短冷却高速战术滑步并短暂无敌，滑步后下一发平A强化为2.0倍暴击穿甲弹（穿透2敌）。","进入6秒超载律动：立即重置滑步冷却且冷却减半至2秒，移速+20%、射程+25%，强化射击发射双发暴击穿透弹。"]
+	}
 	skill_body.text=str(details[hero_id][selected_skill])+("" if unlocked else "\n[color=#8d592d]LV."+str(2 if selected_skill==0 else 4)+" 解锁 · 可先查看效果[/color]")
 func passive_text(id: String,rank: int) -> String:
-	return {"knight":["拦截时近战减伤15%","拦截时近战减伤16%","拦截时近战减伤18%"],"ranger":["每第三箭额外贯穿一人","第三箭贯穿并额外伤害5%","第三箭贯穿并额外伤害10%"],"mage":["普攻附加10%魔法易伤","普攻附加11%魔法易伤","普攻附加12%魔法易伤"]}[id][rank]+"\n英雄LV.3、LV.5进一步强化天赋。"
+	var key := ArenaDefinitions.resolve_hero_id(id)
+	return {
+		"lord":["拦截时近战减伤20%","拦截时近战减伤24%","拦截时近战减伤28%"],
+		"druid":["常驻寒霜狼与赤焰狼随行","双狼生命提高12%","双狼生命提高24%"],
+		"healer":["光环使附近士兵攻速+10%","普攻易伤11%，光环攻速+10%","普攻易伤12%，光环攻速+10%"],
+		"werewolf":["普攻附带寒霜减速15%","狂化吸血进一步增强","狂化吸血与冰爪伤害增强"],
+		"gunner":["滑步后强化射击为2.0倍暴击","滑步后强化射击提升至2.15倍暴击","滑步后强化射击提升至2.3倍暴击"]
+	}[key][rank]+"\n英雄LV.3、LV.5进一步强化天赋。"
 func select_hall(key: String) -> void:
+	key = ArenaDefinitions.resolve_hero_id(key)
 	if key not in ArenaDefinitions.HERO_IDS:return
 	hero_id=key;selected_skill=0;message="";_refresh_hero()
 func equip_hero() -> void:
@@ -297,11 +321,13 @@ func upgrade_hero() -> void:
 func towers() -> void:
 	if page_id=="towers" and is_instance_valid(card):_refresh_tower();return
 	message="";base("hall_bg","towers");header("防御塔工坊",levels)
-	for index in range(4):
+	for index in ArenaDefinitions.TOWER_IDS.size():
 		var id: String=ArenaDefinitions.TOWER_IDS[index]
-		var button:=action(hud.menu,"",Rect2(568+index*106,20,84,84),select_tower.bind(id),"Tower_"+id)
-		hud.image(button,hud.tower_image(id),Rect2(5,4,74,76));roster[id]=button;button.tooltip_text=ArenaDefinitions.TOWERS[id].name
-	_make_card(492);card_art.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		var button:=action(hud.menu,"",Rect2(450+index*100,20,84,84),select_tower.bind(id),"Tower_"+id)
+		var t_img:=hud.image(button,hud.tower_portrait(id),Rect2(5,4,74,76));t_img.texture_filter=CanvasItem.TEXTURE_FILTER_NEAREST
+		roster[id]=button;button.tooltip_text=game.tower_display_data(id).name
+		var equipped_mark:=hud.image(button,ArenaMenuArt.utility("check"),Rect2(55,54,26,26));equipped_mark.name="Equipped"
+	_make_card(492);card_art.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED;card_art.texture_filter=CanvasItem.TEXTURE_FILTER_NEAREST
 	for index in range(3):
 		tier_buttons.append(action(hud.menu,["I","II","III"][index],Rect2(154+index*126,664,116,70),select_tier.bind(index+1),"TowerTier_"+str(index+1)))
 	equip_button=action(hud.menu,"",Rect2(152,752,380,78),toggle_tower,"EquipTower",true)
@@ -316,19 +342,25 @@ func towers() -> void:
 	text(detail_panel,"预览不花费金币；实际建造与改造在关卡内进行。",Rect2(38,626,745,36),23)
 	_refresh_tower()
 func _refresh_tower() -> void:
-	var data: Dictionary=ArenaDefinitions.TOWERS[tower_id];var equipped:=game.campaign.tower_loadout()
-	for id in roster:ArenaMenuArt.selected(roster[id],id==tower_id);roster[id].position.y=16 if id==tower_id else 20
-	card_art.texture=hud.tower_image(tower_id,preview_tier);rank_label.text=["I","II","III"][preview_tier-1]+" 阶"
-	name_label.text=data.name;role_label.text=ArenaCombat.label(int(data.type))+(" · 范围轰击" if tower_id=="cannon" else (" · 驻军拦截" if tower_id=="barracks" else " · 自动攻击"))
+	var data:=game.tower_display_data(tower_id);var equipped:=game.campaign.tower_loadout()
+	for id in roster:
+		ArenaMenuArt.selected(roster[id],id==tower_id)
+		roster[id].position.y=16 if id==tower_id else 20
+		roster[id].get_node("Equipped").visible=id in equipped
+	var doc_id: String = str(ArenaDoctrines.for_tower(tower_id)[selected_route].id) if preview_tier == 3 else ""
+	card_art.texture = hud.tower_image(tower_id, preview_tier, doc_id)
+	card_art.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	rank_label.text=["I","II","III"][preview_tier-1]+" 阶"
+	name_label.text=data.name;role_label.text=ArenaCombat.label(int(data.type))+" · "+str(data.description)
 	stat_icons[1].texture=ArenaMenuArt.utility("shield") if tower_id=="barracks" else (ArenaMenuArt.icon(15) if int(data.type)==1 else ArenaMenuArt.utility("sword"))
 	_stat_value(0,float(data.reach)+(preview_tier-1)*16,320,str(roundi(float(data.reach)+(preview_tier-1)*16)))
 	_stat_value(1,3 if tower_id=="barracks" else float(data.damage)*(1+.6*(preview_tier-1)),3 if tower_id=="barracks" else 130,"3 人" if tower_id=="barracks" else str(snappedf(float(data.damage)*(1+.6*(preview_tier-1)),.1)))
 	_stat_value(2,1.0 if tower_id=="barracks" else (1+.14*(preview_tier-1))/float(data.interval),2,"1 /秒" if tower_id=="barracks" else str(snappedf((1+.14*(preview_tier-1))/float(data.interval),.01))+" /秒")
 	for index in range(3):ArenaMenuArt.selected(tier_buttons[index],index+1==preview_tier)
 	var equipped_now:=tower_id in equipped
-	equip_button.text="卸下防御塔" if equipped_now else "装备防御塔";equip_button.disabled=game.campaign.locked or (equipped_now and equipped.size()==1);ArenaMenuArt.accent(equip_button,"green" if equipped_now else "amber")
+	equip_button.text=("%s   %d / %d"%[("卸下防御塔" if equipped_now else ("替换出战塔" if equipped.size()==ArenaDefinitions.LOADOUT_LIMIT else "装备防御塔")),equipped.size(),ArenaDefinitions.LOADOUT_LIMIT]);equip_button.disabled=game.campaign.locked or (equipped_now and equipped.size()==1);ArenaMenuArt.accent(equip_button,"green" if equipped_now else "amber")
 	equip_button.tooltip_text="至少保留一类防御塔" if equipped_now and equipped.size()==1 else ""
-	var symbols: Array={"archer":["farsight","rapid","pierce"],"mage":["frostheart","burn","starcore"],"cannon":["executioner","burn","warmachine"],"barracks":["ironwall","piercearrow","rapid"]}[tower_id]
+	var symbols: Array={"archer":["farsight","rapid","pierce"],"mage":["frostheart","burn","starcore"],"cannon":["executioner","burn","warmachine"],"barracks":["ironwall","piercearrow","rapid"],"storm":["starlight","farsight","executioner"],"lens":["starcore","rapid","farsight"],"snare":["ironwall","pierce","warmachine"]}[tower_id]
 	for index in range(3):route_titles[index].text=str(ArenaDoctrines.for_tower(tower_id)[index].name);route_icons[index].texture=ArenaMenuArt.perk(symbols[index])
 	select_route(selected_route);feedback()
 func select_tower(id: String) -> void:
@@ -338,13 +370,34 @@ func select_tier(tier: int) -> void:preview_tier=clampi(tier,1,3);_refresh_tower
 func select_route(index: int) -> void:
 	selected_route=clampi(index,0,2)
 	var doctrine: Dictionary=ArenaDoctrines.for_tower(tower_id)[selected_route]
+	if is_instance_valid(card_art) and preview_tier == 3:
+		card_art.texture = hud.tower_image(tower_id, 3, str(doctrine.id))
 	for i in range(route_buttons.size()):ArenaMenuArt.selected(route_buttons[i],i==selected_route)
 	route_name.text=str(doctrine.name)+" · "+str(doctrine.role);route_body.text=str(doctrine.summary);route_body.scroll_to_line(0)
 func toggle_tower() -> void:
 	var equipped:=game.campaign.tower_loadout()
 	if tower_id in equipped:equipped.erase(tower_id)
+	elif equipped.size()==ArenaDefinitions.LOADOUT_LIMIT:
+		var panel:=hud.modal_panel(Vector2(690,282))
+		ArenaMenuArt.panel(panel,true)
+		text(panel,"选择要换下的塔",Rect2(28,22,520,44),30,true)
+		action(panel,"×",Rect2(590,12,72,60),hud.close_modal,"CancelReplacement")
+		for slot in equipped.size():
+			var old:=equipped[slot]
+			var button:=action(panel,"",Rect2(24+slot*162,90,152,134),replace_tower.bind(slot),"Replace_"+old)
+			var caption:=text(button,str(game.tower_display_data(old).name),Rect2(2,85,148,42),20);caption.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+			var r_img:=hud.image(button,hud.tower_portrait(old),Rect2(35,3,82,82))
+			r_img.texture_filter=CanvasItem.TEXTURE_FILTER_NEAREST
+		return
 	else:equipped.append(tower_id)
 	message="" if game.campaign.equip_towers(equipped) else (game.campaign.last_error if game.campaign.last_error!="" else "至少保留一类防御塔");_refresh_tower()
+func replace_tower(slot: int) -> void:
+	var equipped:=game.campaign.tower_loadout()
+	if slot>=0 and slot<equipped.size() and tower_id not in equipped:
+		equipped[slot]=tower_id
+		message="" if game.campaign.equip_towers(equipped) else game.campaign.last_error
+	hud.close_modal()
+	_refresh_tower()
 func growth() -> void:hud.show_codex()
 func settings() -> void:
 	var panel:=hud.modal_panel(Vector2(700,480));ArenaMenuArt.panel(panel,true)

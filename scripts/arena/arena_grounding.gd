@@ -5,6 +5,7 @@ static var shadow: Texture2D
 static var dust: Texture2D
 static var plinths: Texture2D
 static var mechanisms: Texture2D
+static var v024_plinths: Dictionary = {}
 
 static func material(level: String) -> ShaderMaterial:
 	var mat:=ShaderMaterial.new();mat.shader=preload("res://scripts/shaders/battle_material.gdshader")
@@ -26,6 +27,11 @@ static func ensure_textures() -> void:
 		shadow=ImageTexture.create_from_image(image);dust=ImageTexture.create_from_image(patch)
 	if plinths==null and ResourceLoader.exists("res://assets/v018/site_plinths.png"):
 		plinths=load("res://assets/v018/site_plinths.png")
+	if v024_plinths.is_empty():
+		for pl_id in ["normal","highground","choke","conduit","locked"]:
+			var pl_path := "res://assets/towers_v024/plinth_%s.png" % pl_id
+			if ResourceLoader.exists(pl_path):
+				v024_plinths[pl_id] = load(pl_path)
 	if mechanisms==null and ResourceLoader.exists("res://assets/v018/ruins_mechanisms.png"):
 		mechanisms=load("res://assets/v018/ruins_mechanisms.png")
 
@@ -35,9 +41,27 @@ static func draw_contact(canvas: CanvasItem,point: Vector2,occupied: bool,ruins:
 	# Ground contact shadow beneath both open plinths and built towers
 	canvas.draw_texture_rect(shadow, Rect2(point + Vector2(-56, -15), Vector2(112, 42)), false, Color(1, 1, 1, 0.96 if occupied else 0.68))
 	if occupied:
-		if trait_id != "":
+		if selected or hovered:
 			canvas.draw_set_transform(point + Vector2(0, 3), 0.0, Vector2(1.0, 0.56))
 			canvas.draw_arc(Vector2.ZERO, 44.0, 0.0, TAU, 32, Color(t_col, 0.34), 2.2, true)
+			canvas.draw_set_transform(Vector2.ZERO)
+		return
+
+	var pl_key := "locked" if locked else (trait_id if v024_plinths.has(trait_id) else "normal")
+	var pl_tex: Texture2D = v024_plinths.get(pl_key)
+	if pl_tex != null:
+		canvas.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		var pl_dim := Vector2(108.0, 72.0)
+		var pl_tint := Color(0.84, 0.88, 1.0, 1.0) if ruins else Color.WHITE
+		if hovered or selected:
+			pl_tint = pl_tint.lightened(0.08)
+		canvas.draw_texture_rect(pl_tex, Rect2(point - pl_dim * 0.5 + Vector2(0, 3), pl_dim), false, pl_tint)
+		if selected or hovered:
+			canvas.draw_set_transform(point + Vector2(0, 3), 0.0, Vector2(1.0, 0.58))
+			if selected:
+				canvas.draw_arc(Vector2.ZERO, 47.0, 0.0, TAU, 40, Color("f6d47a", 0.94), 3.0, false)
+			else:
+				canvas.draw_arc(Vector2.ZERO, 45.0, 0.0, TAU, 36, Color(t_col if trait_id != "" else Color("e8d29b"), 0.72), 2.2, false)
 			canvas.draw_set_transform(Vector2.ZERO)
 		return
 

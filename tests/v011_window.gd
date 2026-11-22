@@ -3,15 +3,14 @@ extends "res://tests/v06_window.gd"
 func run() -> void:
 	create_timer(90).timeout.connect(func():push_error("V011 WINDOW TIMEOUT");quit(1))
 	if "--small" in OS.get_cmdline_user_args():suffix="small"
-	game=load("res://scenes/arena.tscn").instantiate();game.campaign=ArenaCampaign.new("",false);game.campaign.data.levels.knight=5
+	game=load("res://scenes/arena.tscn").instantiate();game.campaign=ArenaCampaign.new("",false);game.campaign.data.levels["lord"]=5
 	root.add_child(game);current_scene=game;await frames()
 	await press("StartCampaign");await press("HeroHall");await snapshot("v011-hero")
-	check(game.hud.hero_portrait("knight").resource_path=="res://assets/v011/portrait_knight.png","hero screen uses transparent young cartoon portrait")
+	check(game.hud.hero_portrait("lord").resource_path==ArenaHeroArt.POSE_ROOT+"portrait_lord.png","hero screen uses new v022 pixel portrait")
 	await press("Back");await press("Level_forest");await press("Deploy")
 	game.feel_lab=true;game.phase="lab";game.lab=ArenaFeelLab.new();game.add_child(game.lab);game.lab.open(game)
 	await frames();await snapshot("v011-lab")
-	check(game.hero.visual.has_complete_set(),"new knight keeps seven states and three directions")
-	check(game.hero.visual.authored.has("views"),"inspected per-frame anchors loaded")
+	check(game.hero.visual.has_complete_set(),"new lord keeps seven states and three directions")
 	var real_scale: float=root.size.x/1600.0
 	for name in ["LabTargets","LabSkill","LabCry","LabExit"]:
 		var button: Button=game.hud.root.find_child(name,true,false)
@@ -20,8 +19,8 @@ func run() -> void:
 	for child in game.hero.get_children():
 		if child is CollisionShape2D:collision=child
 	var radius: float=collision.shape.radius
-	await press("LabScale");check(game.hero.visual.visual_size==84,"original visual size comparison")
-	await press("LabScale");check(is_equal_approx(game.hero.visual.visual_size,109.2),"larger visual comparison")
+	await press("LabScale");check(is_equal_approx(game.hero.visual.visual_size,ArenaHeroArt.height("lord",true,1.0)),"smaller visual size comparison")
+	await press("LabScale");check(is_equal_approx(game.hero.visual.visual_size,ArenaHeroArt.height("lord",true)),"larger visual comparison")
 	check(collision.shape.radius==radius,"comparison never changes collider")
 	await press("LabBaseline");check(not game.feel.enabled and not game.audio.sampled,"baseline uses old animation/audio/feedback")
 	await snapshot("v011-baseline");await press("LabBaseline")
@@ -30,7 +29,7 @@ func run() -> void:
 	await press("LabSkill");await create_timer(0.35).timeout;check(game.hero.cooldowns[0]>0,"skill button triggers real skill cooldown")
 	await snapshot("v011-slam-reduced");await press("LabReduced")
 	await press("LabTargets");await press("LabCry");await create_timer(0.45).timeout
-	check(game.war_cry_clock>0,"war cry is an actual support buff")
+	check(game.hero.lord_shield_clock>0 and game.hero.overheal_shield>0,"blood-thorn shield is an actual tank defensive buff")
 	await snapshot("v011-cry")
 	await key(KEY_ESCAPE);check(paused,"pause works in lab");await key(KEY_ESCAPE);check(not paused,"resume works in lab")
 	game.feel.clear(game);check(game.camera.offset==Vector2.ZERO,"feedback cleanup restores full-map camera")

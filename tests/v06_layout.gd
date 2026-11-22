@@ -10,7 +10,7 @@ func run() -> void:
 	for stage in ArenaLevelCatalog.IDS:
 		var data:=ArenaLevelCatalog.definition(stage);var roads: Array=[]
 		for points in data.routes:roads.append(ArenaLevelCatalog.curve(points))
-		check(data.sites.size()==(8 if stage=="forest" else (18 if stage=="ruins" else 10)),stage+" site count")
+		check(data.sites.size()==int({"forest":8,"creek":10,"ruins":18,"saltport":12}[stage]),stage+" site count")
 		for i in range(data.sites.size()):
 			var p: Vector2=data.sites[i];var closest:=INF;var coverage:=0.0;var neighbour:=INF
 			for road in roads:

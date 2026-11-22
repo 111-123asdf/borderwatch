@@ -50,14 +50,23 @@ const LIST: Array=[
 	{"id":"charge","tower":"barracks","name":"冲锋营","role":"进攻",
 		"summary":"士兵移速 +30%，接敌时冲锋眩晕 1 秒。",
 		"drawback":"没有防御与射程加成",
-		"effects":{"soldier_count":3,"soldier_speed":0.3,"charge_stun":1.0}}
+		"effects":{"soldier_count":3,"soldier_speed":0.3,"charge_stun":1.0}},
+	{"id":"fork","tower":"storm","name":"分叉线圈","role":"密集群体","summary":"多跳两次，首击伤害降低 15%。","drawback":"首击伤害 −15%","effects":{"chain_count":5,"damage_mult":0.85}},
+	{"id":"relay","tower":"storm","name":"中继线圈","role":"跨队接力","summary":"跳跃距离增至 165，每次攻击间隔增加 15%。","drawback":"攻击间隔 +15%","effects":{"chain_reach":165,"interval_mult":1.15}},
+	{"id":"surge","tower":"storm","name":"蓄雷线圈","role":"双目标","summary":"首击伤害提高 35%，最多击中两敌。","drawback":"少一跳","effects":{"damage_mult":1.35,"chain_count":2}},
+	{"id":"focus","tower":"lens","name":"聚日镜","role":"持续照射","summary":"每次聚焦增伤从 35% 提至 55%，射程缩短 12%。","drawback":"射程 −12%","effects":{"focus_step":0.55,"range_mult":0.88}},
+	{"id":"sweep","tower":"lens","name":"巡光镜","role":"快速换敌","summary":"基础伤害提高 35%，每层聚焦增伤降至 15%。","drawback":"聚焦收益降低","effects":{"damage_mult":1.35,"focus_step":0.15}},
+	{"id":"far_lens","tower":"lens","name":"远望镜","role":"远程压制","summary":"射程提高 30%，攻击间隔增加 12%。","drawback":"攻击间隔 +12%","effects":{"range_mult":1.3,"interval_mult":1.12}},
+	{"id":"net","tower":"snare","name":"围网坊","role":"大范围减速","summary":"触发与收网范围扩大 35%，直接伤害降低 20%。","drawback":"伤害 −20%","effects":{"splash_mult":1.35,"damage_mult":0.8}},
+	{"id":"barb","tower":"snare","name":"棘刺索","role":"破甲陷阱","summary":"无视 45% 护甲，装填时间增加 20%。","drawback":"装填时间 +20%","effects":{"armour_pen":0.45,"interval_mult":1.2}},
+	{"id":"ratchet","tower":"snare","name":"快轮索","role":"反复封路","summary":"装填时间缩短 30%，收网范围缩小 15%。","drawback":"范围 −15%","effects":{"interval_mult":0.7,"splash_mult":0.85}}
 ]
 # Guardrail for data review: these are the only keys tower code understands.
 const EFFECT_KEYS: Array[String]=["range_mult","interval_mult","damage_mult","splash_mult","armour_pen","resist_pen",
 	"bonus_armour","bonus_resist","bonus_elite","triple_chance","mark_time","mark_bonus",
 	"slow_amount","slow_time","frost_stacks","freeze_time","explode_radius","explode_mult",
 	"burn_dps","burn_time","burn_radius","knockback","target",
-	"soldier_count","soldier_health","soldier_speed","soldier_range","block_capacity","taunt","charge_stun"]
+	"soldier_count","soldier_health","soldier_speed","soldier_range","block_capacity","taunt","charge_stun","chain_reach","chain_count","focus_step"]
 const HEAVY_ARMOUR:=0.4
 const HIGH_RESIST:=0.4
 const BRANCH_PRICES: Array[int]=[45,60,75]
@@ -111,8 +120,21 @@ const BRANCHES: Dictionary={
 		{"id":"b","name":"先锋战甲","summary":"士兵生命+28% · 3级增兵+1","delta":{"soldier_health":0.28,"soldier_count":0.34}},
 	],
 }
-static func branches(id: String) -> Array:
-	return BRANCHES.get(id,[])
+const TOWER_BRANCHES := {
+	"storm":[
+		{"id":"a","name":"延伸导线","summary":"跳跃距离 +15","delta":{"chain_reach":15}},
+		{"id":"b","name":"增强电压","summary":"法伤 +12%","delta":{"damage_mult":0.12}}],
+	"lens":[
+		{"id":"a","name":"精磨镜面","summary":"每层聚焦增伤 +8%","delta":{"focus_step":0.08}},
+		{"id":"b","name":"增距镜筒","summary":"射程 +10%","delta":{"range_mult":0.10}}],
+	"snare":[
+		{"id":"a","name":"加长绊索","summary":"收网范围 +12%","delta":{"splash_mult":0.12}},
+		{"id":"b","name":"棘齿绞盘","summary":"破甲 +12%","delta":{"armour_pen":0.12}}]}
+
+static func branches(id: String,kind: String="") -> Array:
+	if BRANCHES.has(id): return BRANCHES[id]
+	if id.is_empty(): return []
+	return TOWER_BRANCHES.get(kind if not kind.is_empty() else by_id(id).get("tower",""),[])
 static func branch_price(rank: int) -> int:
 	return BRANCH_PRICES[clampi(rank,0,BRANCH_PRICES.size()-1)]
 static func by_id(id: String) -> Dictionary:

@@ -24,7 +24,6 @@ func _setup() -> void:
 	game.start_run("knight", "ruins")
 	await process_frame
 	game.gold = 2600
-	game.doctrine_tokens = 2
 	game.phase = "wave"
 
 	var unlocked: Array[int] = []
@@ -48,8 +47,8 @@ func _setup() -> void:
 		game.build_tower(s3, "cannon")
 		for t in game.towers:
 			if t.site_id == s2 or t.site_id == s3:
-				t.upgrade("", true)
-				t.upgrade("", true)
+				t.upgrade()
+				t.upgrade()
 				if t.awaiting_doctrine:
 					var opts: Array = ArenaDoctrines.for_tower(t.kind)
 					if not opts.is_empty():

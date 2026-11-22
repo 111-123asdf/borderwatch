@@ -1,35 +1,16 @@
-# 当前架构
-ArenaGame组装唯一战斗场景、地图、关卡相机、按脚底排序的Actors、碰撞、导航、波次、成长选择和胜负状态。关卡差异只进入ArenaLevelCatalog；敌人记录route_id与progress，沿所属Curve2D采样。英雄使用CharacterBody2D与静态障碍碰撞；右键路径使用20像素网格，建塔后重建。
+# 战斗与存档
 
-ArenaBlocking集中维护敌人与英雄／士兵的拦截关系、容量与释放。塔无生命且不接收敌弹；兵营士兵独立承受近战，阵亡10秒补员。敌人未被拦截就沿道路前进，击退只改变道路进度。营地守卫在home附近行动。
+关卡包含森林、溪谷、遗迹和白帆盐港。五英雄动作来自 ArenaActor 的像素帧，德鲁伊的双狼由 ArenaCompanion 管理。溪谷的新怪使用 ArenaEnemy 的阶段与能力数据，盐港通过 ArenaSaltport 与 ArenaSaltportArt 注册地形、美术和波表。
 
-ArenaDefinitions配置英雄、敌人和四塔。ArenaPerks管理40张成长卡、联动和套装，ArenaPerkNetwork保留图鉴的布局与连线，卡牌详情合并实际运行配置。ArenaDoctrines管理四塔的十二种三级改造；ArenaCamp管理营地激活、光环扩散、突袭和奖励。ArenaCombat统一物理／法术与两类抗性；Area、Cone、Projectile、Delayed均显式传伤害类型。魔法易伤只影响法术。漏怪损失由关卡规则计算。
+| 入口 | 职责 |
+|---|---|
+| ArenaGame、ArenaLevelCatalog | 组装同一战斗场景，按关卡生成道路、塔位和波次队列。待出队列与在场主队清空且该关首领已击杀，才结算末波。 |
+| ArenaRuleDeck、ArenaDefenseOrders | 保存本局所选完整配对。按地图、可用兵力、金币和实际波次过滤候选。预览和开波复用队列，击杀、漏怪、清波按事件顺序结算指令。 |
+| ArenaCampaign、ArenaFrontEnd | 保存英雄、钻石、阵容、设置及已结算的 run_id。世界地图选塔，部署快照锁定阵容，同局重试沿用。旧 v3 档补默认，异常档保护原件。 |
+| ArenaTower、ArenaTowerTrial、ArenaDoctrines | 塔负责施工、目标、攻击与退款。参数区分正式守线和四塔实验，三级改造及双分支使用同一配置入口。 |
+| ArenaHero、ArenaSoldier、ArenaBlocking | 英雄直接移动或在 20 像素网格寻路，建塔后更新导航。按单位容量分配拦截；驻军换岗时解除拦截，回到旗位再接敌。 |
+| ArenaEnemy、ArenaCombat | 敌人沿 Curve2D 采样并记录道路与进度。击退、分岔与目标预判复用所属道路，伤害显式区分物理和法术。投射物每物理帧共享敌人快照，增删即失效。 |
+| ArenaRuinsSiege、ArenaBattleCamera | 管理遗迹破障、封路和一次性援兵。大图镜头支持平移、全图与聚焦，界面坐标通过画布变换投影。 |
+| ArenaHUD、ArenaMenuArt | 选牌、预览、指令、塔位菜单与结算。弹窗持有暂停状态，取消选点先于移动或攻击。 |
 
-ArenaHero管理职业状态、双技能、经验、被动、脱战回血、倒下复活。ArenaHeroArt集中管理骑士v011与游侠/法师v012资源。ArenaActor按实际区域、脚底与出手点使用完整人物与武器动作帧；ArenaMotion配置预备、出手、恢复节奏，动作帧事件与低帧率时钟后备使用同一释放比例。步频随速度变化。ArenaCreature统一敌人与士兵动画；ArenaArtAnchors按图片真实透明范围对齐脚底和建筑接触面。
-
-ArenaHUD负责图标HUD、固定塔位菜单、开波预览、局内成长与结算，ArenaFrontEnd组织主菜单、选关、出战准备、英雄养成及设置。图鉴保留打开前的暂停状态；奖励按营地、成长的顺序排队，不覆盖手册或图鉴，关闭手册后继续处理。模态和建造屏蔽普攻；右键／Esc优先取消选点。战场点击使用事件坐标，避免光标查询与窗口事件不同步。ArenaAudio加载选定CC0采样并保留旧合成对照，普通/重要声部分池，退出显式释放播放器。
-
-ArenaCampaign管理钻石、各英雄永久等级、首胜、已结算run_id集合、教程、设置及selected_hero/equipped_towers。select_hero与equip_towers验证ID、去重和槽数，写盘成功才替换内存；缺少新字段的旧v3档只在内存补默认。异常存档锁定保留原件。ArenaGame开局快照run_towers，available_towers取快照、关卡与波次交集，重开保留该快照。ArenaHero快照永久加成，重算卡牌不重复叠加，技能执行与卡池均检查解锁等级。
-
-ArenaFrontEnd管理title/world/heroes/towers状态、世界地标与侧面板，保存配置与浏览状态分离。ArenaMenuArt集中提供原始生成材质的AtlasTexture、九宫格样式和功能图标。世界背景不复用战场截图，管理场景为中性前哨庭院。ArenaLevelCatalog.WORLD_NODES配置世界地理；关卡map_art、可选preview_art、world_region、biome与story分别提供场内地表、预览和地区叙事，界面不固定绿色主题。ArenaPerkCodex用可筛选40卡图鉴展示运行配置与联动，保持原暂停恢复信号，无新增永久升级。
-
-ArenaBattleArt管理v09地表、空地基、四类三级建筑接触中心和固定96×48占地。地图不再烘焙塔位；建成时不重复绘制空地基，升级只改变上部形体。ArenaTower发射反馈位于muzzle，根部不旋转。旧v010局外图、早期按钮/像素样图、木牌及旧v06人物/地图/塔图移出工程，原件外层保留；生成的v06森林怪物与道具仍在运行。ArenaArtAnchors只生成这七种生物及八个道具的15项当前锚点，v09建筑与现代英雄使用各自元数据。
-
-投射物每个物理帧共享敌人快照，增删敌人使缓存失效，先做扫掠包围盒再做精确线段碰撞；穿透和击杀顺序不变。拦截每步复用有效拦截者列表。
-
-所有运行资源在res://，存档在user://。编辑器、测试、导出和外层入口均指向唯一正式工程，不复制第二套玩法脚本。
-
-v0.13：ArenaMenuArt使用assets/v013区域元数据和独立归一化控件，按大板/内衬/小框/主按钮分开。ArenaFrontEnd持有卡框、属性、技能说明和路线预览节点，同页修改内容，背景/顶栏不重建。ArenaPerkCodex使用独立40格图标与构筑轴边框，详情/筛选只更新局部。ArenaCampaign.playtest显式使用独立PLAYTEST_PATH并补足试玩钻石，正常存档路径保持。按键E统一释放职业大招。
-
-## v0.17地图、渲染与镜头
-
-ArenaLevelCatalog配置world_size、routes、bridge_gate、sites、site_traits、camps与breach。ArenaBattleCamera在大于1600×900的地图启用中键／边缘平移、M全图与C聚焦；ArenaGame.world_to_hud投影跟随按钮和建造面板，点击使用逆画布变换。静态导航一次缓存，动态更新仅重算建筑、桥及封路附近格子。
-
-ArenaEnemy.road_curve与bridge_branch在经过分岔时锁定；击退、预测和目标进度均读取同一曲线，恢复桥面不改已有敌人的分支。ArenaRuinsSiege管理破障者、可延迟的预告、物理封路、区域显露层与一次性援兵；siege_guard不计入营地清理。
-
-ArenaBattleArt使用v017十二种塔外观和接触元数据，空塔位石屑／接触阴影由ArenaGrounding绘制。ArenaTower稳定主体与局部机关分开，塔根不随朝向旋转。ArenaConstructRig以一个CanvasItem绘制裁切刚性部件，按位移驱动步态，原AnimatedSprite2D只管理状态时钟；不虚称真实3D骨骼。环境材质、命中闪光与水面着色器遵守Godot fragment COLOR已含纹理的约定，避免重复相乘变暗。
-
-第三关地表为注册后的v017手绘地图及东北显露层；旧v016 TileMap场景、LDtk与生成器已移出正式工程，可从收尾前归档恢复；v016共享特效和仍有引用的资源保留。共享pixelfx特效、氛围粒子与战斗规则继续运行。
-
-## v0.19表现与阶段收尾
-ArenaAttackTiming管理塔和士兵准备/释放/回落；ArenaBattleArt持有世界空间步尘池。构装按类型区分步态，ArenaVisualFeedback管理局部反馈，ArenaAudio限制音族并发。阶段冻结后的实际验证见STAGE_CLOSEOUT.md；后续假设见NEXT_STAGE.md。
+英雄动作与释放点由 ArenaHeroArt、ArenaMotion 提供，塔和士兵使用 ArenaAttackTiming。ArenaBattleArt 管地表、稳定塔身和局部机关，ArenaConstructRig 按位移驱动二维部件。ArenaAudio 限制同族音效并发。运行资源来自 res://，存档位于 user://。[素材记录](ASSET_SOURCES.md)

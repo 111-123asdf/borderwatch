@@ -56,7 +56,7 @@ func run() -> void:
 	check(game.tilemap_scene==null and game.ground.visible,"painted terrain active without old TileMap overlay")
 	check(game.ground.texture.get_width()==2000 and game.ground.texture.get_height()==1125,"registered 1600x900 terrain")
 	check(str(game.ground.texture.resource_path)==str(def.map_art),"runtime terrain matches level configuration")
-	for kind in ArenaDefinitions.TOWER_IDS:
+	for kind in ArenaDefinitions.DEFAULT_TOWERS:
 		for tier in range(1,4):
 			check(ResourceLoader.exists("res://assets/v017/tower_"+kind+"_"+str(tier)+"_part.png"),"independent movable tower part "+kind+str(tier))
 	check(game.atmosphere!=null,"ArenaAtmosphere mounted on ruins")
@@ -80,11 +80,8 @@ func run() -> void:
 
 	check(not game.navigation_path(game.hero.position,Vector2(def.altars[0])).is_empty(),"hero navigates to west altar")
 	check(not game.has_method("toggle_altar_mode"),"manual altar mode switching removed")
-	check(not game.navigation_path(game.hero.position,Vector2(def.camps[0])).is_empty(),"hero navigates to SW camp")
-	check(not Rect2(14,808,388,78).has_point(Vector2(def.camps[0])),"SW camp is clear of bottom-left skill_dock HUD")
 	var braziers: Array=def.get("braziers",[])
 	check(braziers.size()==4 and not Rect2(14,808,388,78).has_point(Vector2(braziers[1])),"ruins braziers are clear of bottom-left skill_dock HUD")
-	check(not game.navigation_path(game.hero.position,Vector2(def.camps[1])).is_empty(),"hero navigates to NE camp")
 
 	# Zero mid-wave passive popup interruptions when leveling inside wave & wave 1 stays on routes 0..2
 	game.begin_wave()
@@ -146,13 +143,6 @@ func run() -> void:
 	if "fracture" not in game.keystones:
 		game.choices=["fracture","conduit","orbit"];game.choice_open=true;game.choice_queue=1;paused=true
 		check(game.choose_perk("fracture"),"pick fracture keystone")
-
-	# Camp reward in keystone mode never interrupts with a 2nd-tier passive popup
-	game.queue_camp_reward(0);await frames()
-	check(game.camp_reward_open,"camp reward opens cleanly")
-	check(game.choose_camp_reward(0,"hero"),"camp astral wish accepted")
-	await frames()
-	check(not game.choice_open and game.choice_queue==0,"camp reward awards instant power without queued popup")
 
 	# Automatic support: no enemy means no wasted activation, active phase never charges.
 	game.altars[0].charge=100.0;game.altars[0].active=0.0

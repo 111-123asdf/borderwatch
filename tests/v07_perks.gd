@@ -184,9 +184,12 @@ func run() -> void:
 	reset_perks()
 	apply("echo",1);apply("overload",1)
 	hero.overload_clock=6.0;hero.echo_clock=3.0
-	check(hero.attack_damage()>55.0,"echo doubled during overload")
+	var boosted:=hero.attack_damage()
 	hero.overload_clock=0.0
-	check(hero.attack_damage()<55.0,"echo normal without overload")
+	var echo_delta:=boosted-hero.attack_damage()
+	var echo_damage:=hero.attack_damage()
+	hero.echo_clock=0.0
+	check(is_equal_approx(echo_delta,echo_damage-hero.attack_damage()),"overload doubles the extra echo damage independently of role base damage")
 	reset_perks()
 	apply("overload",1);apply("focus",1)
 	hero.cancel_action()

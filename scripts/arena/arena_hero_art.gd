@@ -1,25 +1,34 @@
 class_name ArenaHeroArt
 extends RefCounted
-# Art/feedback identities are independent of combat definitions and saved progression.
-const MODERN:={
-	"knight":{"folder":"v011","base_height":84.0,"badge":Rect2(0.30,0.02,0.46,0.31)},
-	"ranger":{"folder":"v012","base_height":80.0,"badge":Rect2(0.25,0.02,0.50,0.35)},
-	"mage":{"folder":"v012","base_height":86.0,"badge":Rect2(0.20,0.01,0.60,0.40)}}
-static var metadata_cache: Dictionary={}
-static func folder(identity: String) -> String:return "res://assets/"+str(MODERN[identity].folder)+"/"
-static func atlas(identity: String,view: String,modern:=true) -> String:
-	return (folder(identity) if modern else "res://assets/v09/")+identity+"_"+view+".png"
-static func metadata(identity: String) -> Dictionary:
-	if not metadata_cache.has(identity):
-		var path:=folder(identity)+identity+"_frames.json"
-		if not FileAccess.file_exists(path):return {}
-		var parsed: Variant=JSON.parse_string(FileAccess.get_file_as_string(path))
-		if parsed is Dictionary:metadata_cache[identity]=parsed
-	return metadata_cache.get(identity,{})
-static func height(identity: String,modern: bool,multiplier:=1.3) -> float:
-	return float(MODERN[identity].base_height)*multiplier if modern else (84.0 if identity=="knight" else 80.0)
-static func portrait(identity: String,modern:=true) -> Texture2D:
-	return load((folder(identity) if modern else "res://assets/v09/")+"portrait_"+identity+".png")
-static func badge(identity: String,modern:=true) -> Rect2:
-	if modern:return MODERN[identity].badge
-	return {"knight":Rect2(0.46,0.06,0.30,0.22),"ranger":Rect2(0.34,0.06,0.30,0.23),"mage":Rect2(0.40,0.12,0.30,0.23)}[identity]
+# Pixel-art v022 hero atlas & portrait bindings.
+const POSE_ROOT := "res://assets/heroes_v022/"
+const HEIGHTS := {
+	"lord": 94.0,
+	"druid": 84.0,
+	"healer": 84.0,
+	"werewolf": 88.0,
+	"werewolf_beast": 94.0,
+	"gunner": 82.0,
+	"frost_wolf": 58.0,
+	"ember_wolf": 58.0,
+}
+
+static func pose_atlas(identity: String, view: String) -> String:
+	var key := identity if HEIGHTS.has(identity) else ArenaDefinitions.resolve_hero_id(identity)
+	return POSE_ROOT + key + "_" + view + ".png"
+
+static func height(identity: String, modern := true, multiplier := 1.3) -> float:
+	var key := identity if HEIGHTS.has(identity) else ArenaDefinitions.resolve_hero_id(identity)
+	var base: float = float(HEIGHTS.get(key, 84.0))
+	return base * multiplier / 1.3 if modern else base * 0.92
+
+static func portrait(identity: String) -> Texture2D:
+	var key := ArenaDefinitions.resolve_hero_id(identity)
+	return load(POSE_ROOT + "portrait_" + key + ".png")
+
+static func small_portrait(identity: String) -> Texture2D:
+	var key := ArenaDefinitions.resolve_hero_id(identity)
+	var small_path := POSE_ROOT + "portrait_" + key + "_small.png"
+	if ResourceLoader.exists(small_path):
+		return load(small_path)
+	return portrait(key)
