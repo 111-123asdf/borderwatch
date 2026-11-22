@@ -32,7 +32,7 @@ func run() -> void:
 	print("V08 DOCTRINE CHECKS: %d, FAILURES: %d"%[checks,failures]);quit(0 if failures==0 else 1)
 func check_data() -> void:
 	var seen: Dictionary={}
-	check(ArenaDoctrines.LIST.size()==12,"twelve authored doctrines")
+	check(ArenaDoctrines.LIST.size()==21,"three authored doctrines for each of seven towers")
 	for entry in ArenaDoctrines.LIST:
 		var label:=str(entry.get("id",""))
 		check(not seen.has(label),"doctrine id is unique: "+label)
@@ -45,7 +45,7 @@ func check_data() -> void:
 		for effect_key in effects:check(str(effect_key) in ArenaDoctrines.EFFECT_KEYS,label+" uses known key "+str(effect_key))
 		var pressure:=float(effects.get("damage_mult",1.0))/maxf(0.01,float(effects.get("interval_mult",1.0)))
 		check(pressure<=2.0,label+" stays inside the power guardrail")
-	for key in ["archer","mage","cannon","barracks"]:check(ArenaDoctrines.for_tower(key).size()==3,"three doctrines per "+key)
+	for key in ArenaDefinitions.TOWER_IDS:check(ArenaDoctrines.for_tower(key).size()==3,"three doctrines per "+key)
 func check_upgrade_flow() -> void:
 	var tower:=tower_for("archer");towers["archer"]=tower
 	check(tower.upgrade() and tower.level==2 and not tower.awaiting_doctrine,"level two stays numeric")

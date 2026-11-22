@@ -3,7 +3,7 @@ extends "res://tests/v06_window.gd"
 func run() -> void:
 	create_timer(60.0).timeout.connect(func():push_error("INTEGRATION WINDOW TIMEOUT");quit(1))
 	if "--small" in OS.get_cmdline_user_args():suffix="small"
-	game=load("res://scenes/arena.tscn").instantiate();game.campaign=ArenaCampaign.new("",false);game.campaign.data.levels.knight=5
+	game=load("res://scenes/arena.tscn").instantiate();game.campaign=ArenaCampaign.new("",false);game.campaign.data.levels["lord"]=5
 	root.add_child(game);current_scene=game;await frames()
 	await press("StartCampaign");await press("被动图鉴");check(is_instance_valid(game.hud.codex) and paused,"pointer opens codex from world map")
 	await press("CodexCard_power")
@@ -21,9 +21,6 @@ func run() -> void:
 	check(game.choice_open,"new card choice opens")
 	var key: String=game.choices[0];await snapshot("integration-choice");await press("Perk_"+key)
 	check(game.hero.perk(key)==1 and not game.choice_open,"pointer applies new card")
-	game.queue_camp_reward(0);await frames();await snapshot("integration-camp")
-	await press("CampReward_token")
-	check(game.doctrine_tokens==1 and not game.camp_reward_open,"pointer banks camp reward")
 	await key(KEY_H);check(paused,"handbook pauses")
 	await press("被动图鉴");await key(KEY_ESCAPE)
 	check(paused and not is_instance_valid(game.hud.codex),"escape closes codex into paused handbook")

@@ -4,6 +4,13 @@ const FOOTPRINT:=Vector2(96,48)
 const HEIGHTS:={"archer":[110.0,137.0,163.0],"mage":[115.0,142.0,168.0],"cannon":[65.0,85.0,110.0],"barracks":[87.0,109.0,132.0]}
 const WIDTHS:={"archer":[0.72,0.74,0.87],"mage":[0.74,0.76,0.90],"cannon":[0.74,0.74,0.88],"barracks":[0.76,0.76,0.90]}
 const CONTACT:=[0.79,0.80,0.87]
+const V024_ROOT:="res://assets/towers_v024/"
+const V024_CELL:=256.0
+const V024_FOOT_FRAC:=236.0/256.0
+const V024_DEFAULT_DOCTRINES:={"archer":"sentinel","mage":"frost","cannon":"siege","barracks":"shield","storm":"fork","lens":"focus","snare":"net"}
+static var _v024_cache: Dictionary={}
+static var _v024_manifest: Dictionary={}
+static var _v024_manifest_loaded:=false
 var game: ArenaGame
 var pad: Texture2D
 static var active_ground_fx: ArenaBattleArt = null
@@ -25,8 +32,126 @@ static func map_path(key: String) -> String:
 	return "res://assets/v09/map_"+key+".png"
 static func towers_path() -> String:
 	return "res://assets/v017/towers.png"
+# Tight regions keep the three independently illustrated tiers on the same ground plane.
+const TOWER_REGIONS := {
+	"storm":[Rect2(103,0,259,365),Rect2(69,366,311,365),Rect2(26,732,389,495)],
+	"lens":[Rect2(486,0,261,358),Rect2(465,359,296,368),Rect2(429,728,349,500)],
+	"snare":[Rect2(851,68,352,298),Rect2(817,418,412,312),Rect2(789,760,459,465)]}
+
+static func _ensure_v024_manifest() -> void:
+	if _v024_manifest_loaded:
+		return
+	_v024_manifest_loaded = true
+	var p := V024_ROOT + "manifest.json"
+	if FileAccess.file_exists(p):
+		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(p))
+		if parsed is Dictionary:
+			_v024_manifest = parsed
+
+static func v024_form_key(kind: String, tier: int, doctrine_id := "") -> String:
+	if tier <= 1:
+		return "lv1"
+	if tier == 2:
+		return "lv2"
+	return doctrine_id if not doctrine_id.is_empty() else str(V024_DEFAULT_DOCTRINES.get(kind, "lv2"))
+
+static func v024_sheet_path(kind: String, tier: int, doctrine_id := "") -> String:
+	return V024_ROOT + "tower_%s_%s.png" % [kind, v024_form_key(kind, tier, doctrine_id)]
+
+static func has_v024_tower(kind: String, tier := 1, doctrine_id := "") -> bool:
+	return ResourceLoader.exists(v024_sheet_path(kind, tier, doctrine_id))
+
+static func v024_entry(kind: String, tier: int, doctrine_id := "") -> Dictionary:
+	_ensure_v024_manifest()
+	var key := "%s_%s" % [kind, v024_form_key(kind, tier, doctrine_id)]
+	var towers_dict: Dictionary = _v024_manifest.get("towers", {})
+	return towers_dict.get(key, {})
+
+static func tower_muzzle_uv(kind: String, tier: int, doctrine_id := "") -> Vector2:
+	var entry := v024_entry(kind, tier, doctrine_id)
+	var muv: Array = entry.get("muzzle_uv", [])
+	if muv.size() >= 2:
+		return Vector2(float(muv[0]), float(muv[1]))
+	return Vector2({"archer":0.64,"mage":0.5,"cannon":0.68,"barracks":0.5,"storm":0.5,"lens":0.64,"snare":0.52}.get(kind, 0.5), {"archer":0.38,"mage":0.28,"cannon":0.30,"barracks":0.74,"storm":0.24,"lens":0.32,"snare":0.34}.get(kind, 0.35))
+
+static func tower_frame_texture(kind: String, tier: int, doctrine_id := "", frame_idx := 0) -> Texture2D:
+	var form := v024_form_key(kind, tier, doctrine_id)
+	var col := clampi(frame_idx, 0, 3)
+	var key := "f_%s_%s_%d" % [kind, form, col]
+	if _v024_cache.has(key):
+		return _v024_cache[key]
+	var path := v024_sheet_path(kind, tier, doctrine_id)
+	if not ResourceLoader.exists(path):
+		return null
+	var sheet := load(path) as Texture2D
+	if sheet == null:
+		return null
+	var atlas := AtlasTexture.new()
+	atlas.atlas = sheet
+	atlas.region = Rect2(float(col) * V024_CELL, 0.0, V024_CELL, V024_CELL)
+	atlas.filter_clip = true
+	_v024_cache[key] = atlas
+	return atlas
+
+static func tower_portrait(kind: String) -> Texture2D:
+	var key := "portrait_" + kind
+	if _v024_cache.has(key):
+		return _v024_cache[key]
+	var path := V024_ROOT + "portrait_%s.png" % kind
+	if ResourceLoader.exists(path):
+		var tex := load(path) as Texture2D
+		if tex != null:
+			_v024_cache[key] = tex
+			return tex
+	return tower_texture(kind, 1)
+
+static func prop_frame_texture(prop_name: String, frame_idx := 0, cols := 1) -> Texture2D:
+	var c := clampi(frame_idx, 0, maxi(1, cols) - 1)
+	var key := "prop_%s_%d_%d" % [prop_name, cols, c]
+	if _v024_cache.has(key):
+		return _v024_cache[key]
+	var path := V024_ROOT + "prop_%s.png" % prop_name
+	if not ResourceLoader.exists(path):
+		return null
+	var sheet := load(path) as Texture2D
+	if sheet == null:
+		return null
+	var cw := float(sheet.get_width()) / float(maxi(1, cols))
+	var ch := float(sheet.get_height())
+	var atlas := AtlasTexture.new()
+	atlas.atlas = sheet
+	atlas.region = Rect2(float(c) * cw, 0.0, cw, ch)
+	atlas.filter_clip = true
+	_v024_cache[key] = atlas
+	return atlas
+
+static func tower_texture(kind: String,tier: int, doctrine_id := "") -> Texture2D:
+	if has_v024_tower(kind, tier, doctrine_id):
+		var tex := tower_frame_texture(kind, tier, doctrine_id, 0)
+		if tex != null:
+			return tex
+	var atlas:=AtlasTexture.new()
+	if TOWER_REGIONS.has(kind):
+		atlas.atlas=load("res://assets/v021/towers.png")
+		atlas.region=TOWER_REGIONS[kind][tier-1]
+	else:
+		var sheet: Texture2D=load(towers_path())
+		var cell:=sheet.get_size()/Vector2(4,3)
+		atlas.atlas=sheet
+		atlas.region=Rect2(Vector2(ArenaDefinitions.DEFAULT_TOWERS.find(kind),tier-1)*cell,cell)
+	atlas.filter_clip=true
+	return atlas
+
 static var tower_metadata: Dictionary={}
-static func contact(kind: String,tier: int,cell: Vector2) -> Dictionary:
+static func contact(kind: String,tier: int,cell: Vector2, doctrine_id := "") -> Dictionary:
+	if has_v024_tower(kind, tier, doctrine_id) and is_equal_approx(cell.x, V024_CELL):
+		var entry := v024_entry(kind, tier, doctrine_id)
+		var idle_h := maxf(40.0, float(entry.get("idle_h_px", 200.0)))
+		var world_h := float(entry.get("world_height", 112.0 + float(tier - 1) * 12.0))
+		return {"uv": Vector2(0.5, V024_FOOT_FRAC), "scale": Vector2.ONE * (world_h / idle_h)}
+	if TOWER_REGIONS.has(kind):
+		var width:=([94.0,107.0,120.0] if kind=="snare" else [79.0,90.0,103.0])
+		return {"uv":Vector2(0.5,0.97),"scale":Vector2.ONE*float(width[tier-1])/cell.x}
 	if tower_metadata.is_empty():
 		var file:=FileAccess.open("res://assets/v017/towers.json",FileAccess.READ)
 		if file!=null:tower_metadata=JSON.parse_string(file.get_as_text())
@@ -37,6 +162,7 @@ static func contact(kind: String,tier: int,cell: Vector2) -> Dictionary:
 	return {"uv":Vector2(0.5,480.0/512.0),"scale":Vector2.ONE*factor}
 func _ready() -> void:
 	z_index=-10
+	texture_filter=CanvasItem.TEXTURE_FILTER_NEAREST
 	if ResourceLoader.exists("res://assets/v09/site_pad.png"):
 		var atlas:=AtlasTexture.new();atlas.atlas=load("res://assets/v09/site_pad.png");atlas.region=Rect2(164,314,1276,443);pad=atlas
 func _enter_tree() -> void:
@@ -131,7 +257,11 @@ func _draw() -> void:
 		var locked:=game.site_locked(index)
 		var selected: bool=(game.selected_site==index)
 		var hovered: bool=(selected or cursor.distance_to(point)<55.0)
-		ArenaGrounding.draw_contact(self,point,occupied,is_ruins,index,trait_id,locked,hovered,selected)
+		if game.level_id==ArenaSaltport.ID:
+			ArenaGrounding.ensure_textures()
+			ArenaSaltportArt.draw_site(self,point,index,occupied,hovered or selected)
+		else:
+			ArenaGrounding.draw_contact(self,point,occupied,is_ruins,index,trait_id,locked,hovered,selected)
 	if not _world_dust.is_empty():
 		if _dust_tex == null and ResourceLoader.exists("res://assets/v018/particles/smoke_07.png"):
 			_dust_tex = load("res://assets/v018/particles/smoke_07.png")

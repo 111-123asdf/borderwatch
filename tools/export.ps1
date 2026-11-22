@@ -27,8 +27,10 @@ Copy-Item -LiteralPath (Join-Path $projectRoot 'docs\playtest.txt') -Destination
 Copy-Item -LiteralPath (Join-Path $projectRoot 'docs\credits.txt') -Destination (Join-Path $buildDirectory 'credits.txt') -Force
 Copy-Item -LiteralPath (Join-Path $projectRoot 'docs\godot-copyright.txt') -Destination (Join-Path $buildDirectory 'godot-copyright.txt') -Force
 [IO.File]::WriteAllText((Join-Path $buildDirectory 'Play.bat'), "@echo off`r`nstart `"`" `"%~dp0Borderwatch.exe`" -- --playtest`r`n", [Text.Encoding]::ASCII)
-$zipPath = Join-Path $projectRoot 'builds\Borderwatch-v0.19-Windows.zip'
-Compress-Archive -LiteralPath (Join-Path $buildDirectory 'Borderwatch.exe'), (Join-Path $buildDirectory 'Play.bat'), (Join-Path $buildDirectory 'playtest.txt'), (Join-Path $buildDirectory 'credits.txt'), (Join-Path $buildDirectory 'godot-copyright.txt') -DestinationPath $zipPath -Force
+$heroLabLauncher = Join-Path $buildDirectory 'Play-HeroLab.bat'
+[IO.File]::WriteAllText($heroLabLauncher, "@echo off`r`nstart `"`" `"%~dp0Borderwatch.exe`" -- --feel-lab`r`n", [Text.Encoding]::ASCII)
+$zipPath = Join-Path $projectRoot 'builds\Borderwatch-v0.23-Windows.zip'
+Compress-Archive -LiteralPath (Join-Path $buildDirectory 'Borderwatch.exe'), (Join-Path $buildDirectory 'Play.bat'), (Join-Path $buildDirectory 'playtest.txt'), (Join-Path $buildDirectory 'credits.txt'), (Join-Path $buildDirectory 'godot-copyright.txt'), $heroLabLauncher -DestinationPath $zipPath -Force
 Get-Item -LiteralPath (Join-Path $buildDirectory 'Borderwatch.exe'), $zipPath | Select-Object FullName, Length
 } finally {
     $env:APPDATA=$savedAppData

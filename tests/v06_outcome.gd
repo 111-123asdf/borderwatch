@@ -7,7 +7,7 @@ var failures:=0
 func _initialize() -> void:call_deferred("run")
 func run() -> void:
 	game=load("res://scenes/arena.tscn").instantiate();root.add_child(game);current_scene=game;await process_frame
-	game.start_run("mage","creek")
+	game.start_run("healer","creek")
 func _process(delta: float) -> bool:
 	if waiting or game==null:return false
 	elapsed+=delta
@@ -21,7 +21,7 @@ func _process(delta: float) -> bool:
 	return false
 func restart() -> void:
 	game.restart_run();await process_frame;await process_frame;await process_frame;game=current_scene
-	if not game.started or game.level_id!="creek" or game.hero.class_id!="mage" or game.gold!=280 or game.hero.level!=1 or game.cycle!=1:failures+=1
+	if not game.started or game.level_id!="creek" or game.hero.class_id!="healer" or game.gold!=280 or game.hero.level!=1 or game.cycle!=1:failures+=1
 	game.return_to_menu();await process_frame;await process_frame;game=current_scene
 	if game.started or not is_instance_valid(game.hud.menu):failures+=1
 	await done()

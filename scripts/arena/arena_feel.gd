@@ -15,52 +15,79 @@ func clear(game: Node2D) -> void:
 	for enemy in game.enemies:
 		if is_instance_valid(enemy):enemy.visual.feedback.clear(enemy.visual)
 
-func hit(game: Node2D, point: Vector2, damage: float, kind: int, killed: bool, source: String, target: Node2D, attack: String) -> void:
+func hit(game: Node2D, point: Vector2, damage: float, kind: int, killed: bool, source: String, target: Node2D, attack: String, incoming := Vector2.ZERO, shielded := false, condition_result: Dictionary={}) -> void:
 	hit_serial+=1
 	if not enabled:
 		game.effect(point,21 if killed else 12,ArenaCombat.colour(kind),"hit",0.27 if killed else 0.16)
-		if game.numbers.size()<24:game.numbers.append({"point":point,"text":str(int(ceil(damage))),"colour":ArenaCombat.colour(kind),"life":0.55})
+		if damage>0 and not condition_result.is_empty(): _number(game,point,damage,kind,target,condition_result)
+		elif game.numbers.size()<24:game.numbers.append({"point":point,"text":str(int(ceil(damage))),"colour":ArenaCombat.colour(kind),"life":0.55})
 		if damage>90:game.shake=1.4
 		game.audio.play("kill" if killed else "hit",-12 if killed else -16);return
 	if damage<=0:return
-	var knight: bool=source=="hero" and game.hero.class_id=="knight"
+	var lord: bool=source=="hero" and game.hero.class_id=="lord"
 	var hero_hit: bool=source=="hero"
-	var heavy: bool=(knight and attack=="small" and kind==0) or (hero_hit and attack=="meteor" and kind==1) or (source=="tower" and (killed or damage>=36.0))
-	if is_instance_valid(target) and (hero_hit or (source=="tower" and (killed or damage>=22.0))):
+	var heavy: bool=(lord and attack=="small" and kind==0) or (hero_hit and attack=="werewolf_claw" and game.hero.werewolf_beast_clock>0.0) or (hero_hit and attack=="pierce_arrow") or (source=="tower" and attack=="shell")
+	var dir_vec := incoming.normalized()
+	if dir_vec.is_zero_approx() and hero_hit:
+		dir_vec = game.hero.position.direction_to(point)
+	if attack == "burn_tick" and not killed:
+		return
+	if shielded:
+		game.effect(point,18,Color("a0d6ef"),"ward_contact",0.16,dir_vec)
+		game.audio.play("mage_hit",-21)
+		return
+	if is_instance_valid(target):
 		target.visual.feedback.reduced=bool(game.campaign.data.reduced_motion)
-		target.visual.feedback.impact(target.visual,heavy)
-	var dir_vec: Vector2=(point-game.hero.position).normalized() if hero_hit else Vector2.RIGHT
-	if hero_hit and kind==1:
+		target.visual.feedback.impact(target.visual,heavy,dir_vec)
+		target.visual.hit_pose(dir_vec)
+	if attack == "tower_arrow" or attack == "soldier_strike" or (source == "tower" and attack == "pierce_arrow"):
+		var contact_kind := "edge_contact" if attack == "soldier_strike" else "shaft_contact"
+		game.effect(point, 22 if attack == "pierce_arrow" else (20 if attack == "tower_arrow" else 18), ArenaCombat.colour(kind), contact_kind, 0.22 if attack != "soldier_strike" else 0.18, dir_vec)
+	elif hero_hit and attack in ["quick_arrow","short_sword","beast_strike","small","werewolf_claw","lord_thorn","druid_orb","healer_orb","healer_blessing"]:
+		var colour:=Color("8be4ff") if attack=="werewolf_claw" else (Color("f06478") if attack in ["small","lord_thorn"] else (Color("f8a6c8") if attack in ["healer_orb","healer_blessing"] else (Color("7be088") if attack in ["druid_orb","beast_strike"] else Color("e9c08b"))))
+		game.effect(point,19.0 if heavy else 12.0,colour,"shield_contact" if attack=="small" else "pixel_contact",0.16,dir_vec)
+	elif hero_hit and kind==1:
 		game.effect(point,25 if killed else 17,ArenaCombat.colour(kind),"magic_impact_painted",0.25,dir_vec)
-	elif hero_hit and game.hero.class_id=="ranger":
-		game.effect(point,22 if killed else 16,ArenaCombat.colour(kind),"arrow_impact_painted",0.20,dir_vec)
-	elif knight:
+	elif hero_hit and game.hero.class_id=="gunner":
+		game.effect(point,22 if killed else 16,Color("7ce2ff"),"arrow_impact_painted",0.20,dir_vec)
+	elif lord:
 		game.effect(point,23 if killed else (20 if heavy else 14),ArenaCombat.colour(kind),"impact_painted",0.22 if killed else 0.16,dir_vec)
 	elif source=="tower":
-		game.effect(point,22 if killed else (18 if heavy else 12),ArenaCombat.colour(kind),"impact_painted" if kind==0 else "magic_impact_painted",0.20 if killed else 0.15)
+		if attack in ["arc","beam","tower_frost","snare"]:
+			var px_col := Color("5ce2ff") if attack == "arc" else (Color("ffe068") if attack == "beam" else (Color("9ce8ff") if attack == "tower_frost" else Color("f0be74")))
+			game.effect(point, 18.0 if killed else 13.0, px_col, "pixel_contact", 0.18, dir_vec if not dir_vec.is_zero_approx() else Vector2.UP)
+		else:
+			game.effect(point,24 if killed else (20 if heavy else 16),ArenaCombat.colour(kind),"impact_painted" if kind==0 else "magic_impact_painted",0.24 if killed else 0.19,dir_vec)
 	else:game.effect(point,12,ArenaCombat.colour(kind),"hit",0.16)
 	if heavy:
-		if knight and attack=="small" and game.hero.action=="small" and game.hero.action_released:game.hero.visual.feedback.freeze_after_release()
+		if lord and attack=="small" and game.hero.action=="small" and game.hero.action_released:game.hero.visual.feedback.freeze_after_release()
 		var now:=Time.get_ticks_msec()
-		if now-last_heavy>=400:trauma=minf(1.0,trauma+0.55);last_heavy=now
-	if source=="hero":_number(game,point,damage,kind,target)
+		if source=="hero" and now-last_heavy>=400:trauma=minf(1.0,trauma+0.55);last_heavy=now
+	if source=="hero" and not bool(game.get_meta("hide_damage_numbers",false)):
+		var crowded: bool=attack in ["small","werewolf_claw","healer_blessing","lord_thorn"]
+		if not crowded or game.numbers.all(func(n):return n.point.distance_squared_to(point)>42.0*42.0 or float(n.get("merge",0.0))<=0.0):
+			_number(game,point,damage,kind,target,condition_result)
 	var sound: String="kill" if killed else ("heavy_hit" if heavy else "hit")
 	if hero_hit and kind==1:sound="mage_hit"
-	elif hero_hit and game.hero.class_id=="ranger":sound="ranger_hit"
+	elif hero_hit and game.hero.class_id=="gunner":sound="ranger_hit"
 	game.audio.play(sound,-15 if source!="hero" else -9)
 	if hero_hit and killed and sound!="kill":game.audio.play("kill",-15)
 
-func _number(game: Node2D, point: Vector2, damage: float, kind: int, target: Node2D) -> void:
+func _number(game: Node2D, point: Vector2, damage: float, kind: int, target: Node2D, condition_result: Dictionary) -> void:
 	var id: int=target.get_instance_id() if is_instance_valid(target) else 0
+	var critical := bool(condition_result.get("crit",false))
+	var active_cards: Array = condition_result.get("icons",[])
+	var decorated := critical or not active_cards.is_empty()
 	# Use simulation presentation time: opening a menu cannot silently consume a merge window.
 	for item in game.numbers:
-		if int(item.get("target",-1))==id and int(item.get("kind",-1))==kind and float(item.get("merge",0.0))>0:
+		if not decorated and int(item.get("target",-1))==id and int(item.get("kind",-1))==kind and float(item.get("merge",0.0))>0:
 			item.amount+=damage;item.text=str(int(ceil(item.amount)));item.life=0.65;return
 	if game.numbers.size()>=24:game.numbers.pop_front()
 	var origin:=point+Vector2(-8,-18)
 	for item in game.numbers:
 		if float(item.life)>0.35 and origin.distance_to(item.point)<28:origin.y-=25
-	game.numbers.append({"point":origin,"text":str(int(ceil(damage))),"amount":damage,"target":id,"kind":kind,"merge":0.15,"colour":ArenaCombat.colour(kind),"life":0.65,"duration":0.65})
+	var colour := Color("fff098") if critical else (Color("a2e8d8") if decorated else ArenaCombat.colour(kind))
+	game.numbers.append({"point":origin,"text":str(int(ceil(damage))),"amount":damage,"target":id,"kind":kind,"merge":0.0 if decorated else 0.15,"colour":colour,"life":0.65,"duration":0.65,"critical":critical,"icons":active_cards,"capped":condition_result.get("capped",false)})
 
 func tick(game: Node2D, delta: float) -> void:
 	shake_clock+=delta;trauma=maxf(0.0,trauma-delta*3.0)

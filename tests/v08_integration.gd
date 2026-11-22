@@ -40,14 +40,8 @@ func run() -> void:
 	check(game.choice_open and paused,"resume hands off to queued growth")
 	check(game.choose_perk(game.choices[0]),"queued growth can be chosen")
 	await frames()
-	game.queue_camp_reward(0);game.queue_choice();await frames()
-	check(game.camp_reward_open and not game.choice_open,"camp reward has priority without losing growth")
-	var camp_modal:=game.hud.modal
-	game.hud.show_pause();game.hud.show_codex()
-	check(game.hud.modal==camp_modal and not is_instance_valid(game.hud.codex),"pause and codex cannot dismiss a camp reward")
-	check(game.choose_camp_reward(0,"hero"),"camp hero reward is accepted")
-	await frames()
-	check(game.choice_open and game.choice_queue==2,"camp hero reward and queued growth both survive")
+	game.queue_choice();game.queue_choice();await frames()
+	check(game.choice_open and game.choice_queue==2,"successive growth choices are queued")
 	check(game.choose_perk(game.choices[0]),"first stacked choice works")
 	await frames()
 	check(game.choice_open and game.choice_queue==1,"second stacked choice opens")
@@ -55,9 +49,7 @@ func run() -> void:
 	await frames()
 	check(not paused and not game.hud.has_modal(),"all rewards close cleanly")
 	game.built=1;game.cycle=2
-	check(str(game.hud.objective_state().body).contains("第4波"),"guide describes new camp deadline")
-	game.camps[0].overdue=true
-	check(str(game.hud.objective_state().title).contains("图腾"),"guide reflects global camp pressure")
+	check(game.hud.objective_state().title.contains("第 2 波"),"guide points to the next wave")
 	check(game.hero.apply_perk("lifesteal") and game.hero.mod("shield_cap")>0,"approved temporary absorption effect remains available")
 	game.running=false;game.audio.shutdown();paused=false;await frames();OS.delay_msec(150);game.queue_free();await frames()
 	print("V08 INTEGRATION CHECKS: %d, FAILURES: %d"%[checks,failures]);quit(0 if failures==0 else 1)

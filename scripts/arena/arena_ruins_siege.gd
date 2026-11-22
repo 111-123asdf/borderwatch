@@ -26,7 +26,8 @@ func tick(delta: float) -> void:
 	warning_clock=maxf(0.0,warning_clock-delta)
 	if not warned and game.cycle>=4 and game.phase=="spawn":
 		warned=true;clock=12.0;warning_clock=12.0
-		guard=ArenaEnemy.new();guard.game=game;guard.kind="breacher";guard.is_guard=true;guard.siege_guard=true;guard.home=game.level_definition.breach.guard;guard.position=guard.home;game.actors.add_child(guard);game.enemies.append(guard);game.enemy_revision+=1
+		guard=ArenaEnemy.new();guard.game=game;guard.kind="breacher";guard.is_guard=true;guard.home=game.level_definition.breach.guard;guard.position=guard.home
+		game.register_enemy(guard)
 		game.numbers.append({"point":point()+Vector2(0,-70),"text":"破障者蓄力","colour":Color("e3ad77"),"life":2.0})
 	if warned and not opened:
 		if not interrupted and (not is_instance_valid(guard) or guard.dead):

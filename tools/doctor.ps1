@@ -4,7 +4,7 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 $enginePath = Resolve-GodotBinary $projectRoot
 $version = (& $enginePath --version | Out-String).Trim()
 if ($LASTEXITCODE -ne 0 -or $version -notlike '4.7.2.stable*') { throw "Expected Godot 4.7.2 Standard; got $version" }
-foreach ($relative in @('project.godot', 'scenes/arena.tscn', 'scripts/arena/arena_game.gd', 'assets/v09/portrait_knight.png', 'docs/DEVELOPMENT.md')) {
+foreach ($relative in @('project.godot', 'scenes/arena.tscn', 'scripts/arena/arena_game.gd', 'assets/heroes_v022/portrait_lord.png', 'docs/DEVELOPMENT.md')) {
     if (-not (Test-Path -LiteralPath (Join-Path $projectRoot $relative) -PathType Leaf)) { throw "Missing project file: $relative" }
 }
 $templates = Join-Path (Split-Path -Parent $enginePath) 'editor_data/export_templates/4.7.2.stable'

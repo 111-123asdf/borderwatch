@@ -1,14 +1,23 @@
-# 阶段冻结 · v0.19（2026-11-17）
-唯一正式工程为D:/godot/边境守望。先读README、docs/CURRENT_SLICE.md、docs/ARCHITECTURE.md、docs/DEVELOPMENT.md、docs/TESTING.md、docs/STAGE_CLOSEOUT.md及CONTRIBUTING.md。最新负责人需求优先。
+# 《边境守望》v0.23 接手说明
 
-本阶段停止扩展功能，仅处理交付阻塞。三关固定道路/塔位、三英雄、四塔三级、局内成长与营地。塔无生命，英雄15秒复活，基地失守才失败；所有伤害明确物理或法术。不恢复独立武器、能量、旧护盾训练或自由建造。
+唯一正式工程为 D:/godot/边境守望。使用 Godot 4.7.2 Standard 与 GL Compatibility，主场景 scenes/arena.tscn。开工前读本文件及 [README](README.md)、[架构](docs/ARCHITECTURE.md)、[测试](docs/TESTING.md) 和 [贡献约定](CONTRIBUTING.md)。
 
-英雄为骑士v011、游侠/法师v012，局外v013。Q小技能、E大招。保留年轻利落的认可外形。文字克制，塔位无浮动文字牌；说明放交互菜单/手册。不得用粒子数量代替动作质量。
+## 合并来源与确认的玩法
 
-第三关v017手绘遗迹、2000×1125、18塔位、三条初始道路及第四波破障支路。中键/边缘平移、M全图、C英雄。G桥按分岔锁定曲线，等桥上单位通过，禁止瞬移；R共鸣，一座自动时停祭坛。塔为稳定主体＋局部机关；构装为2D刚性部件动画，不宣称3D模型。v018/v019材质、世界步尘、攻击时序以源码为准。
+- 本地共同基线为 3e666b6，保留本地未提交的领主、德鲁伊、爱神、狼王、星衡及操作时序、四关地形、盐港和 v023 怪物。溪谷按本地十波编排，森林、遗迹、盐港八波。遗迹第五波随已开路线均摊，第八波巨像在 20 秒入场。
+- 守线系统来自 [PR #14](https://github.com/111-123asdf/borderwatch/pull/14) 的 46fa2c2。正式战役在开局和非末波清场选祝福及代价，按 B 下令。七塔统一接入四关。保留 assets/towers_v024 的现行塔外观，缺少对应贴图时沿用既有资源。移除精英营地与改造券。课程文档来自 e27465e。
+- 保留 v0.22 的永久等级、技能解锁及存档兼容。旧 ID knight、mage、longbow、ranger 对应 lord、healer、werewolf、gunner。迁移读取旧键及已保存的塔阵容。正式用户档 campaign_v3.cfg、独立试玩 playtest_v013.cfg、条件和塔实验各用独立档。--feel-lab 是非持久化的 5 级英雄夹具。
 
-正常campaign_v3.cfg不清理；旧训练档不读取或改写。--playtest独立playtest_v013.cfg，LV.1、9999钻石，重进补足；--feel-lab不持久化5级夹具。测试隔离APPDATA。自动流程、等级档夹具、状态注入和真人体验分别记录，不删断言求绿。
+## 代码和美术入口
 
-保存Git历史、未提交成果、授权、来源、课程材料。参考图和课程草稿在工程外。清理前检查动态引用、元数据、测试与再生成依赖，v016仍有现行特效，不按版本目录整删。
+- scripts/arena 内 arena_game.gd 串联关卡和战斗，arena_rule_deck.gd、arena_defense_orders.gd 管正式选牌和指令，arena_conditions.gd 管条件被动实验。读取波表和地图时从 arena_level_catalog.gd 和 arena_saltport.gd 开始。
+- arena_hero.gd、arena_actor.gd 与 arena_companion.gd 管英雄与双狼。arena_tower.gd、arena_tower_trial.gd、arena_attack_timing.gd 管塔。五英雄素材在 assets/heroes_v022，新怪在 assets/monsters_v023，相关复建工具位于 tools。
+- 合并前工作区的完整回退包位于 D:/godot/稳定交付包/合并PR14前-正式工程.zip。PR 自带的旧版实测保留在 [分支验收](docs/STAGE_CLOSEOUT.md)，整合版验证看 [测试](docs/TESTING.md)。
 
-不自动登录、暂存、提交、推送或创建PR；负责人已选择手动Git。tools/submit_closeout.ps1仅供负责人运行。引擎、缓存、测试输出、录像、发行包和密钥不入Git。源码包包含未提交成果，不能仅以HEAD识别交付。
+## 当前交付
+
+源码、双尺寸窗口和隔离 Windows 成品功能检查全部通过。40 局固定策略自动对局均进入结算，27 胜、13 负。四关战果和复跑命令见 [验证](docs/TESTING.md)。旧版成绩单独保留。真人手感及难度仍待试玩。
+
+第 4 周发布分支为 work/week04-integration-20261122，基于远端 main 的 b2bc5a8。首页接入 PR #15 的布局、进度、出战英雄和键盘焦点，保持四关及五英雄档案。负责人手动提交时将 46fa2c2 记录为第二父提交。周志和日志记录在 docs/course/week-04。助教包用课程材料目录中的 04组-第4周-代码仓库.zip。回退包和原始测试日志在 D:/godot/稳定交付包/第4周交付。
+
+保留实际存档、Git 历史、素材原件、许可和课程材料。Git 暂存、提交、推送及 PR 由负责人手动处理。

@@ -65,10 +65,31 @@ static func _scale_to(node: Control,value: float) -> void:
 	var tween:=node.create_tween();node.set_meta("micro_tween",tween);tween.tween_property(node,"scale",Vector2.ONE*value,.08).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 static func icon(index: int) -> Texture2D:return part("ui_icons",str(index))
 static func utility(key: String) -> Texture2D:return part("ui_controls",str(CONTROL_NAMES.find(key)))
-static func skill(identity: String,slot: int) -> Texture2D:return icon(4+ArenaDefinitions.HERO_IDS.find(identity)*4+slot)
+static func skill(identity: String,slot: int) -> Texture2D:
+	var key := ArenaDefinitions.resolve_hero_id(identity)
+	var s := clampi(slot, 0, 2)
+	match key:
+		"lord":
+			if s == 2: return perk("ironwall")
+			return icon(4 if s == 0 else 6)
+		"druid":
+			return perk(["command", "bloodrage", "fortress"][s])
+		"healer":
+			return icon(12 + s)
+		"werewolf":
+			return perk(["lifesteal", "sworddance", "rapid"][s])
+		"gunner":
+			return icon(8 + s)
+	return icon(4 + s)
 static func perk(id: String) -> Texture2D:
 	for index in range(ArenaPerks.CARDS.size()):
 		if str(ArenaPerks.CARDS[index].id)==id:return part("perk_icons",str(index))
 	return null
 static func creature(key: String) -> Texture2D:
-	var sheet: Texture2D=load(ArenaCreature.sheet_path(key));var image:=AtlasTexture.new();image.atlas=sheet;image.region=Rect2(Vector2.ZERO,sheet.get_size()/Vector2(6,3));return image
+	var lookup := str(ArenaDefinitions.ENEMIES.get(key, {}).get("visual_kind", key))
+	var v023_portrait := "res://assets/monsters_v023/portrait_" + lookup + ".png"
+	if ResourceLoader.exists(v023_portrait):
+		return load(v023_portrait) as Texture2D
+	if ArenaSaltCreature.TYPES.has(key):
+		return load("res://assets/saltport/"+key+".png") as Texture2D
+	var sheet: Texture2D=load(ArenaCreature.sheet_path(lookup));var image:=AtlasTexture.new();image.atlas=sheet;image.region=Rect2(Vector2.ZERO,sheet.get_size()/Vector2(6,3));return image

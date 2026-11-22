@@ -1,0 +1,391 @@
+{
+  "cell_size": 256,
+  "foot_frac": 0.921875,
+  "towers": {
+    "archer_lv1": {
+      "file": "tower_archer_lv1.png",
+      "idle_h_px": 198.0,
+      "base_width_px": 109.7,
+      "muzzle_uv": [
+        0.64,
+        0.38
+      ],
+      "world_height": 100.0,
+      "flippable": true
+    },
+    "archer_lv2": {
+      "file": "tower_archer_lv2.png",
+      "idle_h_px": 210.0,
+      "base_width_px": 133.6,
+      "muzzle_uv": [
+        0.64,
+        0.38
+      ],
+      "world_height": 114.0,
+      "flippable": true
+    },
+    "archer_sentinel": {
+      "file": "tower_archer_sentinel.png",
+      "idle_h_px": 216.0,
+      "base_width_px": 123.8,
+      "muzzle_uv": [
+        0.64,
+        0.38
+      ],
+      "world_height": 126.0,
+      "flippable": true
+    },
+    "archer_repeater": {
+      "file": "tower_archer_repeater.png",
+      "idle_h_px": 167.1,
+      "base_width_px": 168.3,
+      "muzzle_uv": [
+        0.64,
+        0.42
+      ],
+      "world_height": 108.0,
+      "flippable": true
+    },
+    "archer_piercer": {
+      "file": "tower_archer_piercer.png",
+      "idle_h_px": 144.5,
+      "base_width_px": 164.3,
+      "muzzle_uv": [
+        0.64,
+        0.42
+      ],
+      "world_height": 112.0,
+      "flippable": true
+    },
+    "mage_lv1": {
+      "file": "tower_mage_lv1.png",
+      "idle_h_px": 196.0,
+      "base_width_px": 180.8,
+      "muzzle_uv": [
+        0.5,
+        0.28
+      ],
+      "world_height": 96.0,
+      "flippable": false
+    },
+    "mage_lv2": {
+      "file": "tower_mage_lv2.png",
+      "idle_h_px": 210.0,
+      "base_width_px": 146.0,
+      "muzzle_uv": [
+        0.5,
+        0.28
+      ],
+      "world_height": 108.0,
+      "flippable": false
+    },
+    "mage_frost": {
+      "file": "tower_mage_frost.png",
+      "idle_h_px": 208.0,
+      "base_width_px": 193.2,
+      "muzzle_uv": [
+        0.5,
+        0.28
+      ],
+      "world_height": 118.0,
+      "flippable": false
+    },
+    "mage_arcfire": {
+      "file": "tower_mage_arcfire.png",
+      "idle_h_px": 208.0,
+      "base_width_px": 196.2,
+      "muzzle_uv": [
+        0.5,
+        0.28
+      ],
+      "world_height": 116.0,
+      "flippable": false
+    },
+    "mage_breaker": {
+      "file": "tower_mage_breaker.png",
+      "idle_h_px": 208.0,
+      "base_width_px": 202.3,
+      "muzzle_uv": [
+        0.5,
+        0.28
+      ],
+      "world_height": 118.0,
+      "flippable": false
+    },
+    "cannon_lv1": {
+      "file": "tower_cannon_lv1.png",
+      "idle_h_px": 181.7,
+      "base_width_px": 184.0,
+      "muzzle_uv": [
+        0.68,
+        0.3
+      ],
+      "world_height": 88.0,
+      "flippable": true
+    },
+    "cannon_lv2": {
+      "file": "tower_cannon_lv2.png",
+      "idle_h_px": 191.6,
+      "base_width_px": 173.4,
+      "muzzle_uv": [
+        0.68,
+        0.3
+      ],
+      "world_height": 98.0,
+      "flippable": true
+    },
+    "cannon_siege": {
+      "file": "tower_cannon_siege.png",
+      "idle_h_px": 192.8,
+      "base_width_px": 215.1,
+      "muzzle_uv": [
+        0.68,
+        0.3
+      ],
+      "world_height": 108.0,
+      "flippable": true
+    },
+    "cannon_burning": {
+      "file": "tower_cannon_burning.png",
+      "idle_h_px": 165.6,
+      "base_width_px": 202.6,
+      "muzzle_uv": [
+        0.68,
+        0.3
+      ],
+      "world_height": 106.0,
+      "flippable": true
+    },
+    "cannon_frag": {
+      "file": "tower_cannon_frag.png",
+      "idle_h_px": 194.8,
+      "base_width_px": 212.1,
+      "muzzle_uv": [
+        0.68,
+        0.3
+      ],
+      "world_height": 106.0,
+      "flippable": true
+    },
+    "barracks_lv1": {
+      "file": "tower_barracks_lv1.png",
+      "idle_h_px": 186.0,
+      "base_width_px": 202.8,
+      "muzzle_uv": [
+        0.5,
+        0.74
+      ],
+      "world_height": 92.0,
+      "flippable": false
+    },
+    "barracks_lv2": {
+      "file": "tower_barracks_lv2.png",
+      "idle_h_px": 202.0,
+      "base_width_px": 183.2,
+      "muzzle_uv": [
+        0.5,
+        0.74
+      ],
+      "world_height": 104.0,
+      "flippable": false
+    },
+    "barracks_shield": {
+      "file": "tower_barracks_shield.png",
+      "idle_h_px": 193.8,
+      "base_width_px": 206.7,
+      "muzzle_uv": [
+        0.5,
+        0.74
+      ],
+      "world_height": 112.0,
+      "flippable": false
+    },
+    "barracks_hunter": {
+      "file": "tower_barracks_hunter.png",
+      "idle_h_px": 183.2,
+      "base_width_px": 235.7,
+      "muzzle_uv": [
+        0.5,
+        0.74
+      ],
+      "world_height": 104.0,
+      "flippable": false
+    },
+    "barracks_charge": {
+      "file": "tower_barracks_charge.png",
+      "idle_h_px": 195.7,
+      "base_width_px": 218.6,
+      "muzzle_uv": [
+        0.5,
+        0.74
+      ],
+      "world_height": 108.0,
+      "flippable": false
+    },
+    "storm_lv1": {
+      "file": "tower_storm_lv1.png",
+      "idle_h_px": 198.0,
+      "base_width_px": 162.9,
+      "muzzle_uv": [
+        0.5,
+        0.24
+      ],
+      "world_height": 100.0,
+      "flippable": false
+    },
+    "storm_lv2": {
+      "file": "tower_storm_lv2.png",
+      "idle_h_px": 210.0,
+      "base_width_px": 172.5,
+      "muzzle_uv": [
+        0.5,
+        0.24
+      ],
+      "world_height": 110.0,
+      "flippable": false
+    },
+    "storm_fork": {
+      "file": "tower_storm_fork.png",
+      "idle_h_px": 162.3,
+      "base_width_px": 168.3,
+      "muzzle_uv": [
+        0.5,
+        0.24
+      ],
+      "world_height": 114.0,
+      "flippable": false
+    },
+    "storm_relay": {
+      "file": "tower_storm_relay.png",
+      "idle_h_px": 159.7,
+      "base_width_px": 130.5,
+      "muzzle_uv": [
+        0.5,
+        0.24
+      ],
+      "world_height": 128.0,
+      "flippable": false
+    },
+    "storm_surge": {
+      "file": "tower_storm_surge.png",
+      "idle_h_px": 163.7,
+      "base_width_px": 183.1,
+      "muzzle_uv": [
+        0.5,
+        0.32
+      ],
+      "world_height": 110.0,
+      "flippable": false
+    },
+    "lens_lv1": {
+      "file": "tower_lens_lv1.png",
+      "idle_h_px": 198.0,
+      "base_width_px": 160.5,
+      "muzzle_uv": [
+        0.64,
+        0.32
+      ],
+      "world_height": 98.0,
+      "flippable": true
+    },
+    "lens_lv2": {
+      "file": "tower_lens_lv2.png",
+      "idle_h_px": 210.0,
+      "base_width_px": 139.6,
+      "muzzle_uv": [
+        0.64,
+        0.32
+      ],
+      "world_height": 110.0,
+      "flippable": true
+    },
+    "lens_focus": {
+      "file": "tower_lens_focus.png",
+      "idle_h_px": 210.0,
+      "base_width_px": 209.0,
+      "muzzle_uv": [
+        0.64,
+        0.32
+      ],
+      "world_height": 116.0,
+      "flippable": true
+    },
+    "lens_sweep": {
+      "file": "tower_lens_sweep.png",
+      "idle_h_px": 210.0,
+      "base_width_px": 181.2,
+      "muzzle_uv": [
+        0.64,
+        0.32
+      ],
+      "world_height": 116.0,
+      "flippable": true
+    },
+    "lens_far_lens": {
+      "file": "tower_lens_far_lens.png",
+      "idle_h_px": 210.0,
+      "base_width_px": 210.0,
+      "muzzle_uv": [
+        0.74,
+        0.32
+      ],
+      "world_height": 114.0,
+      "flippable": true
+    },
+    "snare_lv1": {
+      "file": "tower_snare_lv1.png",
+      "idle_h_px": 192.0,
+      "base_width_px": 182.6,
+      "muzzle_uv": [
+        0.52,
+        0.34
+      ],
+      "world_height": 92.0,
+      "flippable": false
+    },
+    "snare_lv2": {
+      "file": "tower_snare_lv2.png",
+      "idle_h_px": 206.0,
+      "base_width_px": 168.2,
+      "muzzle_uv": [
+        0.52,
+        0.34
+      ],
+      "world_height": 102.0,
+      "flippable": false
+    },
+    "snare_net": {
+      "file": "tower_snare_net.png",
+      "idle_h_px": 187.2,
+      "base_width_px": 192.6,
+      "muzzle_uv": [
+        0.52,
+        0.34
+      ],
+      "world_height": 110.0,
+      "flippable": false
+    },
+    "snare_barb": {
+      "file": "tower_snare_barb.png",
+      "idle_h_px": 161.9,
+      "base_width_px": 202.9,
+      "muzzle_uv": [
+        0.52,
+        0.34
+      ],
+      "world_height": 102.0,
+      "flippable": false
+    },
+    "snare_ratchet": {
+      "file": "tower_snare_ratchet.png",
+      "idle_h_px": 192.3,
+      "base_width_px": 235.7,
+      "muzzle_uv": [
+        0.52,
+        0.34
+      ],
+      "world_height": 106.0,
+      "flippable": false
+    }
+  }
+}

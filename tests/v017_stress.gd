@@ -7,8 +7,8 @@ var base:=""
 var finished:=false
 func _initialize() -> void:call_deferred("run")
 func run() -> void:
-	game=load("res://scenes/arena.tscn").instantiate();game.campaign=ArenaCampaign.new("",false);game.campaign.data.levels.knight=5;root.add_child(game);current_scene=game;await process_frame
-	game.start_run("knight","ruins");game.cycle=8;game.gold=20000;game.core_max=100000;game.core_health=100000;game.hero.max_health=100000;game.hero.health=100000
+	game=load("res://scenes/arena.tscn").instantiate();game.campaign=ArenaCampaign.new("",false);game.campaign.data.levels.lord=5;root.add_child(game);current_scene=game;await process_frame
+	game.start_run("lord","ruins");game.cycle=8;game.gold=20000;game.core_max=100000;game.core_health=100000;game.hero.max_health=100000;game.hero.health=100000
 	for i in range(mini(12,game.level_definition.sites.size())):
 		if game.site_locked(i):game.unlock_site(i)
 		if game.build_tower(i,["archer","mage","cannon","barracks"][i%4]):
@@ -19,7 +19,6 @@ func _process(delta: float) -> bool:
 	if finished or game==null or not game.started:return false
 	elapsed+=delta
 	if game.choice_open:game.choose_perk(game.choices[0])
-	if game.camp_reward_open:game.choose_camp_reward(game.open_camp_id,"gold")
 	if game.enemies.size()<105:game.spawn_enemy(["construct_hound","rune_warden","astral_prism","rift_bomber","void_harvester"][int(elapsed*100)%5],int(elapsed*100)%game.routes.size(),200+fmod(elapsed*70,1200))
 	if elapsed>3:samples.append(delta*1000.0)
 	if elapsed>18:

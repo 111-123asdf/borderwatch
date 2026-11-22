@@ -7,18 +7,18 @@ func run() -> void:
 	for id in ArenaDefinitions.HERO_IDS:game.campaign.data.levels[id]=5
 	root.add_child(game);current_scene=game;await frames()
 	await press("StartCampaign");await press("HeroHall")
-	for identity in ["ranger","mage"]:
+	for identity in ["druid","healer","werewolf","gunner"]:
 		await press("Hall_"+identity);await snapshot("v012-portrait-"+identity)
-		check(game.hud.hero_portrait(identity).resource_path=="res://assets/v012/portrait_"+identity+".png","new portrait "+identity)
+		check(game.hud.hero_portrait(identity).resource_path==ArenaHeroArt.POSE_ROOT+"portrait_"+identity+".png","new portrait "+identity)
 	await press("Back");await press("Level_forest");await press("Deploy")
 	game.feel_lab=true;game.phase="lab";game.lab=ArenaFeelLab.new();game.add_child(game.lab);game.lab.open(game);await frames()
-	for identity in ["ranger","mage"]:
+	for identity in ["gunner","healer"]:
 		await press("LabHero_"+identity)
 		for i in range(8):await process_frame
 		game=current_scene;await frames()
 		check(game.hero.class_id==identity and game.feel_lab,"hero switch through real button "+identity)
 		var ratio:=root.size.x/1600.0
-		for name in ["LabHero_knight","LabHero_ranger","LabHero_mage","LabTargets","LabSkill","LabCry","LabExit"]:
+		for name in ["LabHero_lord","LabHero_druid","LabHero_healer","LabHero_werewolf","LabHero_gunner","LabTargets","LabSkill","LabCry","LabExit"]:
 			var button: Button=game.hud.root.find_child(name,true,false)
 			check(button.size.y*ratio>=44,"44px actual hit target "+name)
 			check(button.get_global_rect().end.y*ratio<=root.size.y+1,"button remains in viewport "+name)
@@ -31,7 +31,7 @@ func run() -> void:
 		check(game.hero.cooldowns[0]>0,"actual skill "+identity);await snapshot("v012-small-"+identity)
 		await press("LabTargets");await press("LabCry");await create_timer(.50).timeout
 		check(game.hero.cooldowns[1]>0,"actual ultimate "+identity);await snapshot("v012-ultimate-"+identity)
-		await create_timer(1.2).timeout;check(game.delayed.size()<=4 if identity=="ranger" else game.delayed.is_empty(),"delayed lab attack executes "+identity)
+		check((game.hero.gunner_overdrive_clock>0.0) if identity=="gunner" else (game.hero.healer_sanctuary_clock>0.0),"real ultimate state active "+identity)
 		await press("LabBaseline");check(not game.feel.enabled,"baseline switch "+identity);await snapshot("v012-old-"+identity)
 		await press("LabBaseline");await press("LabReduced");await press("LabTargets");await press("LabCry");await create_timer(.5).timeout
 		check(game.campaign.data.reduced_motion and game.camera.offset==Vector2.ZERO,"reduced motion "+identity);await press("LabReduced")

@@ -1,4 +1,6 @@
-边境守望 v0.19 · 资源与授权
+边境守望 · 资源与授权
+
+assets/v021/towers.png 为本项目使用 OpenAI 内置 imagegen 生成的九幅塔图。三列对应跃电塔、聚光塔、绊索工坊，各有三级。游戏按图集区域取图，绘制放电、聚光和布索反馈。
 
 assets/v017遗迹地表、四类三级塔、六种构装外观与核心由OpenAI内置imagegen为本项目生成。负责人授权切片与局部遮罩；Godot运行时提供环境材质、接触阴影、局部机关、刚性部件步态、桥墙细节、水面与粒子。来源与SHA256见源码docs/ART_GENERATION_V017.json。图片为2D，不声称3D模型或独立手绘动画帧。
 三英雄保留骑士v011、游侠/法师v012完整动作与专属武器；局外assets/v013、森林地图assets/v09、森林生物与道具assets/v06均为项目原创生成。旧像素地图/构装仅历史实验，当前第三关使用v017；共享v016特效仍运行。
@@ -40,5 +42,7 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+五英雄、狼王形态和冰炎双狼采用本轮像素素材，按脚底和出手点切入 Godot。四类林地敌人的动作原画由 ImageGen 生成。
 
 环境与世界步尘的粒子纹理选自Kenney Particle Pack，CC0-1.0；来源https://github.com/Calinou/kenney-particle-pack，原始许可保留在源码third_party/kenney_particles/LICENSE.txt。

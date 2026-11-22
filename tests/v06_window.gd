@@ -30,17 +30,17 @@ func snapshot(name: String) -> void:
 func run() -> void:
 	create_timer(60.0).timeout.connect(func():push_error("WINDOW TIMEOUT");quit(1))
 	if "--small" in OS.get_cmdline_user_args():suffix="small"
-	game=load("res://scenes/arena.tscn").instantiate();game.campaign=ArenaCampaign.new("",false);game.campaign.data.levels.mage=5
+	game=load("res://scenes/arena.tscn").instantiate();game.campaign=ArenaCampaign.new("",false);game.campaign.data.levels["druid"]=5
 	root.add_child(game);current_scene=game;await frames()
-	await snapshot("entry");await press("StartCampaign");await snapshot("levels");await press("HeroHall");await press("Hall_mage");await snapshot("heroes");await press("EquipHero");await press("Back");await press("Level_creek");await press("Deploy")
-	check(game.started and game.level_id=="creek" and game.hero.class_id=="mage","menu to selected hero and map")
+	await snapshot("entry");await press("StartCampaign");await snapshot("levels");await press("HeroHall");await press("Hall_druid");await snapshot("heroes");await press("EquipHero");await press("Back");await press("Level_creek");await press("Deploy")
+	check(game.started and game.level_id=="creek" and game.hero.class_id=="druid","menu to selected hero and map")
 	await click(game.level_definition.sites[0]);await press("Build_archer")
 	check(game.site_tower(0)!=null and game.gold==210,"actual pointer builds and spends exact cost")
 	await snapshot("build");await press("Upgrade");check(game.site_tower(0)!=null and game.site_tower(0).level==2,"pointer upgrades")
 	check(game.hero.shots==0,"UI clicks do not fire weapon")
 	await click(Vector2(1200,600),MOUSE_BUTTON_RIGHT);check(game.selected_site==-1,"right click closes context")
-	await press("Skill_1");check(game.targeting_slot==1 and game.hero.cooldowns[1]==0,"skill click requests target")
-	await click(Vector2(1200,600),MOUSE_BUTTON_RIGHT);check(game.targeting_slot==-1 and game.hero.cooldowns[1]==0,"right click cancels without spending")
+	await press("Skill_0");check(game.targeting_slot==0 and game.hero.cooldowns[0]==0,"skill click requests target")
+	await click(Vector2(1200,600),MOUSE_BUTTON_RIGHT);check(game.targeting_slot==-1 and game.hero.cooldowns[0]==0,"right click cancels without spending")
 	await click(Vector2(1300,580),MOUSE_BUTTON_RIGHT);check(not game.hero.path.is_empty(),"right click commands movement")
 	await key(KEY_ESCAPE);check(paused,"escape pauses")
 	await snapshot("pause");await key(KEY_ESCAPE);check(not paused,"escape resumes")

@@ -28,7 +28,7 @@ func run() -> void:
 	check(is_equal_approx(float(state.bonuses("knight").health),0.08) and is_equal_approx(float(state.bonuses("knight").attack),0.06),"permanent stats remain restrained")
 	check(state.level("ranger")==1 and state.level("mage")==1,"other heroes keep independent levels")
 	check(int(state.settle("a","forest",true,8).amount)==0 and state.gems()==2,"old run remains deduplicated after other runs")
-	check(int(state.settle("d","creek",true,8).amount)==8,"each stage has its own first clear bonus")
+	check(int(state.settle("d","creek",true,10).amount)==8,"each stage has its own first clear bonus")
 	for waves in range(8):
 		var expected:=0 if waves<4 else (2 if waves<6 else 3)
 		check(int(state.settle("failure-"+str(waves),"forest",false,waves).amount)==expected,"failure reward threshold "+str(waves))
@@ -52,11 +52,11 @@ func run() -> void:
 		for rank in range(1,6):
 			game.campaign.data.levels[identity]=rank;h.configure(identity)
 			check(game._card_available("focus")== (rank>=2),"generic skill cards follow unlocks "+identity+str(rank))
-			var role_card: String={"knight":"oath","ranger":"shadowstep","mage":"starcore"}[identity]
-			check(game._card_available(role_card)==(rank>=(2 if identity=="ranger" else 4)),"class skill card gate "+identity+str(rank))
-	h.configure("knight")
+			var role_card: String={"lord":"oath","gunner":"shadowstep","healer":"starcore"}.get(identity,"")
+			if not role_card.is_empty():check(game._card_available(role_card)==(rank>=(2 if identity=="gunner" else 4)),"class skill card gate "+identity+str(rank))
+	h.configure("lord")
 	for rank in range(1,6):
-		game.campaign.data.levels.knight=rank;h.configure("knight")
+		game.campaign.data.levels["lord"]=rank;h.configure("lord")
 		var before:=h.max_health;h.recompute();h.recompute()
 		check(is_equal_approx(h.max_health,before),"recompute never repeats permanent health "+str(rank))
 		check(h.skill_unlocked(0)==(rank>=2) and h.skill_unlocked(1)==(rank>=4),"runtime skill gates "+str(rank))

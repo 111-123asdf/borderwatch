@@ -19,11 +19,14 @@ var last_flash:=-1.0
 var last_tint:=Color(-1,-1,-1,-1)
 var torso_lift:=0.0
 var forward_lean:=0.0
-var hit_recoil:=0.0
+var pose_angle := 0.0
+var shoulder_shift := Vector2.ZERO
 
 func _ensure_local_skin() -> void:
 	if _using_shared_skin or skin==null:
-		skin=ArenaGrounding.material("ruins")
+		if skin == null:
+			skin=ArenaGrounding.material("ruins")
+			skin.set_shader_parameter("ink_contrast",1.22)
 		_using_shared_skin=false
 		material=skin
 
@@ -45,6 +48,7 @@ func configure(key: String) -> void:
 	phase=fmod(float(abs(get_instance_id()))*0.6180339,1.0)*TAU
 	if shared_default_skin==null:
 		shared_default_skin=ArenaGrounding.material("ruins")
+		shared_default_skin.set_shader_parameter("ink_contrast",1.22)
 	material=shared_default_skin
 	_using_shared_skin=true
 	torso=load("res://assets/v017/actor_"+key+"_body.png")
@@ -63,8 +67,10 @@ func _process(delta: float) -> void:
 	if owner_art==null:return
 	owner_art.feedback.disable_squash=true
 	var enemy_node:=owner_art.get_parent() as ArenaEnemy
-	var move_delta:=global_position-previous
-	var distance:=move_delta.length();previous=global_position
+	var foot: Vector2 = enemy_node.global_position if enemy_node != null else global_position
+	var move_delta := foot - previous
+	var distance := move_delta.length()
+	previous = foot
 	var down:=owner_art.animation=="down"
 	var hit_stopped:=not down and owner_art.feedback.stop_left>0.0
 	var walking:=owner_art.animation=="walk" and distance>0.01 and distance<24.0
@@ -81,7 +87,8 @@ func _process(delta: float) -> void:
 		if chill_tint!=last_tint:
 			skin.set_shader_parameter("environment_tint",chill_tint);last_tint=chill_tint
 	elif not _using_shared_skin:
-		material=shared_default_skin;_using_shared_skin=true;last_flash=0.0;last_tint=DEFAULT_RUINS_TINT
+		material=shared_default_skin;_using_shared_skin=true
+		# Keep cached uniform values for the private material when it is reused.
 	var factor:=owner_art.base_height/art_height/maxf(0.001,absf(owner_art.scale.y))
 	var floating:=gait_kind=="floating"
 	if not hit_stopped:
@@ -95,9 +102,9 @@ func _process(delta: float) -> void:
 			torso_lift=-16.0-sin(phase)*9.0-cos(phase*0.65)*3.0
 			forward_lean=0.06 if walking else 0.015
 		elif gait_kind=="light":
-			var hop:=absf(sin(phase))
-			torso_lift=-hop*13.0
-			forward_lean=0.075+hop*0.03
+			var stride := sin(phase * 2.0)
+			torso_lift = -12.0 - 16.0 * stride
+			forward_lean = 0.035 + 0.085 * cos(phase * 2.0)
 			if walking and not hit_stopped:
 				var step_idx:=int(floor(phase/PI))
 				if step_idx!=prev_step_index:
@@ -119,11 +126,14 @@ func _process(delta: float) -> void:
 	else:
 		torso_lift=move_toward(torso_lift,0.0,delta*75.0)
 		forward_lean=move_toward(forward_lean,0.0,delta*6.0)
-	hit_recoil=flash*(0.10 if not reduced else 0.02)
-	var stop_jitter:=Vector2(sin(owner_art.feedback.stop_left*240.0)*1.3,0.0) if hit_stopped and not reduced else Vector2.ZERO
-	if position!=stop_jitter:position=stop_jitter
-	var next_scale:=Vector2(-factor if owner_art.direction.x<0 else factor,factor)
-	if scale!=next_scale:scale=next_scale
+	var beat := pow(maxf(0.0, 1.0-owner_art.feedback.age/0.18), 1.7) * owner_art.feedback.strength
+	var incoming := owner_art.feedback.incoming
+	var response := 0.22 if reduced else (0.55 if gait_kind=="heavy" else 1.0)
+	var recoil := incoming * beat * 8.0 * response / maxf(0.001,owner_art.scale.y)
+	var facing_sign := -1.0 if owner_art.direction.x < 0 else 1.0
+	var next_scale := Vector2(factor*facing_sign,factor)
+	# Shift the plated torso against planted feet, in original artwork pixels.
+	shoulder_shift = Vector2(incoming.x*facing_sign,incoming.y)*beat*(24.0 if gait_kind=="light" else 12.0)*response
 	var amplitude:=0.04 if reduced else (0.28 if gait_kind=="light" else (0.16 if gait_kind=="heavy" else 0.14))
 	for piece in pieces:
 		var role:=str(piece.role)
@@ -145,13 +155,16 @@ func _process(delta: float) -> void:
 			elif walking:
 				var leg_curve:=signf(wave)*pow(absf(wave),0.85 if gait_kind=="light" else 1.25)
 				piece.angle=leg_curve*amplitude
-				piece.lift=-maxf(0.0,wave)*(15.0 if gait_kind=="light" else 9.0)
+				piece.lift=-maxf(0.0,cos(phase+float(piece.phase)))*(28.0 if gait_kind=="light" else 9.0)
 			else:
 				piece.angle=lerp_angle(float(piece.angle),0.0,minf(1.0,delta*16.0))
 				piece.lift=move_toward(float(piece.lift),0.0,delta*55.0)
-	var next_rot:=lerp_angle(rotation,(0.65 if down else forward_lean-hit_recoil),minf(1.0,delta*16.0))
-	if absf(next_rot-rotation)>0.001:rotation=next_rot
-	var next_a:=0.45 if down else 1.0
+	var lean := forward_lean*facing_sign + incoming.x*beat*0.26*response
+	if down:
+		lean = (signf(incoming.x) if absf(incoming.x)>0.1 else facing_sign)*0.85
+	pose_angle = lerp_angle(pose_angle,lean,minf(1.0,delta*22.0))
+	transform = Transform2D(pose_angle,next_scale,0.0,recoil)
+	var next_a := clampf(1.0 - owner_art.feedback.age,0.28,1.0) if down else 1.0
 	if absf(modulate.a-next_a)>0.005:modulate.a=next_a
 	if walking or floating or down or hit_stopped or owner_art.animation=="attack" or flash>0.01 or absf(torso_lift)>0.05:
 		queue_redraw()
@@ -159,9 +172,14 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	if torso==null:return
 	var lift_vec:=Vector2(0.0,torso_lift)
-	draw_texture(torso,Vector2(-256,-494)+lift_vec)
+	var torso_origin := Vector2(-256,-494)+lift_vec+shoulder_shift
+	draw_texture(torso,torso_origin)
+	if gait_kind=="light":
+		# Match the painted eye and chest crystal. Their small lights read at battle scale.
+		draw_line(torso_origin+Vector2(434,313),torso_origin+Vector2(448,318),Color("f1b5ff"),5,true)
+		draw_circle(torso_origin+Vector2(350,353),7,Color("9de9ff"),true,-1,true)
 	for piece in pieces:
 		var pivot: Vector2=piece.pivot
-		draw_set_transform(pivot-Vector2(256,494)+Vector2(0,float(piece.lift)+torso_lift*0.65),float(piece.angle))
+		draw_set_transform(pivot-Vector2(256,494)+Vector2(0,float(piece.lift)+torso_lift*0.65)+shoulder_shift*0.28,float(piece.angle))
 		draw_texture(piece.texture,Vector2(piece.origin)-pivot)
 	draw_set_transform(Vector2.ZERO)
