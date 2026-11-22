@@ -83,11 +83,65 @@ func feedback() -> void:
 	if is_instance_valid(notice):notice.text=message
 func entry() -> void:
 	message="";base("title","title")
-	var title:=text(hud.menu,"边境守望",Rect2(420,24,760,160),102);title.name="GameTitle";title.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;title.add_theme_color_override("font_color",Color("ffe8ac"));title.add_theme_color_override("font_outline_color",Color("14283b"));title.add_theme_constant_override("outline_size",11)
-	action(hud.menu,"进入守望",Rect2(610,748,380,94),levels,"StartCampaign",true)
-	utility(hud.menu,"settings",Rect2(1382,26,78,78),settings,"Settings").tooltip_text="设置"
-	utility(hud.menu,"exit",Rect2(1490,26,78,78),game.quit_game,"ExitGame").tooltip_text="退出"
-	if game.campaign.path==ArenaCampaign.PLAYTEST_PATH:text(hud.menu,"自由试玩",Rect2(46,830,210,36),24)
+	# Local scrims keep the painted heroes clear while grounding the title and controls.
+	_title_scrim(Rect2(0,0,1600,230),Color("14253499"),Color("14253400"))
+	_title_scrim(Rect2(0,560,1600,340),Color("101e2b00"),Color("101e2bf5"))
+	var eyebrow:=text(hud.menu,"B O R D E R W A T C H",Rect2(490,28,620,30),21)
+	eyebrow.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+	eyebrow.add_theme_color_override("font_color",Color("f4db9f"))
+	var title:=text(hud.menu,"边境守望",Rect2(420,58,760,116),96)
+	title.name="GameTitle";title.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_color_override("font_color",Color("ffe8ac"))
+	title.add_theme_color_override("font_outline_color",Color("172a38"))
+	title.add_theme_constant_override("outline_size",7)
+	title.add_theme_color_override("font_shadow_color",Color("0b1729a6"))
+	title.add_theme_constant_override("shadow_offset_y",5)
+	var subtitle:=text(hud.menu,"集结英雄 · 筑起防线 · 守住边境",Rect2(490,180,620,38),24)
+	subtitle.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+	subtitle.add_theme_color_override("font_outline_color",Color("172a38"))
+	subtitle.add_theme_constant_override("outline_size",4)
+	var start:=action(hud.menu,"进入守望",Rect2(600,728,400,88),levels,"StartCampaign",true)
+	start.add_theme_font_size_override("font_size",32)
+	start.tooltip_text="前往世界地图，选择关卡与出战阵容"
+	var hint:=text(hud.menu,"选择关卡，开启下一场守望",Rect2(520,828,560,34),22)
+	hint.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+	hint.add_theme_color_override("font_color",Color("b9c9ce"))
+	var settings_button:=utility(hud.menu,"settings",Rect2(1390,30,72,72),settings,"Settings")
+	settings_button.tooltip_text="设置"
+	var exit_button:=utility(hud.menu,"exit",Rect2(1488,30,72,72),game.quit_game,"ExitGame")
+	exit_button.tooltip_text="退出游戏"
+	# A predictable keyboard loop also makes Enter usable without moving the mouse.
+	start.focus_next=start.get_path_to(settings_button);start.focus_previous=start.get_path_to(exit_button)
+	settings_button.focus_next=settings_button.get_path_to(exit_button);settings_button.focus_previous=settings_button.get_path_to(start)
+	exit_button.focus_next=exit_button.get_path_to(start);exit_button.focus_previous=exit_button.get_path_to(settings_button)
+	start.grab_focus()
+	_title_status()
+func _title_scrim(rect: Rect2,top: Color,bottom: Color) -> void:
+	var gradient:=Gradient.new();gradient.colors=PackedColorArray([top,bottom])
+	var texture:=GradientTexture2D.new();texture.gradient=gradient
+	texture.width=2;texture.height=256;texture.fill_from=Vector2(.5,0);texture.fill_to=Vector2(.5,1)
+	var shade:=hud.image(hud.menu,texture,rect,true)
+	shade.texture_filter=CanvasItem.TEXTURE_FILTER_LINEAR
+func _title_status() -> void:
+	var cleared:=0
+	for key in ArenaLevelCatalog.IDS:
+		if bool(game.campaign.data.cleared.get(key,false)):cleared+=1
+	var progress:=text(hud.menu,"战役进度  %d / %d"%[cleared,ArenaLevelCatalog.IDS.size()],Rect2(48,752,320,34),24)
+	progress.name="TitleProgress"
+	for index in range(ArenaLevelCatalog.IDS.size()):
+		var key: String=ArenaLevelCatalog.IDS[index]
+		var complete:=bool(game.campaign.data.cleared.get(key,false))
+		hud.colour_block(hud.menu,Rect2(50+index*68,802,54,4),ArenaMenuArt.GOLD if complete else Color("647984"))
+	var identity:=game.campaign.selected_hero()
+	var badge:=hud.image(hud.menu,hud.hero_badge_image(identity),Rect2(1270,746,66,72))
+	badge.texture_filter=CanvasItem.TEXTURE_FILTER_LINEAR
+	text(hud.menu,"出战英雄",Rect2(1352,746,200,30),21).add_theme_color_override("font_color",Color("b9c9ce"))
+	text(hud.menu,"%s · LV.%d"%[ArenaDefinitions.HEROES[identity].name,game.campaign.level(identity)],Rect2(1352,780,200,38),24)
+	var profile_text: String="自由试玩 · 独立存档" if game.campaign.path==ArenaCampaign.PLAYTEST_PATH else "英雄塔防 · 战役模式"
+	text(hud.menu,profile_text,Rect2(48,846,340,30),20).add_theme_color_override("font_color",Color("9aadb7"))
+	var version:=text(hud.menu,"v"+str(ProjectSettings.get_setting("application/config/version","0.19.0")),Rect2(1390,846,162,30),20)
+	version.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT
+	version.add_theme_color_override("font_color",Color("9aadb7"))
 func levels() -> void:
 	message="";base("world_atlas","world");wallet()
 	utility(hud.menu,"back",Rect2(28,20,84,84),entry,"Back");utility(hud.menu,"settings",Rect2(1474,20,84,84),settings,"Settings")
