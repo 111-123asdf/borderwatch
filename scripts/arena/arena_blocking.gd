@@ -11,14 +11,16 @@ func load_for(blocker: Node2D) -> int:
 	return total
 func weight_for(enemy: ArenaEnemy,blocker: Node2D) -> int:
 	if blocker is ArenaSoldier and not enemy.is_boss():
-		if game.tower_lab or (game.defense_rules and int(enemy.data.capacity)==1): return 1
+		if game.tower_lab or (not enemy.is_unstoppable() and not enemy.is_flying()):
+			return 1
 	return enemy.block_weight()
 func holds_position(enemy: ArenaEnemy,blocker: Node2D) -> bool:
-	if not is_instance_valid(enemy) or enemy.dead or not is_instance_valid(blocker) or not blocker.can_block(): return false
+	if not is_instance_valid(enemy) or enemy.dead or (enemy.has_method("is_submerged") and enemy.is_submerged()) or not is_instance_valid(blocker) or not blocker.can_block(): return false
 	var radius:=78.0
 	if blocker is ArenaSoldier:
 		if not blocker.can_engage(enemy): return false
-		radius=maxf(radius,blocker.taunt_radius())
+		var soldier_hold := 92.0 if not game.tower_lab else 78.0
+		radius=maxf(soldier_hold,blocker.taunt_radius())
 	return enemy.position.distance_squared_to(blocker.position)<=radius*radius
 func release(blocker: Node2D) -> void:
 	for enemy in assignments.keys():
@@ -29,12 +31,12 @@ func release_enemy(enemy: Node2D) -> void:
 	assignments.erase(enemy)
 	if is_instance_valid(enemy): enemy.blocker=null
 func _update_chasers() -> void:
-	if not is_instance_valid(game.hero) or game.hero.knocked_out:
+	if not is_instance_valid(game.hero) or game.hero.knocked_out or game.hero.domain != "defense":
 		return
 	var remaining:=2
 	var candidates: Array[Node2D]=[]
 	var point: Vector2=game.hero.position
-	for enemy in game.enemies:
+	for enemy in game.domain_enemies("defense"):
 		if not is_instance_valid(enemy) or enemy.dead:
 			continue
 		if enemy.chase_left>0:
@@ -44,7 +46,10 @@ func _update_chasers() -> void:
 	if remaining<=0:return
 	candidates.sort_custom(func(a,b):return a.position.distance_squared_to(point)<b.position.distance_squared_to(point))
 	for index in range(mini(remaining,candidates.size())):
-		candidates[index].chase_left=1.25
+		var chaser: ArenaEnemy=candidates[index] as ArenaEnemy
+		chaser.chase_left=1.25
+		if is_instance_valid(chaser):
+			chaser.melee_clock=maxf(chaser.melee_clock,0.24+float(index)*0.18)
 
 func update() -> void:
 	var to_erase: Array = []
@@ -68,10 +73,12 @@ func update() -> void:
 			blockers.append(soldier)
 			if soldier.taunt():
 				taunting.append(soldier)
-	for beast in game.hero.companions:
-		if is_instance_valid(beast) and beast.can_block():blockers.append(beast)
-	for enemy in game.enemies:
-		if not is_instance_valid(enemy) or enemy.dead or enemy.is_guard or enemy.is_boss() or (enemy.has_method("is_mini_boss") and enemy.is_mini_boss()) or (enemy.has_method("is_flying") and enemy.is_flying()) or assignments.has(enemy) or enemy.chase_active():
+	if is_instance_valid(game.hero) and game.hero.domain == "defense":
+		for beast in game.hero.companions:
+			if is_instance_valid(beast) and beast.can_block():blockers.append(beast)
+	var hero_new_idx := 0
+	for enemy in game.domain_enemies("defense"):
+		if not is_instance_valid(enemy) or enemy.dead or enemy.is_guard or enemy.is_boss() or (enemy.has_method("is_mini_boss") and enemy.is_mini_boss()) or (enemy.has_method("is_flying") and enemy.is_flying()) or (enemy.has_method("is_submerged") and enemy.is_submerged()) or assignments.has(enemy) or enemy.chase_active():
 			continue
 		# Taunting soldiers pull nearby attackers before the normal hero-first order.
 		var assigned := false
@@ -93,7 +100,16 @@ func update() -> void:
 		if assigned:
 			continue
 		for blocker in blockers:
-			if enemy.position.distance_squared_to(blocker.position) > 2401.0 or (blocker is ArenaSoldier and not blocker.can_engage(enemy)):
+			var pickup_sq := 2401.0
+			if blocker is ArenaSoldier:
+				if not blocker.can_engage(enemy):
+					continue
+				if not game.tower_lab:
+					var flag_pos: Vector2 = blocker.tower.rally_point if is_instance_valid(blocker.tower) else blocker.position
+					if enemy.position.distance_squared_to(flag_pos) > 15625.0:
+						continue
+					pickup_sq = 6084.0
+			if enemy.position.distance_squared_to(blocker.position) > pickup_sq:
 				continue
 			var w:=weight_for(enemy,blocker)
 			var cur: int = int(loads.get(blocker, 0))
@@ -104,5 +120,8 @@ func update() -> void:
 			assignments[enemy] = blocker
 			enemy.blocker = blocker
 			loads[blocker] = cur + w
+			if blocker == game.hero:
+				enemy.melee_clock = maxf(enemy.melee_clock, 0.24 + float(hero_new_idx) * 0.18)
+				hero_new_idx += 1
 			break
 	_update_chasers()

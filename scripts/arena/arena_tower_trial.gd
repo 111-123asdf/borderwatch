@@ -45,13 +45,19 @@ static func offer(kind: String) -> Dictionary:
 	return data
 
 static func defense_offer(kind: String) -> Dictionary:
-	var data:=offer(kind)
-	var stats: Array={
-		"archer":[26.0,1.35,285.0], "mage":[22.0,1.85,220.0],
-		"cannon":[62.0,2.35,265.0], "barracks":[7.0,1.0,200.0]}[kind]
-	data.damage=stats[0]
-	data.interval=stats[1]
-	data.reach=stats[2]
+	var data:=ArenaDefinitions.tower(kind)
+	if kind=="archer":
+		data.name="弓箭塔"
+		data.description="全自动贯穿飞箭，附加+28%英雄易伤破绽"
+	elif kind=="mage":
+		data.name="法师塔"
+		data.description="全自动寒霜脉冲：范围减速35%并三层冻结"
+	elif kind=="cannon":
+		data.name="火炮塔"
+		data.description="全自动震地轰击：大范围击退与眩晕聚怪"
+	elif kind=="barracks":
+		data.name="兵营"
+		data.description="高防盾卫拦截，周期升起减速屏障（自动升阶）"
 	return data
 
 static func arrow_scales(level: int) -> Array[float]:

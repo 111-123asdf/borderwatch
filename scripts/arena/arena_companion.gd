@@ -130,8 +130,9 @@ func _physics_process(delta: float) -> void:
 	if orders_left > 0:
 		focus = destination
 		limit = 120.0
-	var target: Node2D = ordered_target if orders_left > 0 and is_instance_valid(ordered_target) and not ordered_target.dead else game.nearest_enemy(focus, limit)
-	if slot == 0:
+	var dom: String = hero.domain if "domain" in hero else "defense"
+	var target: Node2D = ordered_target if orders_left > 0 and is_instance_valid(ordered_target) and not ordered_target.dead and ordered_target.domain == dom else game.nearest_enemy(focus, limit, true, dom)
+	if slot == 0 and dom == "defense":
 		for foe in game.blocking.assignments:
 			if game.blocking.assignments[foe] == self and is_instance_valid(foe):
 				target = foe
@@ -156,9 +157,19 @@ func _move_to(point: Vector2, delta: float) -> void:
 		visual.show_state("idle", facing)
 		return
 	var game: Node2D = hero.game
-	var speed := (195.0 if slot == 0 else 260.0) * (1.25 if boost > 0 else 1.0)
+	var dom: String = hero.domain if "domain" in hero else "defense"
+	var haste: float = (1.0 + float(game.rift_domain.rift_explore_haste())) if (dom == "rift" and game != null and game.rift_domain != null) else 1.0
+	var speed: float = (210.0 if slot == 0 else 275.0) * (1.25 if boost > 0 else 1.0) * haste
 	var goal := position.move_toward(point, speed * delta)
 	route_timer = maxf(0.0, route_timer - delta)
+	if dom == "rift":
+		goal = game.rift_domain.clamp_rift_position(goal) if game.rift_domain != null else goal
+		if position.distance_squared_to(goal) > 0.1:
+			facing = position.direction_to(goal)
+			position = goal
+			visual.show_state("walk", facing)
+			visual.stride(speed)
+		return
 	if game.walkable(goal) and game.walkable(position.lerp(point, 0.5)):
 		path.clear()
 	else:
@@ -181,16 +192,17 @@ func _strike() -> void:
 	if not is_instance_valid(attack_target) or attack_target.dead or position.distance_to(attack_target.position) > 68.0:
 		second_lunge = false
 		return
-	var amount: float = (18.0 if slot == 0 else 27.0) * hero.damage_scale() * (1.45 if boost > 0 else 1.0)
+	var dom: String = hero.domain if "domain" in hero else "defense"
+	var amount: float = (22.0 if slot == 0 else 32.0) * hero.damage_scale() * (1.45 if boost > 0 else 1.0)
 	attack_target.take_hit(amount, 0, "hero", 0.0, 0.0, 0.0, "beast_strike", facing)
 	if slot == 0 and is_instance_valid(attack_target) and not attack_target.dead:
 		# Frost Wolf chills target briefly
 		attack_target.chill(0.25 if boost > 0 else 0.18, 1.8)
 	elif slot == 1:
 		# Ember Wolf triggers fiery claw splash around primary target
-		var splash_r := 64.0 if boost > 0 else 44.0
-		var splash_dmg := amount * (0.45 if boost > 0 else 0.30)
-		for other in hero.game.enemies:
+		var splash_r := 76.0 if boost > 0 else 56.0
+		var splash_dmg := amount * (0.55 if boost > 0 else 0.42)
+		for other in hero.game.domain_enemies(dom):
 			if is_instance_valid(other) and other != attack_target and not other.dead and other.position.distance_to(attack_target.position) <= splash_r:
 				other.take_hit(splash_dmg, 0, "hero", 0.0, 0.0, 0.0, "beast_strike", facing)
 	var fx_col := Color("7be6ff") if slot == 0 else Color("ff7a36")
@@ -208,11 +220,15 @@ func _draw() -> void:
 	var s := boost_visual_scale
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0, 0.38))
 	draw_circle(Vector2.ZERO, 17.0 * s, Color(0.08, 0.10, 0.14, 0.54))
+	draw_set_transform(Vector2.ZERO)
 	if boost > 0:
 		var aura_col := Color("6ce0ff") if slot == 0 else Color("ff7834")
-		draw_arc(Vector2.ZERO, 20.0 * s, 0.0, TAU, 20, Color(aura_col, 0.85), 2.4, true)
-		draw_circle(Vector2.ZERO, 19.0 * s, Color(aura_col, 0.18))
-	draw_set_transform(Vector2.ZERO)
+		var t_b := float(Time.get_ticks_msec()) * 0.005
+		for k in range(3):
+			var age := fmod(t_b + float(k) * 0.34, 1.0)
+			var mp := Vector2(sin(t_b * 1.5 + float(k) * 2.1) * 14.0 * s, -4.0 - age * 26.0 * s).snapped(Vector2(2, 2))
+			draw_rect(Rect2(mp - Vector2(2, 2), Vector2(4, 4)), Color("14111b", (1.0 - age) * 0.65))
+			draw_rect(Rect2(mp - Vector2(1, 1), Vector2(2, 2)), Color(aura_col.r, aura_col.g, aura_col.b, (1.0 - age) * 0.92))
 	if health < max_health() and health > 0:
 		var bar_y := -visual.visual_size * s * 0.72 - 6.0
 		draw_rect(Rect2(-15, bar_y, 30, 3.5), Color("222833"))

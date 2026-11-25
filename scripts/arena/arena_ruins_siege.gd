@@ -14,26 +14,22 @@ var open_layer: Sprite2D
 var stone_styles: Array[StyleBoxFlat]=[]
 func _ready() -> void:
 	z_index=3
-	for colour in [Color("a5a197"),Color("939196")]:
-		var style:=StyleBoxFlat.new();style.bg_color=colour;style.border_color=Color("575c67");style.set_border_width_all(2);style.set_corner_radius_all(3);stone_styles.append(style)
-	if ResourceLoader.exists("res://assets/v017/map_ruins_open.png"):
-		var file:=FileAccess.open("res://assets/v017/art_layers.json",FileAccess.READ)
-		var data: Dictionary=JSON.parse_string(file.get_as_text());var rect: Array=data.breach_rect
-		open_layer=Sprite2D.new();open_layer.texture=load("res://assets/v017/map_ruins_open.png");open_layer.position=Vector2(float(rect[0])+float(rect[2])*0.5,float(rect[1])+float(rect[3])*0.5);open_layer.modulate.a=0;open_layer.visible=false;open_layer.z_index=-19;open_layer.material=game.ground.material;game.terrain.add_child(open_layer)
+	for colour in [Color("787094"),Color("5e5678")]:
+		var style:=StyleBoxFlat.new();style.bg_color=colour;style.border_color=Color("3a3052");style.set_border_width_all(2);style.set_corner_radius_all(3);stone_styles.append(style)
 func point() -> Vector2:return game.level_definition.breach.point
 func tick(delta: float) -> void:
 	if game.game_over:return
 	warning_clock=maxf(0.0,warning_clock-delta)
-	if not warned and game.cycle>=4 and game.phase=="spawn":
+	if not warned and game.cycle>=3 and game.phase=="spawn":
 		warned=true;clock=12.0;warning_clock=12.0
-		guard=ArenaEnemy.new();guard.game=game;guard.kind="breacher";guard.is_guard=true;guard.home=game.level_definition.breach.guard;guard.position=guard.home
+		guard=ArenaEnemy.new();guard.game=game;guard.kind="twilight_golem";guard.is_guard=true;guard.home=game.level_definition.breach.guard;guard.position=guard.home
 		game.register_enemy(guard)
-		game.numbers.append({"point":point()+Vector2(0,-70),"text":"破障者蓄力","colour":Color("e3ad77"),"life":2.0})
+		game.numbers.append({"point":point()+Vector2(18,-68),"text":"破障石像蓄力","colour":Color("e3ad77"),"life":2.0})
 	if warned and not opened:
 		if not interrupted and (not is_instance_valid(guard) or guard.dead):
 			interrupted=true;clock=12.0
 			game.numbers.append({"point":point()+Vector2(0,-60),"text":"破障延缓至下一波","colour":Color("bddb9a"),"life":2.0})
-		if not interrupted or game.cycle>=5:
+		if not interrupted or game.cycle>=4:
 			clock=maxf(0,clock-delta)
 			if is_instance_valid(guard) and not guard.dead:
 				guard.visual.show_pose("attack",Vector2.LEFT)
@@ -43,7 +39,9 @@ func tick(delta: float) -> void:
 		if open_layer!=null:open_layer.visible=true;open_layer.modulate.a=reveal
 		if intro_pending and game.phase=="spawn":
 			intro_pending=false
-			for i in range(5):game.spawn_queue.append({"kind":"rune_warden" if i>=3 else "construct_hound","route":3,"elite":false,"at":game.wave_elapsed+10.0+i*1.0})
+			var pack: Array = ["void_eyeling", "void_eyeling", "twilight_avenger", "twilight_avenger", "twilight_golem"]
+			for i in range(pack.size()):
+				game.spawn_queue.append({"kind":pack[i],"route":2,"elite":false,"at":game.wave_elapsed+10.0+float(i)*1.0})
 			game.spawn_queue.sort_custom(func(a,b):return a.at<b.at)
 	queue_redraw()
 func open_passage() -> void:
@@ -58,7 +56,7 @@ func _draw() -> void:
 	if opened:return
 	var center:=point()
 	ArenaGrounding.ensure_textures()
-	draw_texture_rect(ArenaGrounding.shadow,Rect2(center+Vector2(-72,-14),Vector2(148,54)),false)
+	draw_texture_rect(ArenaGrounding.shadow,Rect2(center+Vector2(-68,-14),Vector2(140,48)),false)
 	var shake_off:=Vector2.ZERO
 	if warned and not interrupted:
 		var t:=Time.get_ticks_msec()*0.025
@@ -66,17 +64,22 @@ func _draw() -> void:
 	if ArenaGrounding.mechanisms!=null:
 		if warned:
 			var pulse:=0.55+0.45*sin(Time.get_ticks_msec()*0.008)
-			draw_set_transform(center+Vector2(0,4),0.0,Vector2(1.0,0.52))
-			draw_circle(Vector2.ZERO,64.0,Color(0.96,0.68,0.28,0.14+0.12*pulse))
-			draw_arc(Vector2.ZERO,62.0,0.0,TAU,36,Color(0.98,0.78,0.38,0.52),2.2,true)
-			draw_set_transform(Vector2.ZERO)
-		draw_texture_rect_region(ArenaGrounding.mechanisms,Rect2(center+shake_off-Vector2(74,68),Vector2(148,124)),Rect2(0,0,256,256))
+			for c_i in range(4):
+				var ca := float(c_i) * (TAU / 4.0) + 0.4
+				var c0 := (center + Vector2(cos(ca) * 14.0, sin(ca) * 8.0)).snapped(Vector2(2, 2))
+				var c1 := (center + Vector2(cos(ca) * 44.0, sin(ca) * 22.0)).snapped(Vector2(2, 2))
+				draw_line(c0, c1, Color("201028", 0.85), 4.0)
+				draw_line(c0, c1, Color(0.86, 0.56, 1.0, 0.55 + 0.45 * pulse), 2.0)
+		draw_texture_rect_region(ArenaGrounding.mechanisms,Rect2(center+shake_off-Vector2(66,58),Vector2(132,110)),Rect2(0,0,256,256),Color(0.64,0.54,0.78))
 	else:
 		for row in range(3):
 			for column in range(5):
 				var rect:=Rect2(center+Vector2(-52+column*21+(5 if row%2 else 0),-31+row*17),Vector2(22,19))
 				draw_style_box(stone_style(row,column),rect)
 	if warned:
-		draw_arc(center+Vector2(0,-42),22,-PI/2,-PI/2+TAU*(1.0-clock/12.0),32,Color("f4c27a"),3.2,true)
+		var pct := clampf(1.0 - clock / 12.0, 0.0, 1.0)
+		var bar_o := (center + Vector2(-26, -48)).snapped(Vector2(2, 2))
+		draw_rect(Rect2(bar_o - Vector2(1, 1), Vector2(54, 7)), Color("120e1a", 0.90))
+		draw_rect(Rect2(bar_o, Vector2(52.0 * pct, 5.0)), Color("f4c27a"))
 func stone_style(row: int,column: int) -> StyleBoxFlat:
 	return stone_styles[(row+column)%2]

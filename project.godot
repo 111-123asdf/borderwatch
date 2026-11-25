@@ -12,7 +12,7 @@ config_version=5
 
 config/name="边境守望"
 config/description="英雄探索 × 自动塔防 × 肉鸽成长"
-config/version="0.23.0"
+config/version="0.32.0"
 run/main_scene="res://scenes/arena.tscn"
 config/use_custom_user_dir=true
 config/custom_user_dir_name="Borderwatch"

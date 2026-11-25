@@ -14,6 +14,7 @@ const RUINS_BRAZIERS := [
 
 const KENNEY_PARTICLES := {
 	"smoke": "res://assets/v018/particles/smoke_04.png",
+	"smoke7": "res://assets/v018/particles/smoke_07.png",
 	"spark": "res://assets/v018/particles/spark_05.png",
 	"flare": "res://assets/v018/particles/flare_01.png",
 	"magic": "res://assets/v018/particles/magic_05.png",
@@ -31,6 +32,11 @@ const V016_SHEETS := {
 	"fire_brazier": {"path": "res://assets/v016/fx_fire_brazier.png", "cols": 12, "pivot": Vector2(32, 59), "tint": 0.15, "fps": 8.0},
 	"slam": {"path": "res://assets/v016/fx_ground_slam.png", "cols": 8, "pivot": Vector2(32, 50), "tint": 0.22},
 	"upgrade": {"path": "res://assets/v016/fx_upgrade_sigil.png", "cols": 8, "pivot": Vector2(32, 54), "tint": 0.30},
+	"meteor_comet": {"path": "res://assets/vfx_v031/vfx_meteor_comet.png", "cols": 6, "pivot": Vector2(64, 96), "tint": 0.12, "exact_cols": true},
+	"frost_spikes": {"path": "res://assets/vfx_v031/vfx_frost_spikes.png", "cols": 6, "pivot": Vector2(64, 108), "tint": 0.12, "exact_cols": true},
+	"blackhole_void": {"path": "res://assets/vfx_v031/vfx_blackhole_void.png", "cols": 6, "pivot": Vector2(64, 64), "tint": 0.08, "exact_cols": true},
+	"orbital_beam": {"path": "res://assets/vfx_v031/vfx_orbital_beam.png", "cols": 4, "pivot": Vector2(64, 174), "tint": 0.08, "exact_cols": true},
+	"portal_warp": {"path": "res://assets/vfx_v031/vfx_portal_warp.png", "cols": 8, "pivot": Vector2(64, 64), "tint": 0.06, "exact_cols": true},
 }
 
 var game: Node2D
@@ -43,6 +49,7 @@ var ambient_braziers: Array = []
 var _pixel_layer: Node2D
 var _glow_layer: Node2D
 var _glow_tex: Texture2D
+var _smoke_puff_tex: Texture2D
 var _clock := 0.0
 
 
@@ -52,6 +59,7 @@ func _ready() -> void:
 		painted = load("res://assets/v011/physical_fx.png")
 	_load_v016_assets()
 	_glow_tex = _build_radial_glow_texture()
+	_smoke_puff_tex = _build_smoke_puff_texture()
 	_setup_render_layers()
 
 
@@ -122,9 +130,42 @@ func _build_radial_glow_texture() -> Texture2D:
 	return ImageTexture.create_from_image(img)
 
 
+func _build_smoke_puff_texture() -> Texture2D:
+	var sz := 48
+	var img := Image.create(sz, sz, false, Image.FORMAT_RGBA8)
+	var lobes := [
+		[Vector2(24, 26), 13.0], [Vector2(16, 27), 9.5], [Vector2(32, 27), 9.5],
+		[Vector2(20, 20), 9.0], [Vector2(29, 21), 8.5], [Vector2(24, 17), 7.5],
+		[Vector2(24, 30), 8.5]
+	]
+	for y in range(sz):
+		for x in range(sz):
+			var p := Vector2(float(x), float(y))
+			var density := 0.0
+			for lb in lobes:
+				var c: Vector2 = lb[0]
+				var r: float = float(lb[1])
+				var d := p.distance_to(c) / r
+				if d < 1.0:
+					var u := 1.0 - d
+					density = maxf(density, u * u * (1.6 - 0.6 * u))
+			density = clampf(density, 0.0, 1.0)
+			if density > 0.04:
+				img.set_pixel(x, y, Color(1.0, 1.0, 1.0, density))
+	return ImageTexture.create_from_image(img)
+
+
+func _has_melee_telegraph() -> bool:
+	if game == null:
+		return false
+	for e in game.domain_enemies(game.active_domain):
+		if is_instance_valid(e) and not e.dead and e.melee_windup > 0.0 and e.melee_target == game.hero:
+			return true
+	return false
+
 func _process(delta: float) -> void:
 	_clock += delta
-	var has_active: bool = game != null and (not game.effects.is_empty() or not game.delayed.is_empty() or not game.numbers.is_empty())
+	var has_active: bool = game != null and (not game.effects.is_empty() or not game.delayed.is_empty() or not game.numbers.is_empty() or _has_melee_telegraph() or (game.passive_engine != null and (not game.passive_engine.active_wells.is_empty() or not game.passive_engine.active_beams.is_empty() or not game.passive_engine.active_phantoms.is_empty())))
 	if has_active:
 		queue_redraw()
 	if has_active or Engine.get_process_frames() % 2 == 0:
@@ -160,9 +201,19 @@ func _resolve_sheet_key(kind: String) -> String:
 			return "hit"
 		"slash":
 			return "slash"
-		"blast", "arcane_blast", "summon", "meteor":
+		"frost_spikes":
+			return "frost_spikes" if has_v016_fx("frost_spikes") else "frost"
+		"starfall", "meteor", "meteor_comet":
+			return "meteor_comet" if has_v016_fx("meteor_comet") else "arcane_blast"
+		"blackhole_burst", "blackhole_void":
+			return "blackhole_void" if has_v016_fx("blackhole_void") else "arcane_blast"
+		"void_warp", "portal_warp":
+			return "portal_warp" if has_v016_fx("portal_warp") else "arcane_blast"
+		"orbital_beam":
+			return "orbital_beam" if has_v016_fx("orbital_beam") else "lightning"
+		"blast", "arcane_blast", "summon":
 			return "arcane_blast"
-		"frost", "frost_shatter":
+		"frost", "frost_shatter", "abyss_burst":
 			return "frost"
 		"slam", "ground_slam":
 			return "slam"
@@ -180,6 +231,8 @@ func _resolve_sheet_key(kind: String) -> String:
 
 func _sheet_cols(key: String, tex: Texture2D) -> int:
 	var spec: Dictionary = V016_SHEETS.get(key, {})
+	if bool(spec.get("exact_cols", false)):
+		return maxi(1, int(spec.get("cols", 6)))
 	var cell_h := maxf(1.0, float(tex.get_height()))
 	var detected := int(round(tex.get_width() / cell_h))
 	return maxi(1, detected if detected > 0 else int(spec.get("cols", 8)))
@@ -197,7 +250,17 @@ func _sheet_dimensions(kind: String, r: float) -> Vector2:
 			size_px = clampf(maxf(r * 3.1, 36.0), 34.0, 92.0)
 		"slash":
 			size_px = maxf(r * 2.45, 72.0)
-		"blast", "summon", "meteor":
+		"starfall", "meteor", "meteor_comet":
+			size_px = maxf(r * 2.25, 118.0)
+		"frost_spikes":
+			size_px = maxf(r * 2.15, 112.0)
+		"blackhole_burst", "blackhole_void":
+			size_px = maxf(r * 2.35, 128.0)
+		"orbital_beam":
+			return Vector2(maxf(r * 1.9, 108.0), maxf(r * 2.85, 168.0))
+		"void_warp", "portal_warp":
+			size_px = maxf(r * 2.25, 96.0)
+		"blast", "summon":
 			size_px = maxf(r * 2.35, 84.0)
 		"frost":
 			size_px = maxf(r * 2.2, 72.0)
@@ -249,7 +312,7 @@ func _draw_sheet_frame(target: Node2D, key: String, kind: String, point: Vector2
 		tex,
 		Rect2(top_left, dim),
 		Rect2(Vector2(float(col) * cell_w, 0.0), Vector2(cell_w, cell_h)),
-		Color(tint.r, tint.g, tint.b, alpha*0.58)
+		Color(tint.r, tint.g, tint.b, alpha * 0.96)
 	)
 	target.draw_set_transform(Vector2.ZERO)
 
@@ -258,6 +321,8 @@ func _ambient_brazier_points() -> Array:
 	if not ambient_braziers.is_empty():
 		return ambient_braziers
 	if game == null:
+		return []
+	if str(game.get("level_id")) in ["saltport", "lighthouse", "ruins", "sanctum"]:
 		return []
 	var custom: Variant = game.get("braziers")
 	if custom is Array and not custom.is_empty():
@@ -277,7 +342,38 @@ func _draw() -> void:
 		ArenaHeroSkillFX.draw_companion_orders(self,game.hero,_is_reduced_motion())
 	_draw_legacy_and_painted_effects()
 	_draw_delayed_indicators()
+	_draw_enemy_melee_glints()
 	_draw_floating_numbers()
+
+func _draw_enemy_melee_glints() -> void:
+	if game == null or not is_instance_valid(game.hero):
+		return
+	for e in game.domain_enemies(game.active_domain):
+		if not is_instance_valid(e) or e.dead or e.melee_windup <= 0.0 or e.melee_target != game.hero:
+			continue
+		var m_total: float = maxf(0.05, float(e.melee_windup_total))
+		var mp: float = 1.0 - clampf(float(e.melee_windup) / m_total, 0.0, 1.0)
+		var urgent: bool = float(e.melee_windup) <= 0.22
+		var heavy: bool = e._is_heavy_melee()
+		var dir: Vector2 = e.melee_dir
+		var vis_h: float = float(e.visual.base_height) if is_instance_valid(e.visual) else 54.0
+		var glint_m := (Vector2(e.position) + Vector2(dir.x * 24.0, dir.y * 8.0 - vis_h * 0.56)).snapped(Vector2(2, 2))
+		if urgent:
+			var g_len := 12.0 + 3.5 * sin(float(e.melee_windup) * 34.0)
+			draw_line(glint_m - Vector2(g_len, 0.0), glint_m + Vector2(g_len, 0.0), Color("14111b"), 5.5, false)
+			draw_line(glint_m - Vector2(0.0, g_len), glint_m + Vector2(0.0, g_len), Color("14111b"), 5.5, false)
+			draw_line(glint_m - Vector2(g_len, 0.0), glint_m + Vector2(g_len, 0.0), Color("ff5c38"), 3.2, false)
+			draw_line(glint_m - Vector2(0.0, g_len), glint_m + Vector2(0.0, g_len), Color("ff5c38"), 3.2, false)
+			draw_line(glint_m - Vector2(g_len * 0.65, 0.0), glint_m + Vector2(g_len * 0.65, 0.0), Color("fff6a8"), 1.8, false)
+			draw_line(glint_m - Vector2(0.0, g_len * 0.65), glint_m + Vector2(0.0, g_len * 0.65), Color("fff6a8"), 1.8, false)
+			draw_rect(Rect2(glint_m - Vector2(2.0, 2.0), Vector2(4.0, 4.0)), Color.WHITE)
+		else:
+			var s_len := 6.0 + 4.5 * mp
+			var g_col := Color("ff5a38", 0.94) if heavy else Color("ffb048", 0.90)
+			draw_line(glint_m - Vector2(s_len, 0.0), glint_m + Vector2(s_len, 0.0), Color("14111b", 0.90), 4.0, false)
+			draw_line(glint_m - Vector2(0.0, s_len), glint_m + Vector2(0.0, s_len), Color("14111b", 0.90), 4.0, false)
+			draw_line(glint_m - Vector2(s_len, 0.0), glint_m + Vector2(s_len, 0.0), g_col, 2.0, false)
+			draw_line(glint_m - Vector2(0.0, s_len), glint_m + Vector2(0.0, s_len), g_col, 2.0, false)
 
 
 func _draw_legacy_and_painted_effects() -> void:
@@ -293,6 +389,9 @@ func _draw_legacy_and_painted_effects() -> void:
 			continue
 		if item.kind=="dodge_step":
 			_draw_dodge_step(point, Vector2(item.direction), r, p, item.colour, reduced)
+			continue
+		if item.kind=="perfect_dodge":
+			_draw_perfect_dodge(point, Vector2(item.direction), r, p, item.colour, reduced)
 			continue
 		match item.kind:
 			"pixel_contact", "shield_contact":
@@ -328,8 +427,6 @@ func _draw_legacy_and_painted_effects() -> void:
 					elif row == 2:
 						var beat := sqrt(p)
 						draw_arc(point + Vector2(item.direction)*r*0.1,r*(0.22+0.75*beat),angle-1.20,angle+1.20,22,Color(0.98,0.81,0.52,0.80*(1-p)),3.8*(1-p)+0.5,true)
-					elif row == 3:
-						draw_arc(point,r*(0.18+0.82*smoothstep(0,0.8,p)),0,TAU,64,Color(0.95,0.82,0.5,0.48*(1-p)),2.2,true)
 					draw_set_transform(point, angle)
 					var dimensions := Vector2(r * 2.0, r * 2.0)
 					if row == 2:
@@ -411,6 +508,36 @@ func _draw_pixel_layer() -> void:
 		var tint := Color.WHITE.lerp(Color(base_col.r, base_col.g, base_col.b, 1.0), tint_w)
 		var angle := _sheet_angle(kind, item)
 		_draw_sheet_frame(_pixel_layer, sheet_key, kind, item.point, float(item.radius), p, alpha, tint, angle)
+	if game.passive_engine != null:
+		for w: Dictionary in game.passive_engine.active_wells:
+			if str(w.get("domain", game.active_domain)) != game.active_domain:
+				continue
+			var wp := Vector2(w.get("pos", Vector2.ZERO))
+			var wr := float(w.get("radius", 120.0))
+			var wt := fmod(maxf(0.0, _clock) * 1.4, 1.0)
+			if has_v016_fx("blackhole_void"):
+				_draw_sheet_frame(_pixel_layer, "blackhole_void", "blackhole_void", wp, wr * 0.85, wt * 0.82, 0.94, Color("d8a4ff"), _clock * 1.8)
+		for b: Dictionary in game.passive_engine.active_beams:
+			if str(b.get("domain", game.active_domain)) != game.active_domain:
+				continue
+			var bp := Vector2(b.get("pos", Vector2.ZERO))
+			var br := float(b.get("radius", 65.0))
+			var bt := 0.25 + fmod(maxf(0.0, _clock) * 2.2, 0.72)
+			if has_v016_fx("orbital_beam"):
+				_draw_sheet_frame(_pixel_layer, "orbital_beam", "orbital_beam", bp, br, bt, 0.96, Color.WHITE, 0.0)
+		for ph: Dictionary in game.passive_engine.active_phantoms:
+			if str(ph.get("domain", game.active_domain)) != game.active_domain:
+				continue
+			var php := Vector2(ph.get("pos", Vector2.ZERO))
+			var phd := Vector2(ph.get("dir", Vector2.RIGHT)).normalized()
+			var plife := clampf(float(ph.get("life", 0.0)) / maxf(0.05, float(ph.get("duration", 0.36))), 0.0, 1.0)
+			var ph_r := float(ph.get("radius", 118.0))
+			var evo_p: bool = game.passive_engine.is_evo("phantom_slash")
+			var col_ph := Color("ffdf7a") if evo_p else Color("68e4ff")
+			_pixel_layer.draw_set_transform(php, phd.angle())
+			_pixel_layer.draw_arc(Vector2.ZERO, ph_r * 0.56, -0.95, 0.95, 18, Color(col_ph.r, col_ph.g, col_ph.b, plife * 0.92), 6.0 * plife + 1.5, false)
+			_pixel_layer.draw_arc(Vector2(6, 0), ph_r * 0.44, -0.75, 0.75, 14, Color(1.0, 1.0, 1.0, plife * 0.85), 2.5 * plife + 0.5, false)
+			_pixel_layer.draw_set_transform(Vector2.ZERO)
 
 
 func _draw_glow_layer() -> void:
@@ -444,7 +571,6 @@ func _draw_glow_layer() -> void:
 
 	# 2. Active effects additive bloom + Kenney CC0 smooth magic/smoke/spark bursts
 	var magic_tex := kenney_tex.get("magic") as Texture2D
-	var circle_tex := kenney_tex.get("circle") as Texture2D
 	var spark_tex := kenney_tex.get("spark") as Texture2D
 	for item in game.effects:
 		var kind := str(item.kind)
@@ -458,11 +584,6 @@ func _draw_glow_layer() -> void:
 			var add_tint := Color.WHITE.lerp(Color(col.r, col.g, col.b, 1.0), 0.55)
 			var add_alpha := (0.16 if kind == "upgrade" else (0.42 if kind in ["blast", "lightning", "shield_break"] else 0.34)) * fade * glow_mul
 			_draw_sheet_frame(_glow_layer, sheet_key, kind, item.point, float(item.radius), p, add_alpha, add_tint, angle, 1.04)
-		if circle_tex != null and kind in ["blast", "slam", "frost", "shield_break"]:
-			var cr := maxf(float(item.radius) * (0.45 + 0.72 * p), 28.0)
-			_glow_layer.draw_set_transform(item.point, p * 1.4, Vector2(1.0, 0.65 if kind in ["slam", "upgrade"] else 1.0))
-			_glow_layer.draw_texture_rect(circle_tex, Rect2(-Vector2.ONE * cr, Vector2.ONE * cr * 2.0), false, Color(col.r, col.g, col.b, 0.38 * fade * glow_mul))
-			_glow_layer.draw_set_transform(Vector2.ZERO)
 		if magic_tex != null and kind in ["frost", "summon", "shield_break"]:
 			var mr := maxf(float(item.radius) * (0.6 + 0.5 * p), 32.0)
 			_glow_layer.draw_set_transform(item.point, -p * 2.1)
@@ -483,22 +604,19 @@ func _draw_glow_layer() -> void:
 			var layers := int(item.get("meta", {}).get("layers", 0))
 			var b_rad := 24.0 + float(layers) * 6.0
 			_glow_layer.draw_texture_rect(_glow_tex, Rect2(end_pt - Vector2.ONE * b_rad, Vector2.ONE * b_rad * 2.0), false, Color(1.0, 0.88, 0.42, 0.48 * fade * glow_mul))
-
-	# 3. Ground telegraph center convergence glow (additive, ground-squashed)
-	for item in game.delayed:
-		if item.source != "enemy":
-			continue
-		var dur := maxf(0.01, float(item.duration))
-		var p := clampf(1.0 - float(item.life) / dur, 0.0, 1.0)
-		var telegraph_tag := str(item.options.get("telegraph", ""))
-		var ruin_telegraph := telegraph_tag in ["arcane_slam", "rift_collapse"]
-		var glow_col := Color(0.55, 0.85, 1.0) if telegraph_tag == "rift_collapse" else (Color(0.78, 0.54, 1.0) if ruin_telegraph else (Color(0.45, 0.92, 0.44) if telegraph_tag == "toxic_bomb" else (Color(1.0, 0.42, 0.28) if telegraph_tag in ["boss_slam", "bear_slam"] else Color(1.0, 0.68, 0.36))))
-		if _glow_tex != null:
-			var pulse := 1.0 if reduced else (0.85 + 0.15 * sin(_clock * 10.0 + p * 8.0))
-			var core_r := maxf(18.0, float(item.radius) * (0.35 + 0.55 * p))
-			_glow_layer.draw_set_transform(item.point, 0.0, Vector2(1.0, 0.58))
-			_glow_layer.draw_texture_rect(_glow_tex, Rect2(-Vector2.ONE * core_r, Vector2.ONE * core_r * 2.0), false, Color(glow_col.r, glow_col.g, glow_col.b, (0.14 + 0.28 * p) * pulse * glow_mul))
-			_glow_layer.draw_set_transform(Vector2.ZERO)
+	if _glow_tex != null and game.passive_engine != null:
+		for w: Dictionary in game.passive_engine.active_wells:
+			if str(w.get("domain", game.active_domain)) != game.active_domain:
+				continue
+			var wp := Vector2(w.get("pos", Vector2.ZERO))
+			var hr := float(w.get("radius", 120.0)) * 0.95
+			_glow_layer.draw_texture_rect(_glow_tex, Rect2(wp - Vector2.ONE * hr, Vector2.ONE * hr * 2.0), false, Color(0.68, 0.34, 1.0, 0.36 * glow_mul))
+		for b: Dictionary in game.passive_engine.active_beams:
+			if str(b.get("domain", game.active_domain)) != game.active_domain:
+				continue
+			var bp := Vector2(b.get("pos", Vector2.ZERO))
+			var br := float(b.get("radius", 65.0)) * 1.15
+			_glow_layer.draw_texture_rect(_glow_tex, Rect2(bp - Vector2.ONE * br, Vector2.ONE * br * 2.0), false, Color(1.0, 0.86, 0.38, 0.46 * glow_mul))
 
 
 func _draw_delayed_indicators() -> void:
@@ -593,23 +711,22 @@ func _draw_cannon_blast(point: Vector2, r: float, p: float, reduced: bool, meta:
 	var is_frag := doc == "frag"
 	var blast_scale := 1.18 if is_siege else 1.0
 	var fade := clampf(1.0 - p, 0.0, 1.0)
-	# 1. Ground Scorch Crater & Ember Fissures (persists and fades smoothly)
-	draw_set_transform(point, 0.0, Vector2(1.0, 0.56))
-	var crater_r := r * 0.62 * blast_scale
-	draw_circle(Vector2.ZERO, crater_r * 1.15, Color(0.11, 0.09, 0.08, 0.48 * fade))
-	draw_circle(Vector2.ZERO, crater_r * 0.78, Color(0.06, 0.05, 0.05, 0.60 * fade))
-	if p < 0.55:
-		var ember_a := (1.0 - p / 0.55) * 0.88
-		draw_circle(Vector2.ZERO, crater_r * 0.45 * (1.0 - p), Color(1.0, 0.36 if is_burn else 0.52, 0.12, ember_a))
-		draw_arc(Vector2.ZERO, crater_r * (0.45 + 0.55 * sqrt(p / 0.55)), 0.0, TAU, 36, Color(1.0, 0.52 if is_burn else 0.82, 0.24, ember_a), 3.4, false)
-	# Ground shockwave ring (dual ring for frag/siege)
-	if p < 0.48:
-		var sw_p := p / 0.48
-		var sw_r := r * blast_scale * (0.28 + 0.86 * sqrt(sw_p))
-		draw_arc(Vector2.ZERO, sw_r, 0.0, TAU, 44, Color(1.0, 0.90, 0.62, (1.0 - sw_p) * 0.92), 3.8 * (1.0 - sw_p) + 1.0, false)
-		if is_frag or is_siege:
-			draw_arc(Vector2.ZERO, sw_r * 0.72, 0.0, TAU, 36, Color(1.0, 0.65, 0.28, (1.0 - sw_p) * 0.85), 2.5, false)
-	draw_set_transform(Vector2.ZERO)
+	# 1. Ground Scorch Crater & Pixel Ember Fissures (zero flat rings)
+	var crater_r := r * 0.56 * blast_scale
+	for c_i in range(5):
+		var ca := float(c_i) * (TAU / 5.0) + 0.28
+		var off := Vector2(cos(ca) * crater_r * 0.32, sin(ca) * crater_r * 0.18).snapped(Vector2(2, 2))
+		var cw := crater_r * (0.58 if c_i % 2 == 0 else 0.42)
+		draw_rect(Rect2(point + off - Vector2(cw, cw * 0.52) * 0.5, Vector2(cw, cw * 0.52)), Color(0.11, 0.09, 0.08, 0.44 * fade))
+		draw_rect(Rect2(point + off * 0.5 - Vector2(cw * 0.55, cw * 0.28) * 0.5, Vector2(cw * 0.55, cw * 0.28)), Color(0.06, 0.05, 0.05, 0.52 * fade))
+	if p < 0.45:
+		var ember_a := (1.0 - p / 0.45) * 0.90
+		for e_i in range(6):
+			var ea := float(e_i) * (TAU / 6.0) + 0.15
+			var reach := crater_r * (0.45 + 0.65 * sqrt(p / 0.45))
+			var p0 := point + Vector2(cos(ea) * 6.0, sin(ea) * 3.5)
+			var p1 := point + Vector2(cos(ea) * reach, sin(ea) * reach * 0.56)
+			draw_line(p0, p1, Color(1.0, 0.44 if is_burn else 0.64, 0.18, ember_a), 2.2, false)
 
 	# 2. Brief 1-2 Frame Hot Core Flash + Expanding Fireball & Rolling Black Smoke
 	if p < 0.12:
@@ -618,16 +735,24 @@ func _draw_cannon_blast(point: Vector2, r: float, p: float, reduced: bool, meta:
 	if p < 0.72:
 		var fp := p / 0.72
 		var smoke_fade := clampf(1.0 - fp * fp, 0.0, 1.0)
+		var smoke_spr: Texture2D = _smoke_puff_tex
 		for k in range(6):
 			var ka := float(k) * (TAU / 6.0) + 0.35
-			var spread := r * blast_scale * (0.18 + 0.56 * sqrt(fp))
-			var puff_pos := point + Vector2(cos(ka) * spread, sin(ka) * spread * 0.55 - fp * 22.0)
-			var puff_sz := (14.0 + (k % 2) * 4.5) * (0.85 + 0.55 * fp)
-			draw_circle(puff_pos, puff_sz, Color(0.18, 0.15, 0.16, 0.66 * smoke_fade))
+			var spread := r * blast_scale * (0.18 + 0.52 * sqrt(fp))
+			var puff_pos := point + Vector2(cos(ka) * spread, sin(ka) * spread * 0.52 - fp * 22.0)
+			var puff_sz := (32.0 + (k % 2) * 8.0) * (0.80 + 0.45 * fp)
+			if smoke_spr != null:
+				draw_set_transform(puff_pos, sin(float(k) * 1.1 + fp * 0.6) * 0.4)
+				draw_texture_rect(smoke_spr, Rect2(-Vector2.ONE * puff_sz * 0.5, Vector2.ONE * puff_sz), false, Color(0.14, 0.11, 0.12, 0.68 * smoke_fade))
+				draw_set_transform(Vector2.ZERO)
 			if fp < 0.58:
 				var fire_a := (1.0 - fp / 0.58)
-				draw_circle(puff_pos.lerp(point + Vector2(0, -6), 0.38), puff_sz * 0.74, Color(1.0, (0.30 if is_burn else 0.46) + 0.24 * (k % 2), 0.12, 0.86 * fire_a))
-				draw_circle(puff_pos.lerp(point + Vector2(0, -10), 0.58), puff_sz * 0.44, Color(1.0, 0.92, 0.54, 0.90 * fire_a))
+				var f_pos := puff_pos.lerp(point + Vector2(0, -6), 0.42).snapped(Vector2(2, 2))
+				var f_rad := puff_sz * 0.36
+				draw_colored_polygon(PackedVector2Array([
+					f_pos + Vector2(0, -f_rad * 1.25), f_pos + Vector2(f_rad * 0.78, 0), f_pos + Vector2(0, f_rad * 0.75), f_pos + Vector2(-f_rad * 0.78, 0)
+				]), Color(1.0, (0.32 if is_burn else 0.48) + 0.22 * (k % 2), 0.12, 0.90 * fire_a))
+				draw_rect(Rect2(f_pos - Vector2(f_rad * 0.3, f_rad * 0.3), Vector2(f_rad * 0.6, f_rad * 0.6)), Color(1.0, 0.94, 0.58, 0.96 * fire_a))
 
 	# 3. Parabolic Bouncing Shrapnel & Rock Debris Chunks
 	if not reduced and p < 0.82:
@@ -772,9 +897,13 @@ func _draw_snare_snap(item: Dictionary, p: float, reduced: bool) -> void:
 		var sz := (Vector2(66.0, 50.0) if trap_name == "snare_net" else Vector2(68.0, 50.0)) * (0.92 + 0.16 * sin(minf(p, 0.5) * PI))
 		draw_texture_rect(tex, Rect2(pt - sz * 0.5, sz), false, Color(1, 1, 1, clampf(fade * 1.4, 0.0, 1.0)))
 	if not reduced:
-		draw_set_transform(pt, 0.0, Vector2(1.0, 0.58))
-		draw_arc(Vector2.ZERO, float(item.radius) * (0.45 + 0.55 * sqrt(p)), 0.0, TAU, 32, Color(0.95, 0.88, 0.62, 0.72 * fade), 2.2, false)
-		draw_set_transform(Vector2.ZERO)
+		var rad := float(item.radius)
+		for k in range(5):
+			var a := float(k) * (TAU / 5.0) + 0.35
+			var reach := rad * (0.30 + 0.58 * sqrt(p))
+			var dp := (pt + Vector2(cos(a) * reach, sin(a) * reach * 0.55 - p * 8.0)).snapped(Vector2(2, 2))
+			var sz := 6.0 * (1.0 - 0.35 * p)
+			draw_rect(Rect2(dp - Vector2(sz, sz * 0.6) * 0.5, Vector2(sz, sz * 0.6)), Color(0.84, 0.78, 0.64, 0.68 * fade))
 
 func _draw_tower_pulse(item: Dictionary, p: float, reduced: bool) -> void:
 	var pt := Vector2(item.point)
@@ -787,40 +916,35 @@ func _draw_tower_pulse(item: Dictionary, p: float, reduced: bool) -> void:
 	var dark_c := Color("241008" if is_fire else "12203a")
 	var mid_c := Color("ff7a20" if is_fire else ("58d8ff" if is_inner else "70c8f8"))
 	var hi_c := Color("fff4b0" if is_fire else "eeffff")
-	draw_arc(pt, exp_r, 0.0, TAU, 40, Color(dark_c.r, dark_c.g, dark_c.b, 0.72 * fade), 6.0 if not is_inner else 4.5, false)
-	draw_arc(pt, exp_r, 0.0, TAU, 40, Color(mid_c.r, mid_c.g, mid_c.b, 0.90 * fade), 3.4 if not is_inner else 2.6, false)
-	draw_arc(pt, exp_r, 0.0, TAU, 40, Color(hi_c.r, hi_c.g, hi_c.b, 0.82 * fade), 1.4, false)
-	if is_inner:
-		return
-	var shards := 6 if reduced else 10
+	draw_set_transform(pt, 0.0, Vector2(1.0, 0.58))
+	draw_arc(Vector2.ZERO, exp_r, 0.0, TAU, 40, Color(dark_c.r, dark_c.g, dark_c.b, 0.72 * fade), 5.0 if not is_inner else 4.0, false)
+	draw_arc(Vector2.ZERO, exp_r, 0.0, TAU, 40, Color(mid_c.r, mid_c.g, mid_c.b, 0.90 * fade), 3.0 if not is_inner else 2.2, false)
+	draw_arc(Vector2.ZERO, exp_r, 0.0, TAU, 40, Color(hi_c.r, hi_c.g, hi_c.b, 0.82 * fade), 1.2, false)
+	var shards := 6 if reduced else (8 if is_inner else 10)
 	for k in range(shards):
 		var a := float(k) * (TAU / float(shards)) + (0.4 if is_fire else 0.0)
 		var dist := exp_r * 0.86
-		var sp := (pt + Vector2.from_angle(a) * dist).snapped(Vector2(2, 2))
-		var tang := Vector2.from_angle(a) * (8.0 * fade + 3.0)
+		var sp := (Vector2.from_angle(a) * dist).snapped(Vector2(2, 2))
+		var tang := Vector2.from_angle(a) * (6.5 * fade + 2.5)
 		var perp := Vector2(-tang.y, tang.x) * 0.45
 		draw_colored_polygon(PackedVector2Array([sp + tang, sp + perp, sp - tang * 0.6, sp - perp]), Color(dark_c.r, dark_c.g, dark_c.b, fade))
 		draw_colored_polygon(PackedVector2Array([sp + tang * 0.8, sp + perp * 0.65, sp - tang * 0.4, sp - perp * 0.65]), Color(hi_c.r, hi_c.g, hi_c.b, fade))
+	draw_set_transform(Vector2.ZERO)
 
 
 func _draw_magic_impact_extra(point: Vector2, r: float, p: float, reduced: bool) -> void:
 	var fade := clampf(1.0 - p * p, 0.0, 1.0)
 	if fade <= 0.05:
 		return
-	draw_set_transform(point + Vector2(0, 6), 0.0, Vector2(1.0, 0.55))
-	var ring_r := maxf(4.0, r * (0.35 + 0.85 * sqrt(p)))
-	draw_arc(Vector2.ZERO, ring_r, 0.0, TAU, 32, Color(0.58, 0.78, 1.0, 0.76 * fade), 2.4, true)
-	draw_arc(Vector2.ZERO, maxf(2.5, ring_r * 0.68), 0.0, TAU, 24, Color(0.92, 0.96, 1.0, 0.68 * fade), 1.4, true)
-	draw_set_transform(Vector2.ZERO)
-	if not reduced and fade > 0.14:
-		var shard_len := maxf(2.2, 4.5 * fade)
-		for i in range(5):
-			var a := float(i) * (TAU / 5.0) + p * 1.6
-			var dist := r * (0.25 + 0.95 * sqrt(p))
-			var sp := point + Vector2(cos(a) * dist, sin(a) * dist * 0.68 - p * 10.0)
-			var tang := Vector2.from_angle(a) * shard_len
-			var perp := Vector2(-tang.y, tang.x) * 0.58
-			draw_colored_polygon(PackedVector2Array([sp + tang, sp + perp, sp - tang, sp - perp]), Color(0.86, 0.95, 1.0, 0.88 * fade))
+	var shard_len := maxf(2.4, (3.2 if reduced else 5.2) * fade)
+	var count := 4 if reduced else 6
+	for i in range(count):
+		var a := float(i) * (TAU / float(count)) + p * 1.6
+		var dist := r * (0.24 + 0.92 * sqrt(p))
+		var sp := point + Vector2(cos(a) * dist, sin(a) * dist * 0.65 - p * 10.0)
+		var tang := Vector2.from_angle(a) * shard_len
+		var perp := Vector2(-tang.y, tang.x) * 0.58
+		draw_colored_polygon(PackedVector2Array([sp + tang, sp + perp, sp - tang, sp - perp]), Color(0.86, 0.95, 1.0, 0.90 * fade))
 
 
 # A tapered sweep follows the fast portion of the strike. Its trailing end
@@ -890,95 +1014,187 @@ func _draw_dodge_step(point: Vector2, dir: Vector2, r: float, p: float, col: Col
 	for i in range(-1, 2):
 		var start := point - n * (r * (0.3 + 0.9 * (1.0 - p))) + perp * (float(i) * 9.0)
 		var end := point + n * (r * 0.35) + perp * (float(i) * 6.0)
-		draw_line(start, end, Color(col.r, col.g, col.b, (0.45 if reduced else 0.78) * fade), 2.8 * fade + 0.6, true)
-	draw_set_transform(point, 0.0, Vector2(1.0, 0.45))
-	draw_arc(Vector2.ZERO, r * (0.45 + 0.45 * p), 0.0, TAU, 24, Color(col.r, col.g, col.b, 0.68 * fade), 2.0, true)
-	draw_set_transform(Vector2.ZERO)
+		draw_line(start, end, Color(col.r, col.g, col.b, (0.45 if reduced else 0.78) * fade), 2.8 * fade + 0.6, false)
+	if not reduced:
+		for d_i in range(3):
+			var dust := (point - n * (10.0 + float(d_i) * 8.0 * p) + perp * (float(d_i - 1) * 7.0)).snapped(Vector2(2, 2))
+			draw_rect(Rect2(dust - Vector2(2, 2), Vector2(4, 3)), Color(col.r, col.g, col.b, 0.55 * fade))
+
+func _draw_perfect_dodge(point: Vector2, dir: Vector2, r: float, p: float, col: Color, reduced: bool) -> void:
+	var n := dir.normalized() if dir.length_squared() > 0.001 else Vector2.RIGHT
+	var perp := Vector2(-n.y, n.x)
+	var fade := clampf(1.0 - p, 0.0, 1.0)
+	var gold := Color("ffe87a")
+	for i in range(-2, 3):
+		var spread := float(i) * 7.5
+		var tail := point - n * (r * (0.4 + 0.95 * (1.0 - p))) + perp * spread
+		var head := point + n * (r * 0.45) + perp * (spread * 0.55)
+		var lc := gold if i == 0 else col
+		draw_line(tail, head, Color(lc.r, lc.g, lc.b, (0.48 if reduced else 0.85) * fade), (3.4 if i == 0 else 2.2) * fade + 0.6, false)
+	if not reduced and p < 0.55:
+		var sp := (point - n * 12.0).snapped(Vector2(2, 2))
+		var s_len := 18.0 * (1.0 - p / 0.55)
+		draw_line(sp - Vector2(s_len, 0), sp + Vector2(s_len, 0), Color(gold, 0.95), 2.4, false)
+		draw_line(sp - Vector2(0, s_len), sp + Vector2(0, s_len), Color(gold, 0.95), 2.4, false)
+		draw_rect(Rect2(sp - Vector2(3, 3), Vector2(6, 6)), Color(1, 1, 1, 0.95))
 
 func _draw_enemy_telegraph(item: Dictionary, p: float, reduced: bool) -> void:
 	var telegraph_tag := str(item.options.get("telegraph", ""))
-	var is_rift := telegraph_tag == "rift_collapse"
-	var is_arcane := telegraph_tag in ["arcane_slam", "rift_collapse"]
-	var is_toxic := telegraph_tag == "toxic_bomb"
-	var is_boss_slam := telegraph_tag in ["boss_slam", "bear_slam"]
-	var rad := maxf(6.0, float(item.radius))
+	var pt_base := Vector2(item.point)
+	var rad := maxf(12.0, float(item.radius))
+	var urgent := clampf((p - 0.58) / 0.42, 0.0, 1.0)
 
-	# Theme colors: grounded nocturnal violet-cyan for Ruins telegraphs, toxic green for Skunk bombs, crimson-amber for Beast slams.
-	var wash_col := Color(0.14, 0.07, 0.28) if is_arcane else (Color(0.12, 0.24, 0.12) if is_toxic else (Color(0.30, 0.09, 0.08) if is_boss_slam else Color(0.24, 0.12, 0.10)))
-	var rim_col := (Color(0.84, 0.48, 1.0) if is_rift else Color(0.72, 0.54, 1.0)) if is_arcane else (Color(0.46, 0.92, 0.42) if is_toxic else (Color(0.98, 0.38, 0.28) if is_boss_slam else Color(0.95, 0.60, 0.32)))
-	var pulse_col := Color(0.56, 0.92, 1.0) if is_arcane else (Color(0.76, 1.0, 0.56) if is_toxic else Color(1.0, 0.82, 0.48))
-	var hot_col := Color(1.0, 0.90, 0.62) if is_arcane else Color(1.0, 0.93, 0.72)
+	# 1. Thrown projectiles (skunk toxic flask, spore pod): parabolic shell + shrinking shadow already show trajectory cleanly.
+	if item.options.has("origin"):
+		var is_toxic := telegraph_tag == "toxic_bomb"
+		var wisp_col := Color("5be86c") if is_toxic else Color("c876e8")
+		var count := 3 if reduced else 5
+		for k in range(count):
+			var ka := float(k) * (TAU / float(count)) + (0.0 if reduced else _clock * 2.2)
+			var wr := rad * (0.14 + 0.24 * (1.0 - p * 0.4))
+			var wp := (pt_base + Vector2(cos(ka) * wr, sin(ka) * wr * 0.52 - p * 6.0 - float(k % 2) * 4.0)).snapped(Vector2(2, 2))
+			draw_rect(Rect2(wp - Vector2(3, 2), Vector2(6, 4)), Color(wisp_col.r, wisp_col.g, wisp_col.b, 0.34 + 0.36 * p))
+			draw_rect(Rect2(wp - Vector2(1.5, 1.5), Vector2(3, 3)), Color("d8ffbf" if is_toxic else "f4ccff", 0.55 * p))
+		return
 
-	var urgent := clampf((p - 0.62) / 0.38, 0.0, 1.0)
-	var breath := 1.0 if reduced else (0.86 + 0.14 * sin(_clock * 8.5 + p * 6.0))
-	var eased_p := 1.0 - pow(1.0 - p, 1.8)
+	# 2. Arcane / Void Rift ground telegraph: jagged converging pixel arcs + diamond core (no flat rings)
+	if telegraph_tag in ["arcane_slam", "rift_collapse"]:
+		var is_rift := telegraph_tag == "rift_collapse"
+		var arc_c := Color(0.56, 0.92, 1.0) if is_rift else Color(0.76, 0.52, 1.0)
+		var wisps := 5 if reduced else 8
+		for k in range(wisps):
+			var ang := float(k) * (TAU / float(wisps)) + 0.25
+			var far_r := rad * lerpf(0.88, 0.22, p)
+			var near_r := maxf(6.0, far_r - 22.0)
+			var p0 := (pt_base + Vector2(cos(ang) * far_r, sin(ang) * far_r * 0.56)).snapped(Vector2(2, 2))
+			var mid_a := ang + 0.14 * sin(float(k) * 2.3 + p * 6.0)
+			var pm := (pt_base + Vector2(cos(mid_a) * (far_r + near_r) * 0.5, sin(mid_a) * (far_r + near_r) * 0.28)).snapped(Vector2(2, 2))
+			var p1 := (pt_base + Vector2(cos(ang) * near_r, sin(ang) * near_r * 0.56)).snapped(Vector2(2, 2))
+			draw_polyline(PackedVector2Array([p0, pm, p1]), Color(0.08, 0.05, 0.16, 0.65 + 0.25 * p), 3.2, false)
+			draw_polyline(PackedVector2Array([p0, pm, p1]), Color(arc_c.r, arc_c.g, arc_c.b, 0.55 + 0.40 * p), 1.6, false)
+		var core_s := (5.0 + 4.0 * urgent)
+		draw_colored_polygon(PackedVector2Array([pt_base + Vector2(0, -core_s * 0.6), pt_base + Vector2(core_s, 0), pt_base + Vector2(0, core_s * 0.6), pt_base + Vector2(-core_s, 0)]), Color(1.0, 0.94, 0.72, 0.45 + 0.45 * p))
+		return
 
-	draw_set_transform(item.point, 0.0, Vector2(1.0, 0.58))
+	if telegraph_tag in ["storm_strike", "cyclone"]:
+		var bolts := 4 if reduced else 6
+		for k in range(bolts):
+			var ang := float(k) * (TAU / float(bolts)) + _clock * 2.2
+			var br := rad * (0.35 + 0.42 * p)
+			var b0 := (pt_base + Vector2(cos(ang) * br, sin(ang) * br * 0.56)).snapped(Vector2(2, 2))
+			var bm := (b0 + Vector2(sin(float(k) * 2.1 + _clock * 8.0) * 6.0, -14.0 - 12.0 * p)).snapped(Vector2(2, 2))
+			var b1 := (pt_base + Vector2(cos(ang) * (br * 0.45), sin(ang) * (br * 0.25) - 24.0 * urgent)).snapped(Vector2(2, 2))
+			draw_polyline(PackedVector2Array([b0, bm, b1]), Color("102436", 0.78), 3.6, false)
+			draw_polyline(PackedVector2Array([b0, bm, b1]), Color("58ecff", 0.72 + 0.28 * urgent), 1.8, false)
+			draw_rect(Rect2(b0 - Vector2(2, 2), Vector2(4, 4)), Color("e8ffff", 0.75 + 0.25 * p))
+		return
 
-	# 1. Soft ground-hugging radial shadow/tint gradient (no flat solid circle cut).
-	if _glow_tex != null:
-		draw_texture_rect(_glow_tex, Rect2(-Vector2.ONE * rad * 1.12, Vector2.ONE * rad * 2.24), false, Color(wash_col.r, wash_col.g, wash_col.b, (0.36 + 0.24 * p)))
-		var inner_r := maxf(8.0, rad * (0.28 + 0.72 * eased_p))
-		draw_texture_rect(_glow_tex, Rect2(-Vector2.ONE * inner_r, Vector2.ONE * inner_r * 2.0), false, Color(rim_col.r, rim_col.g, rim_col.b, (0.16 + 0.24 * p) * breath))
-	else:
-		draw_circle(Vector2.ZERO, rad, Color(wash_col, 0.22 + 0.14 * p))
+	if telegraph_tag == "crystal_spikes":
+		var shards := 4 if reduced else 6
+		for k in range(shards):
+			var ang := float(k) * (TAU / float(shards)) + 0.3
+			var sr := rad * (0.25 + 0.38 * p)
+			var base_p := (pt_base + Vector2(cos(ang) * sr, sin(ang) * sr * 0.54)).snapped(Vector2(2, 2))
+			var h_sp := 6.0 + 18.0 * urgent
+			var poly := PackedVector2Array([base_p + Vector2(-4, 0), base_p + Vector2(0, -h_sp), base_p + Vector2(4, 0), base_p + Vector2(0, 3)])
+			draw_colored_polygon(poly, Color("201028", 0.85))
+			draw_colored_polygon(PackedVector2Array([base_p + Vector2(-2, 0), base_p + Vector2(0, -h_sp * 0.78), base_p + Vector2(2, 0)]), Color("d65eff", 0.65 + 0.35 * urgent))
+		return
 
-	# 2. Outer soft halo ring + segmented rotating rune boundary (12 dashed arcs).
-	draw_arc(Vector2.ZERO, rad * 1.02, 0, TAU, 48, Color(wash_col, 0.42), 4.5, true)
-	var rot_offset := 0.0 if reduced else _clock * (0.65 if is_rift else 0.42)
-	var seg_count := 12
-	for seg in range(seg_count):
-		var a0 := rot_offset + float(seg) * (TAU / float(seg_count))
-		var span := (TAU / float(seg_count)) * (0.58 + 0.16 * urgent)
-		var seg_alpha := (0.45 + 0.35 * p) * breath
-		draw_arc(Vector2.ZERO, rad, a0, a0 + span, 5, Color(rim_col, seg_alpha), 2.2 + 0.8 * urgent, true)
+	if telegraph_tag == "abyss_starfall":
+		var pts_s := 5 if reduced else 7
+		for k in range(pts_s):
+			var ang := float(k) * (TAU / float(pts_s)) - _clock * 1.6
+			var dist := rad * lerpf(0.75, 0.16, p)
+			var sp := (pt_base + Vector2(cos(ang) * dist, sin(ang) * dist * 0.56)).snapped(Vector2(2, 2))
+			draw_rect(Rect2(sp - Vector2(3, 3), Vector2(6, 6)), Color("1d0f2a", 0.82))
+			draw_rect(Rect2(sp - Vector2(2, 2), Vector2(4, 4)), Color("cf74ff" if k % 2 == 0 else "ffe484", 0.72 + 0.28 * p))
+		var drop_y := lerpf(-76.0, -4.0, p)
+		var star_p := (pt_base + Vector2(0, drop_y)).snapped(Vector2(2, 2))
+		draw_rect(Rect2(star_p - Vector2(5, 5), Vector2(10, 10)), Color("261238", 0.90))
+		draw_rect(Rect2(star_p - Vector2(3, 3), Vector2(6, 6)), Color("f5b2ff", 0.95))
+		draw_rect(Rect2(star_p - Vector2(1, 1), Vector2(2, 2)), Color("fffbe0", 0.98))
+		return
 
-	# 3. Four rotating diamond ticks marking the hazard perimeter on ground.
-	for k in range(4):
-		var ka := -rot_offset * 0.7 + float(k) * (TAU * 0.25)
-		var pt := Vector2.RIGHT.rotated(ka) * rad
-		var tang := Vector2(-sin(ka), cos(ka))
-		var norm := Vector2(cos(ka), sin(ka))
-		var tick_sz := 4.5 + 2.0 * urgent
-		draw_colored_polygon(
-			PackedVector2Array([pt + norm * tick_sz, pt + tang * tick_sz * 0.65, pt - norm * tick_sz, pt - tang * tick_sz * 0.65]),
-			Color(pulse_col, 0.6 + 0.35 * p)
-		)
+	if telegraph_tag in ["seal_surge", "water_ambush", "chasm_ambush"]:
+		var is_chasm := telegraph_tag == "chasm_ambush"
+		var splash_c := Color("b668ff") if is_chasm else Color("5ee8ec")
+		var rim_c := Color("201032") if is_chasm else Color("102a38")
+		for k in range(5):
+			var ka := float(k) * (TAU / 5.0) + _clock * 2.6
+			var kr := rad * (0.28 + 0.28 * sin(p * PI))
+			var kp := (pt_base + Vector2(cos(ka) * kr, sin(ka) * kr * 0.55 - 8.0 * urgent)).snapped(Vector2(2, 2))
+			draw_rect(Rect2(kp - Vector2(3, 3), Vector2(6, 6)), Color(rim_c.r, rim_c.g, rim_c.b, 0.82))
+			draw_rect(Rect2(kp - Vector2(2, 2), Vector2(4, 4)), Color(splash_c.r, splash_c.g, splash_c.b, 0.65 + 0.35 * p))
+		return
 
-	# 4. Dual concentric ripple waves: converging fill front + echoing pulse wave.
-	var wave_r := maxf(6.0, rad * eased_p)
-	draw_arc(Vector2.ZERO, wave_r, 0, TAU, 36, Color(pulse_col, 0.55 + 0.35 * p), 2.0 + 0.6 * urgent, true)
+	# 3. Heavy ground slams: tapered wedged earth fissures + dusty ground rumble + bouncing pebbles (zero circles)
+	var fissure_count := 5 if reduced else 6
+	var reach := rad * (0.28 + 0.40 * sqrt(p))
+	var glow_c := Color("ff5c28") if telegraph_tag == "boss_slam" else Color("ff9234")
+	var hot_c := Color("fff0a8")
+	var smoke_spr: Texture2D = _smoke_puff_tex
+	if smoke_spr != null:
+		var d_sz := Vector2(rad * 0.85, rad * 0.46) * (0.6 + 0.35 * p)
+		draw_texture_rect(smoke_spr, Rect2(pt_base - d_sz * 0.5, d_sz), false, Color(0.28, 0.20, 0.14, 0.36 + 0.22 * p))
+	for k in range(fissure_count):
+		var ba := float(k) * (TAU / float(fissure_count)) + 0.28 * float(k % 2)
+		var seg_r := reach * (0.76 if k % 2 == 0 else 1.0)
+		var dir_v := Vector2(cos(ba), sin(ba) * 0.56)
+		var perp_v := Vector2(-dir_v.y, dir_v.x * 1.4).normalized()
+		var p_mid := pt_base + Vector2(cos(ba + (0.20 if k % 2 == 0 else -0.22)) * seg_r * 0.48, sin(ba + (0.20 if k % 2 == 0 else -0.22)) * seg_r * 0.27)
+		var p_tip := pt_base + dir_v * seg_r
+		var wedge := PackedVector2Array([
+			pt_base + perp_v * 3.8,
+			p_mid + perp_v * 1.8,
+			p_tip,
+			p_mid - perp_v * 1.8,
+			pt_base - perp_v * 3.8
+		])
+		draw_colored_polygon(wedge, Color(0.11, 0.07, 0.05, 0.88))
+		if urgent > 0.05:
+			var fc := glow_c.lerp(hot_c, urgent * 0.65)
+			var inner_w := PackedVector2Array([
+				pt_base + perp_v * 1.8,
+				p_mid * 0.8 + pt_base * 0.2,
+				pt_base - perp_v * 1.8
+			])
+			draw_colored_polygon(inner_w, Color(fc.r, fc.g, fc.b, 0.52 + 0.46 * urgent))
 	if not reduced:
-		var echo := fmod(p * 2.2, 1.0)
-		var echo_r := maxf(5.0, rad * echo)
-		draw_arc(Vector2.ZERO, echo_r, 0, TAU, 32, Color(rim_col, (1.0 - echo) * 0.48), 1.6, true)
-
-	# 5. Center focal cross-diamond sigil that sharpens right before detonation.
-	var core_sz := 6.0 + 5.0 * (1.0 - urgent)
-	var core_col := pulse_col.lerp(hot_col, urgent)
-	draw_arc(Vector2.ZERO, core_sz, 0, TAU, 16, Color(core_col, 0.5 + 0.45 * p), 1.6, true)
-	if urgent > 0.05:
-		var s := 8.0 * urgent
-		draw_line(Vector2(-s, 0), Vector2(s, 0), Color(hot_col, urgent * 0.9), 1.6, true)
-		draw_line(Vector2(0, -s), Vector2(0, s), Color(hot_col, urgent * 0.9), 1.6, true)
-
-	draw_set_transform(Vector2.ZERO)
+		for g_i in range(5):
+			var ga := float(g_i) * 1.28 + 0.4
+			var gd := reach * (0.45 + 0.25 * float(g_i % 2))
+			var hop := absf(sin(p * PI * 3.0 + float(g_i))) * 7.0
+			var gp := (pt_base + Vector2(cos(ga) * gd, sin(ga) * gd * 0.56 - hop)).snapped(Vector2(2, 2))
+			draw_rect(Rect2(gp - Vector2(3, 2), Vector2(6, 4)), Color("261c16", 0.88))
+			draw_rect(Rect2(gp - Vector2(2, 2), Vector2(4, 3)), Color("7a644e", 0.90))
 
 
 func _draw_friendly_telegraph(item: Dictionary, p: float, colour: Color) -> void:
 	var rad := maxf(6.0, float(item.radius))
-	if item.options.has("core_radius"):
-		draw_arc(item.point,rad,0.0,TAU,46,Color(0.21,0.13,0.09,0.48),3.5,true)
-		draw_arc(item.point,float(item.options.core_radius),0.0,TAU,36,Color(0.21,0.13,0.09,0.65),4.6,true)
-		draw_arc(item.point,rad,0.0,TAU,46,Color(colour,0.52),1.5,true)
-		draw_arc(item.point,float(item.options.core_radius),0.0,TAU,36,Color(colour,0.45+0.35*p),2.5,true)
+	if game != null and game.tower_lab:
+		if bool(item.options.get("cannon", false)) and item.options.has("core_radius"):
+			draw_set_transform(item.point, 0.0, Vector2(1.0, 0.58))
+			draw_arc(Vector2.ZERO, rad, 0.0, TAU, 46, Color(0.21, 0.13, 0.09, 0.48), 3.5, true)
+			draw_arc(Vector2.ZERO, float(item.options.core_radius), 0.0, TAU, 36, Color(0.21, 0.13, 0.09, 0.65), 4.6, true)
+			draw_arc(Vector2.ZERO, rad, 0.0, TAU, 46, Color(colour, 0.52), 1.5, true)
+			draw_arc(Vector2.ZERO, float(item.options.core_radius), 0.0, TAU, 36, Color(colour, 0.45 + 0.35 * p), 2.5, true)
+			draw_set_transform(Vector2.ZERO)
+		elif not bool(item.options.get("cannon", false)):
+			draw_set_transform(item.point, 0.0, Vector2(1.0, 0.58))
+			draw_arc(Vector2.ZERO, rad, 0, TAU, 48, Color(colour, 0.48), 2.0, true)
+			draw_arc(Vector2.ZERO, maxf(4.0, rad * (1.0 - p)), 0, TAU, 40, Color(colour, 0.38), 1.5, true)
+			draw_set_transform(Vector2.ZERO)
 		return
-	draw_set_transform(item.point)
-	if _glow_tex != null:
-		draw_texture_rect(_glow_tex, Rect2(-Vector2.ONE * rad, Vector2.ONE * rad * 2.0), false, Color(colour.r, colour.g, colour.b, 0.14 + 0.10 * p))
-	draw_arc(Vector2.ZERO, rad, 0, TAU, 48, Color(colour, 0.48), 2.0, true)
-	draw_arc(Vector2.ZERO, maxf(4.0, rad * (1.0 - p)), 0, TAU, 40, Color(colour, 0.38), 1.5, true)
-	draw_set_transform(Vector2.ZERO)
+	if bool(item.options.get("cannon", false)):
+		return
+	var pt := Vector2(item.point)
+	for k in range(4):
+		var a := float(k) * (PI * 0.5) + _clock * 2.6
+		var sr := maxf(6.0, rad * 0.45 * (1.0 - p * 0.72))
+		var sp := (pt + Vector2(cos(a) * sr, sin(a) * sr * 0.58 - p * 12.0)).snapped(Vector2(2, 2))
+		draw_rect(Rect2(sp - Vector2(2, 2), Vector2(4, 4)), Color("14111b", 0.7))
+		draw_rect(Rect2(sp - Vector2(1, 1), Vector2(2, 2)), Color(colour.r, colour.g, colour.b, 0.88))
 
 
 func _draw_floating_numbers() -> void:
@@ -990,12 +1206,3 @@ func _draw_floating_numbers() -> void:
 		var alpha := minf(1.0, float(item.life) * 4.0)
 		draw_string_outline(ThemeDB.fallback_font, origin, item.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, 3, Color(0.12, 0.08, 0.05, alpha))
 		draw_string(ThemeDB.fallback_font, origin, item.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color(item.colour, alpha))
-		var icon_position:=origin+Vector2(size.x+3,-font_size*0.70)
-		for id in item.get("icons",[]):
-			var card_icon:=ArenaConditions.icon(id)
-			if card_icon!=null:
-				draw_texture_rect(card_icon,Rect2(icon_position,Vector2(15,15)),false,Color(1,1,1,alpha))
-				icon_position.x+=16.0
-		if bool(item.get("capped",false)):
-			draw_string_outline(ThemeDB.fallback_font,origin+Vector2(0,15),"+80%（上限）",HORIZONTAL_ALIGNMENT_LEFT,-1,13,3,Color(0.12,0.08,0.05,alpha))
-			draw_string(ThemeDB.fallback_font,origin+Vector2(0,15),"+80%（上限）",HORIZONTAL_ALIGNMENT_LEFT,-1,13,Color(1,0.92,0.65,alpha))

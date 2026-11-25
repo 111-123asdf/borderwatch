@@ -59,11 +59,10 @@ func reset_targets() -> void:
 		if is_instance_valid(corpse.node):corpse.node.queue_free()
 	game.corpses.clear();game.hero.war_cry=0;game.hero.attack_cooldown=0
 	game.gold=ArenaGame.START_GOLD;game.kills=0;game.wave_kills=0;game.damage_stats={"hero":0.0,"tower":0.0,"soldier":0.0}
-	game.hero.shots=0;game.hero.rapid_count=0;game.hero.combo_count=0
+	game.hero.shots=0
 	game.hero.knocked_out=false;game.hero.revive_clock=0;game.hero.rolling=0
 	for enemy in game.enemies.duplicate():
 		if is_instance_valid(enemy):game.remove_enemy(enemy)
-	game.choice_queue=0;game.hero.xp=0;game.hero.xp_target=1000000
 	game.hero.position=game.routes[0].sample_baked(600.0);game.hero.path.clear();game.hero.health=game.hero.max_health
 	game.hero.cooldowns=[0.0,0.0];game.hero.cancel_action()
 	for beast in game.hero.companions:

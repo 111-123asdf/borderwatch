@@ -9,12 +9,6 @@ const FEET := {
 	"creature_spearman":0.88851,
 	"creature_spore":0.87331,
 	"creature_wisp":0.88006,
-	"creature_construct_hound":0.925,
-	"creature_rift_bomber":0.925,
-	"creature_void_harvester":0.92857,
-	"creature_rune_warden":0.95833,
-	"creature_astral_prism":0.79167,
-	"creature_colossus":0.94444,
 	"prop_0":0.9482,
 	"prop_1":0.93243,
 	"prop_2":0.87162,
@@ -24,15 +18,5 @@ const FEET := {
 	"prop_6":0.89165,
 	"prop_7":0.86005,
 }
-const FEET_V015 := {
-	"creature_construct_hound":0.89844,
-	"creature_rift_bomber":0.89844,
-	"creature_void_harvester":0.89844,
-	"creature_rune_warden":0.90,
-	"creature_astral_prism":0.88,
-	"creature_colossus":0.90,
-}
-static func offset_for(key: String, source_path: String = "") -> float:
-	if source_path.contains("/v015/") and FEET_V015.has(key):
-		return float(FEET_V015[key])-0.5
+static func offset_for(key: String, _source_path: String = "") -> float:
 	return float(FEET.get(key,0.9))-0.5

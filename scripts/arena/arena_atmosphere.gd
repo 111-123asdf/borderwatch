@@ -12,7 +12,6 @@ const MAP_SIZE := Vector2(1600.0, 900.0)
 const RUINS_CORE_DEFAULT := Vector2(1120.0, 560.0)
 const RUINS_BRIDGE_DEFAULT := Vector2(480.0, 800.0)
 const RUINS_RIFT_DEFAULT := Vector2(1550.0, 330.0)
-const RUINS_ALTARS_DEFAULT := [Vector2(1120.0, 670.0)]
 const RUINS_BRAZIERS := [
 	Vector2(1028.0, 429.0),
 	Vector2(1217.0, 430.0),
@@ -38,7 +37,6 @@ var ground_material: ShaderMaterial
 var props_material: ShaderMaterial
 
 var core_light: PointLight2D
-var altar_lights: Array[PointLight2D] = []
 var brazier_lights: Array[PointLight2D] = []
 var ambient_lights: Array[PointLight2D] = []
 var bridge_light: PointLight2D
@@ -102,7 +100,7 @@ func setup(target_game: Node2D) -> void:
 	_ensure_textures()
 	_install_post_process(reduced)
 
-	if level_id == "ruins":
+	if level_id in ["ruins","sanctum"]:
 		_setup_ruins(reduced)
 	else:
 		_setup_woodland(level_id, reduced)
@@ -127,7 +125,7 @@ func sync_battle(delta: float) -> void:
 	_focal_pulse = maxf(0.0, _focal_pulse - dt * 1.45)
 	_breach_flare = maxf(0.0, _breach_flare - dt * 1.15)
 
-	if level_id == "ruins":
+	if level_id in ["ruins","sanctum"]:
 		_sync_ruins(reduced)
 	else:
 		_sync_woodland(reduced)
@@ -203,7 +201,6 @@ func _reset_state() -> void:
 	ground_material = null
 	props_material = null
 	core_light = null
-	altar_lights.clear()
 	brazier_lights.clear()
 	ambient_lights.clear()
 	bridge_light = null
@@ -352,7 +349,7 @@ func _install_post_process(reduced: bool) -> void:
 func _configure_post_defaults(reduced: bool) -> void:
 	if post_material == null:
 		return
-	if level_id == "ruins":
+	if level_id in ["ruins","sanctum"]:
 		post_material.set_shader_parameter("vignette_strength", 0.11)
 		post_material.set_shader_parameter("vignette_color", Color(0.04, 0.06, 0.16, 1.0))
 		post_material.set_shader_parameter("moon_glow_strength", 0.05)
@@ -384,13 +381,6 @@ func _setup_ruins(reduced: bool) -> void:
 	# Subtle cool moonlit ambient fill on West/East walkable courtyards so wings don't crush to abyss black.
 	ambient_lights.append(_make_point_light(Vector2(265.0, 480.0), Color(0.62, 0.76, 1.0), 0.18, 2.25, "MoonCourtyardWest"))
 	ambient_lights.append(_make_point_light(Vector2(1320.0, 480.0), Color(0.62, 0.76, 1.0), 0.18, 2.25, "MoonCourtyardEast"))
-
-	# Twin Runic Altars lights.
-	var altar_pts: Array = def.get("altars", RUINS_ALTARS_DEFAULT)
-	for i in range(altar_pts.size()):
-		var pt := Vector2(altar_pts[i])
-		var l := _make_point_light(pt, Color(0.56, 0.72, 1.0), 0.36, 1.45, "AltarPointLight_%d" % i)
-		altar_lights.append(l)
 
 	# Four corner fortress war braziers (read from level_definition.braziers if provided).
 	var brazier_pts: Array = def.get("braziers", RUINS_BRAZIERS)
@@ -656,29 +646,6 @@ func _sync_ruins(reduced: bool) -> void:
 	if is_instance_valid(core_light):
 		var core_pulse := 1.0 if reduced else (1.0 + 0.08 * sin(_time * 2.4))
 		core_light.energy = 0.10 * core_pulse
-
-	# Sync twin altar point lights with active/charge/mode state.
-	var game_altars: Variant = game.get("altars")
-	if typeof(game_altars) == TYPE_ARRAY:
-		var altar_arr: Array = game_altars
-		for i in range(mini(altar_lights.size(), altar_arr.size())):
-			var light := altar_lights[i]
-			if not is_instance_valid(light):
-				continue
-			var data: Variant = altar_arr[i]
-			if typeof(data) != TYPE_DICTIONARY:
-				continue
-			var is_active := float(data.get("active", 0.0)) > 0.0
-			var is_overclock := str(data.get("mode", "stasis")) == "overclock"
-			var charge_pct := clampf(float(data.get("charge", 0.0)) / 100.0, 0.0, 1.0)
-			if is_active:
-				light.color = Color(1.0, 0.82, 0.38) if is_overclock else Color(0.45, 0.90, 1.0)
-				light.energy = 0.13 if reduced else (0.12 + 0.02 * sin(_time * 5.0 + float(i)))
-				light.texture_scale = 1.75
-			else:
-				light.color = Color(0.84, 0.68, 0.42) if is_overclock else Color(0.50, 0.74, 1.0)
-				light.energy = 0.04 + charge_pct * 0.04
-				light.texture_scale = 1.35
 
 	# Flicker corner war braziers gently when motion is enabled.
 	for i in range(brazier_lights.size()):
