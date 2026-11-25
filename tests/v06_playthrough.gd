@@ -62,14 +62,6 @@ func _process(delta: float) -> bool:
 				game.orders.command(order)
 		release_and_hold()
 		return false
-	if game.choice_open:
-		var priorities: Array=[]
-		for card in (ArenaKeystones.LIST if game.keystone_mode else ArenaPerks.CARDS):
-			var only:=str(card.get("hero",""))
-			if only=="" or only==hero_id: priorities.append(str(card.id))
-		for key in priorities:
-			if key in game.choices:game.choose_perk(key);release_and_hold();break
-		return false
 	if game.game_over:
 		print("TELEMETRY ",JSON.stringify(game.telemetry()))
 		print("NORMAL ",hero_id," ",stage," won=",game.victory," wave=",game.cycle," kills=",game.kills," core=",game.core_health," l3=",l3_count()," doctrines=",doctrine_count()," casts=",casts," KO=",knockouts," simulated seconds=",snappedf(game.elapsed,0.1)," damage=",game.damage_stats)
@@ -88,10 +80,7 @@ func _process(delta: float) -> bool:
 	was_down=game.hero.knocked_out
 	if last_wave!=game.cycle:print("WAVE ",game.cycle," core=",game.core_health," gold=",game.gold," elapsed=",int(game.elapsed));last_wave=game.cycle
 	manage_towers()
-	if game.keystone_mode:
-		if game.resonance>=100.0:
-			var pack:=game.nearest_enemy(game.level_definition.core,650)
-			if pack!=null:game.cast_resonance(pack.position)
+	if not game.bridge_gate_config.is_empty():
 		if not game.bridge_sealed and game.bridge_cooldown<=0.0:
 			for unit in game.enemies:
 				if is_instance_valid(unit) and not unit.dead and unit.route_id==1 and unit.bridge_branch=="":game.trigger_bridge_gate();break
@@ -151,11 +140,17 @@ func manage_towers() -> void:
 	var order: Array=[0,1,3,2,4,5,6,7] if stage=="forest" else [0,5,1,6,3,7,4,8,2,9]
 	var plan: Array=["archer","barracks","mage","archer","cannon","mage","archer","cannon"] if stage=="forest" else ["archer","mage","mage","barracks","archer","archer","cannon","mage","cannon","archer"]
 	if stage=="ruins":
-		order=[5,8,11,3,9,12,4,2,13,1,7,0,6,14,16,17,10,15]
-		plan=["archer","archer","cannon","mage","archer","mage","archer","barracks","barracks","archer","mage","mage","cannon","archer","mage","mage","archer","archer"]
+		order=[5,8,11,3,9,4,2,1,7,0,6,10]
+		plan=["archer","archer","cannon","mage","archer","mage","archer","barracks","barracks","archer","mage","mage"]
 	if stage=="saltport":
-		order=[2,6,5,9,1,8,11,3,7,10,0,4]
-		plan=["archer","cannon","archer","mage","barracks","mage","archer","barracks","cannon","mage","archer","cannon"]
+		order=[2,6,5,9,1,8,3,7,10,0,4]
+		plan=["archer","cannon","archer","mage","barracks","mage","archer","barracks","cannon","mage","archer"]
+	if stage=="lighthouse":
+		order=[2,5,6,7,3,4,1,8,9,10,0,11]
+		plan=["archer","barracks","archer","mage","cannon","mage","archer","cannon","barracks","mage","archer","mage"]
+	if stage=="sanctum":
+		order=[2,7,8,9,10,3,6,0,1,4,5,11,12]
+		plan=["archer","barracks","mage","cannon","archer","mage","archer","cannon","barracks","mage","archer","mage","cannon"]
 	if game.cycle>=6:
 		for index in order:
 			if game.site_locked(index) and game.gold>=game.unlock_price(index)+120:game.unlock_site(index);return

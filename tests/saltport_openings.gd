@@ -1,7 +1,7 @@
 extends SceneTree
 ## Same starting gold and waves, with two different tower positions and one
 ## optional hero intervention. No spawned fixtures or replacement wave clocks.
-const OPENINGS := {"dyke":[2,5],"shore":[6,11],"pump":[8,9],"relief":[2,5]}
+const OPENINGS := {"dyke":[2,5],"shore":[6,9],"pump":[8,9],"relief":[2,5]}
 var game: ArenaGame
 var opening := "dyke"
 var leaks := [0,0]
@@ -34,6 +34,7 @@ func _start() -> void:
 	game.start_run("lord","saltport")
 	for site in OPENINGS[opening]:
 		game.build_tower(site,"archer")
+		game.site_tower(site).finish_project()
 	if opening in ["dyke","relief"]:
 		game.hero.command_move(Vector2(590,408))
 	node_added.connect(_observe)
@@ -57,8 +58,6 @@ func _enemy_exited(enemy: ArenaEnemy) -> void:
 func _physics_process(_delta: float) -> bool:
 	if game==null or not game.started or stopping:
 		return false
-	if game.choice_open:
-		game.choose_perk(game.choices[0])
 	if game.cycle==2 and game.phase=="rest":
 		game.request_wave()
 		game.request_wave()

@@ -44,7 +44,7 @@ func setup_battle(hero_id: String, stage: String, loadout: Array = []) -> void:
 	await frames(3)
 	game.start_run(hero_id, stage)
 	await frames(2)
-	if game.choice_open or not game.rule_offers.is_empty():
+	if not game.rule_offers.is_empty():
 		game.choose_defense_rule("")
 	await frames(2)
 
@@ -120,12 +120,12 @@ func run() -> void:
 		t_can.fire_cannon(enemies_o[2], 70.0)
 	await create_timer(0.24).timeout
 	if t_mage != null:
-		t_mage.fire_trial_pulse(55.0)
+		t_mage._fire_at(enemies_o[1], true)
 	if t_arch != null:
 		t_arch._fire_at(enemies_o[1], true)
 	if t_pier != null:
 		t_pier._fire_at(enemies_o[3], true)
-	await create_timer(0.18).timeout
+	await create_timer(0.14).timeout
 	await snap("03_original4_combat_vfx.png")
 	await cleanup()
 
@@ -245,6 +245,40 @@ func run() -> void:
 		layer.add_child(slbl)
 	await frames(4)
 	await snap("05_gallery_all35_towers.png")
+	await cleanup()
+
+	# 6. Melee Duel & Perfect Dodge Readability: Directional Cone + Urgent Glint + Perfect Dodge Counter Stance
+	await setup_battle("lord", "forest", ["archer", "mage", "cannon", "barracks"])
+	game.cycle = 3
+	game.phase = "spawn"
+	game.spawn_queue.clear()
+	var hero := game.hero
+	hero.position = Vector2(760.0, 440.0)
+	hero.facing = Vector2.RIGHT
+	hero.dodge_cooldown = 0.0
+	var proj := game.fire_projectile(hero.center() + Vector2(-46.0, 0.0), hero.center() + Vector2(60.0, 0.0), 15.0, 0, "enemy", {"speed": 260.0, "appearance": "viper_arrow"})
+	hero.try_dodge(Vector2.UP)
+	await frames(2)
+	var van := game.spawn_enemy("bear_vanguard", 0, 300.0)
+	van.position = hero.position + Vector2(72.0, 6.0)
+	van.facing = Vector2.LEFT
+	van.melee_clock = 0.0
+	van.melee(hero)
+	van.melee_windup = 0.16
+	if is_instance_valid(van.visual):
+		van.visual.frame = 2
+	var tusk := game.spawn_enemy("tusk_fighter", 0, 285.0)
+	tusk.position = hero.position + Vector2(-95.0, 28.0)
+	game.set_physics_process(false)
+	hero.set_physics_process(false)
+	van.set_physics_process(false)
+	tusk.set_physics_process(false)
+	if is_instance_valid(proj):
+		proj.set_physics_process(false)
+	van.queue_redraw()
+	hero.queue_redraw()
+	await frames(3)
+	await snap("06_melee_duel_and_dodge.png")
 	await cleanup()
 
 	quit(0)

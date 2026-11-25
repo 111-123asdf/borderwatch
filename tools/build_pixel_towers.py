@@ -444,15 +444,6 @@ def build_tower_strip(out_path: Path, frames: list, target_idle_h: float) -> dic
     else:
         mx = 0.5
         my = 0.42
-    # Direct post-alignment erase for F1 comic exclamation mark on snare_lv1 (touches roof edge by 1px)
-    if out_path.name == "tower_snare_lv1.png":
-        s_arr = np.array(strip)
-        f0_ys = np.where(s_arr[:, :TOWER_CELL, 3] > 25)[0]
-        if len(f0_ys) > 0:
-            f0_top = int(f0_ys.min())
-            s_arr[:max(0, f0_top + 6), TOWER_CELL:2 * TOWER_CELL, 3] = 0
-            strip = Image.fromarray(s_arr)
-            strip.save(out_path)
     return {
         "file": out_path.name,
         "idle_h_px": round(h_idle * scale, 1),
@@ -670,6 +661,237 @@ def make_checker_bg(w: int, h: int) -> Image.Image:
     return bg
 
 
+def _build_portrait_bezel_template(out_dir: Path):
+    """Extract the clean 128x128 octagonal gold riveted bezel & interior mask from portrait_cannon.png."""
+    donor = Image.open(out_dir / "portrait_cannon.png").convert("RGBA")
+    arr = np.array(donor)
+    yy, xx = np.mgrid[0:128, 0:128]
+    d_diag = np.minimum(
+        np.minimum(xx + yy, (127 - xx) + yy),
+        np.minimum(xx + (127 - yy), (127 - xx) + (127 - yy)),
+    )
+    bezel = (xx <= 8) | (xx >= 119) | (yy <= 8) | (yy >= 119) | (d_diag < 28)
+    inner = ~bezel
+    template = np.zeros_like(arr)
+    template[bezel] = arr[bezel]
+    seam = (
+        (((xx == 8) | (xx == 119)) & (yy >= 8) & (yy <= 119) & (d_diag >= 28))
+        | (((yy == 8) | (yy == 119)) & (xx >= 8) & (xx <= 119) & (d_diag >= 28))
+        | ((d_diag == 28) & (xx >= 8) & (xx <= 119) & (yy >= 8) & (yy <= 119))
+    )
+    template[seam] = [12, 10, 12, 255]
+    return Image.fromarray(template), inner
+
+
+def build_v026_tower_portraits(out_dir: Path):
+    """Regenerate portrait_storm/lens/snare from their new Lv2 idle sprites inside the gold bezel."""
+    bezel_img, inner_mask = _build_portrait_bezel_template(out_dir)
+    specs = {
+        "storm": {
+            "top": (20, 34, 58),
+            "bot": (10, 18, 32),
+            "glow": (62, 195, 255),
+            "pad_w": 96,
+            "pad_h": 98,
+            "y_bias": 2,
+        },
+        "lens": {
+            "top": (42, 34, 24),
+            "bot": (18, 15, 13),
+            "glow": (255, 205, 92),
+            "pad_w": 96,
+            "pad_h": 98,
+            "y_bias": 1,
+        },
+        "snare": {
+            "top": (26, 38, 25),
+            "bot": (13, 20, 14),
+            "glow": (235, 178, 86),
+            "pad_w": 100,
+            "pad_h": 94,
+            "y_bias": 4,
+        },
+    }
+    yy, xx = np.mgrid[0:128, 0:128]
+    u = np.clip((yy - 9.0) / 109.0, 0.0, 1.0)
+    dist = np.sqrt(((xx - 63.5) / 48.0) ** 2 + ((yy - 58.0) / 48.0) ** 2)
+    radial = np.clip(1.0 - dist, 0.0, 1.0) ** 1.7
+
+    for kind, cfg in specs.items():
+        sheet = Image.open(out_dir / f"tower_{kind}_lv2.png").convert("RGBA")
+        idle = sheet.crop((0, 0, TOWER_CELL, TOWER_CELL))
+        idle_arr = np.array(idle)
+        bb = frame_bbox(idle_arr, 20)
+        assert bb is not None, f"Empty Lv2 idle frame for {kind}"
+        cropped = idle.crop(bb)
+        scale = min(cfg["pad_w"] / float(cropped.width), cfg["pad_h"] / float(cropped.height))
+        nw = max(1, int(round(cropped.width * scale)))
+        nh = max(1, int(round(cropped.height * scale)))
+        sprite = cropped.resize((nw, nh), Image.Resampling.NEAREST)
+
+        top_c = np.array(cfg["top"], dtype=np.float32)
+        bot_c = np.array(cfg["bot"], dtype=np.float32)
+        glow_c = np.array(cfg["glow"], dtype=np.float32)
+        bg = top_c[None, None, :] * (1.0 - u[:, :, None]) + bot_c[None, None, :] * u[:, :, None]
+        bg += glow_c[None, None, :] * (radial[:, :, None] * 0.36)
+        canvas = np.zeros((128, 128, 4), dtype=np.uint8)
+        canvas[:, :, :3] = np.clip(np.round(bg), 0, 255).astype(np.uint8)
+        canvas[:, :, 3] = np.where(inner_mask, 255, 0).astype(np.uint8)
+
+        card = Image.fromarray(canvas)
+        px = (128 - nw) // 2
+        py = 117 - nh + cfg["y_bias"]
+        py = max(11, min(118 - nh, py))
+        card.paste(sprite, (px, py), sprite)
+        card.paste(bezel_img, (0, 0), bezel_img)
+        card.save(out_dir / f"portrait_{kind}.png")
+
+
+def build_exit_pillar_strip(out_dir: Path):
+    """Paint a crisp 16-bit 3-frame pixel strip (288x144) for the endpoint Twin Watch Rune Pillars."""
+    gw, gh = 48, 72
+    frames = []
+    outline = (20, 17, 27, 255)
+    stone_d = (50, 54, 68, 255)
+    stone_m = (86, 92, 110, 255)
+    stone_l = (138, 145, 166, 255)
+    stone_h = (176, 184, 202, 255)
+    moss_d = (62, 102, 50, 255)
+    moss_l = (112, 164, 72, 255)
+    bronze_d = (108, 70, 34, 255)
+    bronze_m = (182, 124, 52, 255)
+    bronze_h = (242, 198, 102, 255)
+
+    for state in range(3):
+        # state 0=ready (cyan-gold rune glow), 1=teleport burst (bright surge), 2=cooldown dormant (slate)
+        img = Image.new("RGBA", (gw, gh), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+
+        def p(x: int, y: int, c):
+            if 0 <= x < gw and 0 <= y < gh:
+                img.putpixel((x, y), c)
+
+        def hline(x0: int, x1: int, y: int, c):
+            for xi in range(x0, x1 + 1):
+                p(xi, y, c)
+
+        # 1. Stepped mossy stone plinth (y = 56..68)
+        d.rectangle([10, 62, 37, 68], fill=stone_m)
+        hline(10, 37, 62, stone_l)
+        hline(11, 22, 62, stone_h)
+        d.rectangle([10, 66, 37, 68], fill=stone_d)
+        for sx in (15, 22, 30):
+            for sy in range(63, 68):
+                p(sx, sy, stone_d)
+        # Upper step plinth
+        d.rectangle([13, 56, 34, 62], fill=stone_m)
+        hline(13, 34, 56, stone_l)
+        hline(14, 23, 56, stone_h)
+        d.rectangle([28, 57, 34, 62], fill=stone_d)
+        # Moss clusters tucked into left & right step corners
+        for mx, my in [(11, 61), (12, 61), (11, 62), (12, 62), (13, 61), (34, 62), (35, 62), (35, 63), (12, 67), (13, 67)]:
+            p(mx, my, moss_d)
+        for mx, my in [(11, 60), (12, 60), (14, 60), (35, 61)]:
+            p(mx, my, moss_l)
+
+        # 2. Tapered sculpted obelisk column shaft (y = 26..56)
+        for y in range(26, 56):
+            inset = 0 if y >= 46 else (1 if y >= 35 else 2)
+            x0 = 16 + inset
+            x1 = 31 - inset
+            hline(x0, x1, y, stone_m)
+            p(x0, y, stone_l)
+            p(x0 + 1, y, stone_h if y % 6 < 4 else stone_l)
+            p(x1, y, stone_d)
+            p(x1 - 1, y, stone_d)
+            if y in (36, 46):
+                hline(x0 + 1, x1 - 1, y, stone_d)
+                hline(x0 + 1, x1 - 1, y + 1, stone_l)
+
+        # 3. Riveted bronze structural collars (y=53..55 and y=29..31 and crown y=23..26)
+        for cy in (29, 53):
+            inset = 1 if cy == 29 else 0
+            x0, x1 = 15 + inset, 32 - inset
+            hline(x0, x1, cy, bronze_h)
+            hline(x0, x1, cy + 1, bronze_m)
+            hline(x0, x1, cy + 2, bronze_d)
+            for rx in (x0 + 2, 23, x1 - 2):
+                p(rx, cy + 1, outline)
+
+        # Crown pedestal + left/right claw prongs cradling crystal
+        d.rectangle([16, 23, 31, 26], fill=bronze_m)
+        hline(16, 31, 23, bronze_h)
+        hline(17, 30, 26, bronze_d)
+        for side_x in (15, 32):
+            for py in range(15, 24):
+                p(side_x, py, bronze_h if side_x < 24 else bronze_m)
+                p(side_x + (1 if side_x < 24 else -1), py, bronze_d)
+        p(16, 14, bronze_h); p(31, 14, bronze_m)
+
+        # 4. Recessed vertical rune conduit groove & rune glyphs on shaft (x = 22..25, y = 27..52)
+        if state == 2:
+            rune_dark = (34, 38, 50, 255)
+            rune_lit = (72, 82, 102, 255)
+            gem_c1, gem_c2, gem_hi = (66, 74, 92, 255), (96, 108, 128, 255), (144, 158, 178, 255)
+        elif state == 1:
+            rune_dark = (40, 156, 210, 255)
+            rune_lit = (220, 255, 255, 255)
+            gem_c1, gem_c2, gem_hi = (78, 224, 255, 255), (195, 255, 255, 255), (255, 252, 214, 255)
+        else:
+            rune_dark = (32, 92, 128, 255)
+            rune_lit = (106, 242, 255, 255)
+            gem_c1, gem_c2, gem_hi = (42, 168, 214, 255), (120, 244, 255, 255), (255, 244, 184, 255)
+
+        for y in range(27, 52):
+            p(22, y, stone_d)
+            p(25, y, stone_d)
+            is_node = y in (33, 34, 39, 40, 44, 45, 49, 50)
+            c = rune_lit if is_node else rune_dark
+            p(23, y, c)
+            p(24, y, c)
+            if state == 1 and y in (33, 40, 49):
+                p(21, y, rune_lit); p(26, y, rune_lit)
+
+        # 5. Faceted diamond crystal hovering between prongs (center x=23.5, y=6..20)
+        for y in range(6, 21):
+            half_w = (y - 6) * 0.68 if y <= 13 else (20 - y) * 0.68
+            hw = int(round(half_w))
+            for x in range(23 - hw, 25 + hw):
+                if x < 23:
+                    col = gem_hi if (state != 2 and y in range(9, 14) and x >= 21) else gem_c2
+                else:
+                    col = gem_c1
+                p(x, y, col)
+        p(23, 11, gem_hi); p(24, 12, gem_hi); p(22, 11, gem_hi)
+
+        # Apply crisp 1px dark contour outline around all solid pixels before energy sparks
+        src = np.array(img)
+        opaque = src[:, :, 3] > 200
+        ring = dilate(opaque, 1) & (~opaque)
+        src[ring] = outline
+        img = Image.fromarray(src)
+
+        # Add exterior pixel sparks outside outline for Ready (state 0) & Burst (state 1)
+        if state == 0:
+            for sx, sy, sc in [(18, 9, (140, 248, 255, 220)), (29, 8, (255, 244, 184, 220)), (23, 3, (120, 240, 255, 210))]:
+                img.putpixel((sx, sy), sc)
+        elif state == 1:
+            surge_c = (150, 248, 255, 240)
+            core_w = (255, 255, 232, 255)
+            for ray_pt in [(14, 11), (13, 10), (33, 11), (34, 10), (17, 5), (30, 5), (23, 2), (24, 2), (23, 1), (11, 59), (36, 59)]:
+                img.putpixel(ray_pt, surge_c)
+            for c_pt in [(23, 12), (24, 12), (23, 13), (24, 13), (23, 3), (24, 3)]:
+                img.putpixel(c_pt, core_w)
+
+        upscaled = img.resize((gw * 2, gh * 2), Image.Resampling.NEAREST)
+        frames.append(upscaled)
+
+    strip = Image.new("RGBA", (gw * 2 * 3, gh * 2), (0, 0, 0, 0))
+    for i, fr in enumerate(frames):
+        strip.paste(fr, (i * gw * 2, 0), fr)
+    strip.save(out_dir / "prop_exit_pillar.png")
+
+
 def build_all(raw_dir: Path, out_dir: Path, qa_dir: Path):
     out_dir.mkdir(parents=True, exist_ok=True)
     qa_dir.mkdir(parents=True, exist_ok=True)
@@ -693,18 +915,18 @@ def build_all(raw_dir: Path, out_dir: Path, qa_dir: Path):
          {}),
         ("08_barracks_l3.png", "green", [("barracks", "shield", 208), ("barracks", "hunter", 200), ("barracks", "charge", 204)],
          {(-1, 1): "no_floating_above"}),
-        ("09_storm_base.png", "green", [("storm", "lv1", 198), ("storm", "lv2", 210)],
+        ("09_storm_base.jpg", "green", [("storm", "lv1", 198), ("storm", "lv2", 206)],
          {}),
-        ("10_storm_l3.png", "green", [("storm", "fork", 202), ("storm", "relay", 216), ("storm", "surge", 206)],
+        ("10_storm_l3.jpg", "green", [("storm", "fork", 202), ("storm", "relay", 214), ("storm", "surge", 196)],
          {}),
         ("11_lens_base.jpg", "green", [("lens", "lv1", 198), ("lens", "lv2", 210)],
          {}),
-        ("12_lens_l3.jpg", "green", [("lens", "focus", 210), ("lens", "sweep", 210), ("lens", "far_lens", 210)],
+        ("12_lens_l3.jpg", "green", [("lens", "focus", 210), ("lens", "sweep", 210), ("lens", "far_lens", 204)],
          {}),
-        ("13_snare_base.png", "magenta", [("snare", "lv1", 192), ("snare", "lv2", 206)],
-         {(0, 1): "snare_above_all", (0, 2): "snare_above_all", (1, 1): "snare_above_all", (-1, 3): "snare_rearm_arrow"}),
-        ("14_snare_l3.png", "magenta", [("snare", "net", 210), ("snare", "barb", 204), ("snare", "ratchet", 208)],
-         {(0, 1): "snare_above_all", (0, 2): "snare_above_all", (0, 3): "snare_net_clean", (1, 1): "snare_above_all"}),
+        ("13_snare_base.jpg", "magenta", [("snare", "lv1", 184), ("snare", "lv2", 198)],
+         {}),
+        ("14_snare_l3.jpg", "magenta", [("snare", "net", 194), ("snare", "barb", 190), ("snare", "ratchet", 198)],
+         {}),
     ]
 
     # World display heights in Godot arena px (tuned cleanly to sit snugly inside 108x72 plinths & harmonize with 65px heroes)
@@ -713,9 +935,9 @@ def build_all(raw_dir: Path, out_dir: Path, qa_dir: Path):
         "mage_lv1": 96.0, "mage_lv2": 108.0, "mage_frost": 118.0, "mage_arcfire": 116.0, "mage_breaker": 118.0,
         "cannon_lv1": 88.0, "cannon_lv2": 98.0, "cannon_siege": 108.0, "cannon_burning": 106.0, "cannon_frag": 106.0,
         "barracks_lv1": 92.0, "barracks_lv2": 104.0, "barracks_shield": 112.0, "barracks_hunter": 104.0, "barracks_charge": 108.0,
-        "storm_lv1": 100.0, "storm_lv2": 110.0, "storm_fork": 114.0, "storm_relay": 128.0, "storm_surge": 110.0,
-        "lens_lv1": 98.0, "lens_lv2": 110.0, "lens_focus": 116.0, "lens_sweep": 116.0, "lens_far_lens": 114.0,
-        "snare_lv1": 92.0, "snare_lv2": 102.0, "snare_net": 110.0, "snare_barb": 102.0, "snare_ratchet": 106.0,
+        "storm_lv1": 104.0, "storm_lv2": 96.0, "storm_fork": 98.0, "storm_relay": 122.0, "storm_surge": 88.0,
+        "lens_lv1": 102.0, "lens_lv2": 106.0, "lens_focus": 108.0, "lens_sweep": 114.0, "lens_far_lens": 96.0,
+        "snare_lv1": 76.0, "snare_lv2": 86.0, "snare_net": 82.0, "snare_barb": 80.0, "snare_ratchet": 88.0,
     }
     FLIPPABLE_KINDS = {"archer", "cannon", "lens"}
 
@@ -727,19 +949,6 @@ def build_all(raw_dir: Path, out_dir: Path, qa_dir: Path):
         for ri, (kind, form, target_idle) in enumerate(row_defs):
             key = f"{kind}_{form}"
             out_file = out_dir / f"tower_{key}.png"
-            # For storm_relay, gently trim extreme horizontal lightning wingtips past 1.55x idle width
-            # on frame 2 so the spire stays crisp and tall in 256x256
-            if key == "storm_relay":
-                bb0 = frame_bbox(rows[ri][0], 20)
-                if bb0:
-                    w0 = bb0[2] - bb0[0]
-                    cx0 = 0.5 * (bb0[0] + bb0[2])
-                    half_cap = int(round(w0 * 0.72))
-                    f2 = rows[ri][2]
-                    x_min = max(0, int(round(cx0 - half_cap)))
-                    x_max = min(f2.shape[1], int(round(cx0 + half_cap)))
-                    f2[:, :x_min, 3] = 0
-                    f2[:, x_max:, 3] = 0
             info = build_tower_strip(out_file, rows[ri], float(target_idle))
             # World display scale factor for Godot contact() = world_height / idle_h_px
             info["world_height"] = WORLD_HEIGHTS[key]
@@ -751,13 +960,27 @@ def build_all(raw_dir: Path, out_dir: Path, qa_dir: Path):
             elif kind == "barracks":
                 info["muzzle_uv"] = [0.50, 0.74]
             elif kind == "snare":
-                info["muzzle_uv"] = [0.52, 0.34]
+                info["muzzle_uv"] = [0.54, 0.56]
             elif kind == "storm":
-                info["muzzle_uv"] = [0.50, 0.24 if form != "surge" else 0.32]
+                storm_uvs = {
+                    "lv1": [0.50, 0.22],
+                    "lv2": [0.50, 0.22],
+                    "fork": [0.50, 0.24],
+                    "relay": [0.50, 0.16],
+                    "surge": [0.50, 0.44],
+                }
+                info["muzzle_uv"] = storm_uvs.get(form, [0.50, 0.24])
             elif kind == "mage":
                 info["muzzle_uv"] = [0.50, 0.28]
             elif kind == "lens":
-                info["muzzle_uv"] = [0.64 if form != "far_lens" else 0.74, 0.32]
+                lens_uvs = {
+                    "lv1": [0.60, 0.28],
+                    "lv2": [0.63, 0.30],
+                    "focus": [0.62, 0.30],
+                    "sweep": [0.52, 0.34],
+                    "far_lens": [0.76, 0.28],
+                }
+                info["muzzle_uv"] = lens_uvs.get(form, [0.62, 0.30])
             manifest["towers"][key] = info
             qa_entries.append((key, out_file))
             print(f"Built {out_file.name}: world_h={info['world_height']} muzzle={info['muzzle_uv']}")
@@ -789,7 +1012,9 @@ def build_all(raw_dir: Path, out_dir: Path, qa_dir: Path):
     print("Built all 7 tower prop strips")
 
     build_portraits(raw_dir, out_dir)
-    print("Built all 8 gold-framed portraits")
+    build_v026_tower_portraits(out_dir)
+    build_exit_pillar_strip(out_dir)
+    print("Built all 8 gold-framed portraits + v0.26 portraits & exit pillar strip")
 
     build_plinths(raw_dir, out_dir)
     print("Built all 5 pixel plinths")
@@ -890,5 +1115,12 @@ if __name__ == "__main__":
     parser.add_argument("--raw-dir", type=Path, default=PROJECT.parent / "美术参考/v024_final_raw")
     parser.add_argument("--out-dir", type=Path, default=PROJECT / "assets/towers_v024")
     parser.add_argument("--qa-dir", type=Path, default=PROJECT / "test-results")
+    parser.add_argument("--v026-only", action="store_true", help="Only regenerate v0.26 portraits and endpoint exit pillar strip.")
     args = parser.parse_args()
-    build_all(args.raw_dir.resolve(strict=True), args.out_dir.resolve(), args.qa_dir.resolve())
+    if args.v026_only:
+        out_resolved = args.out_dir.resolve()
+        build_v026_tower_portraits(out_resolved)
+        build_exit_pillar_strip(out_resolved)
+        print("Built v0.26 portraits (storm/lens/snare) & prop_exit_pillar.png")
+    else:
+        build_all(args.raw_dir.resolve(strict=True), args.out_dir.resolve(), args.qa_dir.resolve())

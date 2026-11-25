@@ -31,7 +31,6 @@ func run() -> void:
 	check(game.build_tower(locked,"archer") and game.site_tower(locked)!=null,"unlocked site builds normally")
 	var creek:=ArenaLevelCatalog.definition("creek")
 	check(int(creek.locked_sites[0])==9 and int(creek.locked_site_price)==200,"creek locks one site at the same price")
-	game.choice_queue=0;game.choice_open=false
 	game.running=false;game.audio.shutdown();await process_frame;OS.delay_msec(150);game.queue_free();await process_frame
 	paused=false
 	print("V08 ECONOMY CHECKS: %d, FAILURES: %d"%[checks,failures]);quit(0 if failures==0 else 1)

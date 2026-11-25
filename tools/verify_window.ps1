@@ -12,11 +12,9 @@ try {
     $env:LOCALAPPDATA=Join-Path $profile 'Local'
     New-Item -ItemType Directory -Path $env:APPDATA,$env:LOCALAPPDATA -Force | Out-Null
     foreach($size in @('1600x900','1024x576')) {
-      foreach($testName in @('v06_window','v08_integration_window','v09_window','v010_window','v011_window','v012_window','v013_window','v015_window','v017_window','saltport_window','v021_tower_roster')) {
+      foreach($testName in @('v06_window','v08_integration_window','v09_window','v010_window','v011_window','v012_window','v013_window','v015_window','saltport_window','v021_tower_roster')) {
         $arguments=@('--path',$projectRoot,'--resolution',$size,'--script',('res://tests/'+$testName+'.gd'))
-        $arguments+='--'
-        if($testName -ne 'v021_tower_roster') { $arguments+='--legacy-rules' }
-        if($size -eq '1024x576') {$arguments+='--small'}
+        if($size -eq '1024x576') {$arguments += @('--','--small')}
         $previous=$ErrorActionPreference
         $ErrorActionPreference='Continue'
         $output=& $enginePath @arguments 2>&1

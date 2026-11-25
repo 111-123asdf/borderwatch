@@ -22,13 +22,13 @@ func run() -> void:
 	game.gold=12000;game.cycle=5;game.phase_clock=60
 	var ids: Array=["archer","mage","cannon","barracks"]
 	for index in range(4):
-		await click(game.level_definition.sites[index]);await press("Build_"+str(ids[index]));game.hud.close_context()
+		await click(game.level_definition.sites[index]);await press("Build_"+str(ids[index]));game.site_tower(index).finish_project();game.hud.close_context()
 	check(game.towers.size()==4,"all four buildings can be placed")
 	await snapshot("v09-towers-1")
-	for tower in game.towers:tower.upgrade()
+	for tower in game.towers:tower.upgrade();tower.finish_project()
 	game.hud.close_context();await frames();await snapshot("v09-towers-2")
 	for tower in game.towers:
-		tower.upgrade();tower.choose_doctrine(str(ArenaDoctrines.for_tower(tower.kind)[0].id))
+		tower.upgrade(str(ArenaDoctrines.for_tower(tower.kind)[0].id));tower.finish_project()
 	game.hud.close_context();await frames();await snapshot("v09-towers-3")
 	for tower in game.towers:
 		var placement:=ArenaBattleArt.contact(tower.kind,tower.level,tower.body.texture.get_size())

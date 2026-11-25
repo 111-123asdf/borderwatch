@@ -2,21 +2,32 @@
 
 | 检查 | 运行方式与覆盖范围 |
 |---|---|
-| 源码 | 运行 ./tools/verify.ps1。导入后检查关卡、战斗、经济、存档及历史对照模式。正式用例 v020_defense 检查选牌、施工退款、出兵与胜负，v020_battle_orders 检查打法联动和候选过滤，v021_tower_roster 检查工坊替换、旧档与七种塔。 |
-| 实际窗口 | ./tools/verify_window.ps1 在 1600×900 与 1024×576 运行菜单、键鼠、战场和结算回归。七塔工坊用例走正式流程，历史界面用例显式传入 --legacy-rules。 |
-| 正式局 | 运行下方命令。--level 可用 forest、creek、ruins、saltport，--hero 可用 lord、druid、healer、werewolf、gunner。--rule=draw 每轮选一张，省略时走基础守线。--towers=storm,lens,snare,barracks 可复跑新塔阵容。默认永久 1 级，--hero-level=5 使用既有等级夹具，局内资源按正常流程结算。 |
-| 导出 | ./tools/export.ps1 需要 Godot 4.7.2.stable Windows 导出模板。./tools/verify_export.ps1 -FullPlaythrough 从隔离目录读取 EXE 内嵌 PCK，覆盖资源、玩法与五英雄 × 四关 × 两档等级。单独导出的 PCK 可用 --main-pack 运行同一资源审计。 |
+| 源码 | 运行 `./tools/verify.ps1`。导入后执行 `34` 项步骤（`import` + `33` 套无头测试），覆盖规则、布局、经济、长波、物理手感、英雄、怪物、防御塔、前端 UI、章节双军团、程序化裂隙与圣物被动（`v025_combat_and_vfx` 至 `v030_se_balance_proof`）。原条件卡/战令实验脚本（`v017_*`、`v020_battle_orders`、`v020_conditions`、`v020_passives`、`v07_*`）已退役并由双域被动/圣物/PCG 套件替代。 |
+| 实际窗口 | `./tools/verify_window.ps1` 在 `1600×900` 与 `1024×576` 运行 `10` 套菜单、键鼠、战场、工坊与结算回归（共 `20` 次实窗运行）。 |
+| 资源审计 | `godot --headless --path . --script res://tests/v06_export_audit.gd` 验证现行核心脚本、英雄/怪物/塔/六关地图/模块化裂隙砖块图集打包引用及退役文件清理（`220` 项检查）。 |
+| 正式局 | 运行下方命令。`--level` 可用 `forest`、`creek`、`saltport`、`lighthouse`、`ruins`、`sanctum`，`--hero` 可用 `lord`、`druid`、`healer`、`werewolf`、`gunner`。`--towers=storm,lens,snare,barracks` 可复跑塔阵容，默认永久 1 级，`--hero-level=5` 使用既有等级夹具，局内资源按正常流程结算。 |
+| 导出 | `./tools/export.ps1` 需要 Godot 4.7.2.stable Windows 导出模板。`./tools/verify_export.ps1 -FullPlaythrough` 从隔离目录读取 EXE 内嵌 PCK。单独导出的 PCK 可用 `--main-pack` 运行同一资源审计。 |
 
 ~~~powershell
-godot --headless --fixed-fps 60 --path . --script res://tests/v06_playthrough.gd -- --hero=gunner --level=creek --rule=draw
+godot --headless --fixed-fps 60 --path . --script res://tests/v06_playthrough.gd -- --hero=gunner --level=creek
 ~~~
 
 ## 对照与记录
 
-- 条件卡实验用 ./tools/run.ps1 -ConditionLab -Playtest，使用 condition_lab_v020.cfg。五英雄共用 20 张两阶卡，2–11 级各选一次，每局可重抽一次。更早的 12 卡原型以 --passive-lab 运行。
-- 四塔机制对照用 ./tools/run.ps1 -TowerLab -Playtest，使用 tower_lab_v020.cfg。机制检查可注入金币、等级或站位；正常经济回放单独记录。
-- tests/v019_inspect_states.gd、v019_sample_capture.gd 用于截图夹具。v017_stress.gd 用 12 座三级塔、约 105 个敌人量帧耗时。v022_heroes、v023_monsters 与 saltport_window 验证英雄、怪物及盐港入口。
-- 运行测试时隔离 APPDATA 与 LOCALAPPDATA。项目脚本错误、失败断言及对象泄漏均须排查。源码包验证包括 CRC、Git 历史完整性、工作区清单、逐文件 SHA256 与解压副本核对。[PR #14 原始结果](STAGE_CLOSEOUT.md)
+- 五英雄 5 级试招夹具使用 `./tools/run.ps1 -FeelLab`，四塔机制对照使用 `./tools/run.ps1 -TowerLab -Playtest`。
+- `tests/v030_rift_and_passives.gd`、`tests/v029_chapters_and_legions.gd`、`tests/v030_se_balance_proof.gd` 分别负责验证 `ArenaRiftPCG` 连通性与双域被动圣物上限、三章六关长波兽潮与双军团、以及三策略自动对局平衡性证明。
+- `tools/capture_v026_showcase.gd`、`capture_v027_frontend.gd`、`capture_v028_passive_ui.gd` 用于阶段性实机截图夹具。
+- 运行测试时隔离 `APPDATA` 与 `LOCALAPPDATA`。项目脚本错误、失败断言及对象泄漏均须排查。
+
+## 2026-11-25 v0.32.0 双域与程序化地牢验收
+
+- **源码无头回归（`./tools/verify.ps1`）**：`34/34` 步骤全部通过（`SOURCE VERIFICATION PASSED`，`FAILURES: 0`），其中 `v030_rift_and_passives` 通过 `131` 项、`v029_chapters_and_legions` 通过 `132` 项、`v030_se_balance_proof` 通过 `4` 项、`v06_layout` 通过 `23013` 项。
+- **导出资源审计（`tests/v06_export_audit.gd`）**：`220/220` 检查全部通过（`FAILURES: 0`）。
+- **双尺寸窗口回归（`./tools/verify_window.ps1`）**：`1600×900` 与 `1024×576` 共 `20/20` 次实机窗口测试通过（`FAILURES: 0`）。
+- **三策略软件工程平衡性证明（`tests/v030_se_balance_proof.gd`）**：
+  - `OnlyRift_NoRecall`（只刷裂隙不回防）：败北（`cycle=3, floors=1, core_hp=0, built=3, rooms=8, kills=353, picks=10, relics=4, run_lv=11, recalls=0`）。
+  - `OnlyDefense_NoRift`（只守主域不入裂隙）：败北（`cycle=5, floors=1, core_hp=0, built=6, rooms=0, kills=366, picks=3, relics=0, run_lv=4, recalls=0`）。
+  - `DualDomain_Synergy`（双域协同）：胜利（`cycle=5, floors=1, core_hp=750, built=6, rooms=6, kills=755, picks=10, relics=1, run_lv=11, recalls=10`）。
 
 ## 2026-11-22 整合验收
 

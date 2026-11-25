@@ -26,7 +26,7 @@ func hit(game: Node2D, point: Vector2, damage: float, kind: int, killed: bool, s
 	if damage<=0:return
 	var lord: bool=source=="hero" and game.hero.class_id=="lord"
 	var hero_hit: bool=source=="hero"
-	var heavy: bool=(lord and attack=="small" and kind==0) or (hero_hit and attack=="werewolf_claw" and game.hero.werewolf_beast_clock>0.0) or (hero_hit and attack=="pierce_arrow") or (source=="tower" and attack=="shell")
+	var heavy: bool=(lord and attack=="small" and kind==0) or (hero_hit and attack=="werewolf_claw" and game.hero.werewolf_beast_clock>0.0) or (hero_hit and attack=="pierce_arrow") or (hero_hit and bool(condition_result.get("crit",false))) or (source=="tower" and attack=="shell")
 	var dir_vec := incoming.normalized()
 	if dir_vec.is_zero_approx() and hero_hit:
 		dir_vec = game.hero.position.direction_to(point)
@@ -62,7 +62,14 @@ func hit(game: Node2D, point: Vector2, damage: float, kind: int, killed: bool, s
 	if heavy:
 		if lord and attack=="small" and game.hero.action=="small" and game.hero.action_released:game.hero.visual.feedback.freeze_after_release()
 		var now:=Time.get_ticks_msec()
-		if source=="hero" and now-last_heavy>=400:trauma=minf(1.0,trauma+0.55);last_heavy=now
+		if source=="hero" and now-last_heavy>=260:
+			trauma=minf(1.0,trauma+0.52);last_heavy=now
+			if Engine.time_scale<=2.0 and not bool(game.campaign.data.reduced_motion) and is_instance_valid(game.hero):
+				game.hero.visual.feedback.stop_left=maxf(game.hero.visual.feedback.stop_left,0.032)
+	elif bool(condition_result.get("crit",false)) and source=="hero":
+		var now_c:=Time.get_ticks_msec()
+		if now_c-last_heavy>=260:
+			trauma=minf(1.0,trauma+0.24);last_heavy=now_c
 	if source=="hero" and not bool(game.get_meta("hide_damage_numbers",false)):
 		var crowded: bool=attack in ["small","werewolf_claw","healer_blessing","lord_thorn"]
 		if not crowded or game.numbers.all(func(n):return n.point.distance_squared_to(point)>42.0*42.0 or float(n.get("merge",0.0))<=0.0):
@@ -76,8 +83,7 @@ func hit(game: Node2D, point: Vector2, damage: float, kind: int, killed: bool, s
 func _number(game: Node2D, point: Vector2, damage: float, kind: int, target: Node2D, condition_result: Dictionary) -> void:
 	var id: int=target.get_instance_id() if is_instance_valid(target) else 0
 	var critical := bool(condition_result.get("crit",false))
-	var active_cards: Array = condition_result.get("icons",[])
-	var decorated := critical or not active_cards.is_empty()
+	var decorated := critical
 	# Use simulation presentation time: opening a menu cannot silently consume a merge window.
 	for item in game.numbers:
 		if not decorated and int(item.get("target",-1))==id and int(item.get("kind",-1))==kind and float(item.get("merge",0.0))>0:
@@ -86,8 +92,8 @@ func _number(game: Node2D, point: Vector2, damage: float, kind: int, target: Nod
 	var origin:=point+Vector2(-8,-18)
 	for item in game.numbers:
 		if float(item.life)>0.35 and origin.distance_to(item.point)<28:origin.y-=25
-	var colour := Color("fff098") if critical else (Color("a2e8d8") if decorated else ArenaCombat.colour(kind))
-	game.numbers.append({"point":origin,"text":str(int(ceil(damage))),"amount":damage,"target":id,"kind":kind,"merge":0.0 if decorated else 0.15,"colour":colour,"life":0.65,"duration":0.65,"critical":critical,"icons":active_cards,"capped":condition_result.get("capped",false)})
+	var colour := Color("fff098") if critical else ArenaCombat.colour(kind)
+	game.numbers.append({"point":origin,"text":str(int(ceil(damage))),"amount":damage,"target":id,"kind":kind,"merge":0.0 if decorated else 0.15,"colour":colour,"life":0.65,"duration":0.65,"critical":critical})
 
 func tick(game: Node2D, delta: float) -> void:
 	shake_clock+=delta;trauma=maxf(0.0,trauma-delta*3.0)

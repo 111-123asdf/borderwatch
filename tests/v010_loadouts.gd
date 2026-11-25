@@ -17,7 +17,7 @@ func run() -> void:
 		check(not state.equip_towers(keys) and state.tower_loadout()==["mage","archer"],"invalid loadout cannot replace current towers "+str(keys))
 	var copy:=state.tower_loadout();copy.clear();check(state.tower_loadout().size()==2,"callers cannot mutate the saved loadout through an alias")
 	state.equip_towers(["mage"])
-	check(not state.can_deploy("forest") and state.can_deploy("creek"),"stage gate checks the actual first-wave tower pool")
+	check(state.can_deploy("forest") and state.can_deploy("creek"),"all 7 towers are unlocked wave 1 across all stages")
 	check(not state.can_deploy("missing"),"unknown stage cannot deploy")
 	var path:="user://loadout-fixture-"+str(Time.get_ticks_usec())+".cfg"
 	var legacy:=ArenaCampaign.new("",false);legacy.data.gems=17;legacy.data.levels["healer"]=4
@@ -40,7 +40,7 @@ func run() -> void:
 	state.equip_towers(["mage","archer"]);root.add_child(game);current_scene=game;await frames()
 	game.start_run(state.selected_hero(),"forest")
 	check(game.hero.class_id=="gunner" and game.run_towers==["mage","archer"],"deployment snapshots selected hero and towers")
-	check(game.available_towers()==["archer"],"equipped towers also obey wave unlocks")
+	check(game.available_towers()==["archer","mage"],"unified rules offer equipped towers on forest")
 	var gold:=game.gold
 	check(not game.build_tower(0,"barracks") and game.gold==gold,"unequipped tower cannot consume gold")
 	game.cycle=5

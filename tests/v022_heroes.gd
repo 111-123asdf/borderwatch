@@ -108,6 +108,7 @@ func run() -> void:
 	await setup("healer")
 	hero=game.hero
 	game.gold=500;game.build_tower(0,"archer");var tower: ArenaTower=game.towers[0]
+	tower.finish_project()
 	tower.position=hero.position+Vector2(100,0)
 	var base_reload:=tower.reload_time()
 	check(hero.cast(0,hero.position),"healer Q casts")

@@ -225,166 +225,166 @@
     "storm_lv1": {
       "file": "tower_storm_lv1.png",
       "idle_h_px": 198.0,
-      "base_width_px": 162.9,
+      "base_width_px": 107.0,
       "muzzle_uv": [
         0.5,
-        0.24
+        0.22
       ],
-      "world_height": 100.0,
+      "world_height": 104.0,
       "flippable": false
     },
     "storm_lv2": {
       "file": "tower_storm_lv2.png",
-      "idle_h_px": 210.0,
-      "base_width_px": 172.5,
+      "idle_h_px": 206.0,
+      "base_width_px": 171.8,
       "muzzle_uv": [
         0.5,
-        0.24
+        0.22
       ],
-      "world_height": 110.0,
+      "world_height": 96.0,
       "flippable": false
     },
     "storm_fork": {
       "file": "tower_storm_fork.png",
-      "idle_h_px": 162.3,
-      "base_width_px": 168.3,
+      "idle_h_px": 202.0,
+      "base_width_px": 189.2,
       "muzzle_uv": [
         0.5,
         0.24
       ],
-      "world_height": 114.0,
+      "world_height": 98.0,
       "flippable": false
     },
     "storm_relay": {
       "file": "tower_storm_relay.png",
-      "idle_h_px": 159.7,
-      "base_width_px": 130.5,
+      "idle_h_px": 214.0,
+      "base_width_px": 143.0,
       "muzzle_uv": [
         0.5,
-        0.24
+        0.16
       ],
-      "world_height": 128.0,
+      "world_height": 122.0,
       "flippable": false
     },
     "storm_surge": {
       "file": "tower_storm_surge.png",
-      "idle_h_px": 163.7,
-      "base_width_px": 183.1,
+      "idle_h_px": 196.0,
+      "base_width_px": 224.0,
       "muzzle_uv": [
         0.5,
-        0.32
+        0.44
       ],
-      "world_height": 110.0,
+      "world_height": 88.0,
       "flippable": false
     },
     "lens_lv1": {
       "file": "tower_lens_lv1.png",
       "idle_h_px": 198.0,
-      "base_width_px": 160.5,
+      "base_width_px": 122.6,
       "muzzle_uv": [
-        0.64,
-        0.32
+        0.6,
+        0.28
       ],
-      "world_height": 98.0,
+      "world_height": 102.0,
       "flippable": true
     },
     "lens_lv2": {
       "file": "tower_lens_lv2.png",
       "idle_h_px": 210.0,
-      "base_width_px": 139.6,
+      "base_width_px": 137.5,
       "muzzle_uv": [
-        0.64,
-        0.32
+        0.63,
+        0.3
       ],
-      "world_height": 110.0,
+      "world_height": 106.0,
       "flippable": true
     },
     "lens_focus": {
       "file": "tower_lens_focus.png",
       "idle_h_px": 210.0,
-      "base_width_px": 209.0,
+      "base_width_px": 179.6,
       "muzzle_uv": [
-        0.64,
-        0.32
+        0.62,
+        0.3
       ],
-      "world_height": 116.0,
+      "world_height": 108.0,
       "flippable": true
     },
     "lens_sweep": {
       "file": "tower_lens_sweep.png",
       "idle_h_px": 210.0,
-      "base_width_px": 181.2,
+      "base_width_px": 157.2,
       "muzzle_uv": [
-        0.64,
-        0.32
-      ],
-      "world_height": 116.0,
-      "flippable": true
-    },
-    "lens_far_lens": {
-      "file": "tower_lens_far_lens.png",
-      "idle_h_px": 210.0,
-      "base_width_px": 210.0,
-      "muzzle_uv": [
-        0.74,
-        0.32
+        0.52,
+        0.34
       ],
       "world_height": 114.0,
       "flippable": true
     },
+    "lens_far_lens": {
+      "file": "tower_lens_far_lens.png",
+      "idle_h_px": 185.0,
+      "base_width_px": 197.1,
+      "muzzle_uv": [
+        0.76,
+        0.28
+      ],
+      "world_height": 96.0,
+      "flippable": true
+    },
     "snare_lv1": {
       "file": "tower_snare_lv1.png",
-      "idle_h_px": 192.0,
-      "base_width_px": 182.6,
+      "idle_h_px": 184.0,
+      "base_width_px": 230.0,
       "muzzle_uv": [
-        0.52,
-        0.34
+        0.54,
+        0.56
       ],
-      "world_height": 92.0,
+      "world_height": 76.0,
       "flippable": false
     },
     "snare_lv2": {
       "file": "tower_snare_lv2.png",
-      "idle_h_px": 206.0,
-      "base_width_px": 168.2,
+      "idle_h_px": 198.0,
+      "base_width_px": 198.0,
       "muzzle_uv": [
-        0.52,
-        0.34
+        0.54,
+        0.56
       ],
-      "world_height": 102.0,
+      "world_height": 86.0,
       "flippable": false
     },
     "snare_net": {
       "file": "tower_snare_net.png",
-      "idle_h_px": 187.2,
-      "base_width_px": 192.6,
+      "idle_h_px": 166.7,
+      "base_width_px": 228.3,
       "muzzle_uv": [
-        0.52,
-        0.34
+        0.54,
+        0.56
       ],
-      "world_height": 110.0,
+      "world_height": 82.0,
       "flippable": false
     },
     "snare_barb": {
       "file": "tower_snare_barb.png",
-      "idle_h_px": 161.9,
-      "base_width_px": 202.9,
+      "idle_h_px": 185.9,
+      "base_width_px": 236.3,
       "muzzle_uv": [
-        0.52,
-        0.34
+        0.54,
+        0.56
       ],
-      "world_height": 102.0,
+      "world_height": 80.0,
       "flippable": false
     },
     "snare_ratchet": {
       "file": "tower_snare_ratchet.png",
-      "idle_h_px": 192.3,
-      "base_width_px": 235.7,
+      "idle_h_px": 196.3,
+      "base_width_px": 205.5,
       "muzzle_uv": [
-        0.52,
-        0.34
+        0.54,
+        0.56
       ],
-      "world_height": 106.0,
+      "world_height": 88.0,
       "flippable": false
     }
   }

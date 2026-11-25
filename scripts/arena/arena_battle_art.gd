@@ -29,6 +29,8 @@ func _push_dust(world_pos: Vector2, drift: Vector2, sz: float, col: Color) -> vo
 		_world_dust.pop_front()
 	_world_dust.append({"pos": world_pos, "vel": drift, "life": 0.34, "max_life": 0.34, "size": sz, "col": col})
 static func map_path(key: String) -> String:
+	if key in ["saltport","lighthouse","ruins","sanctum"]:
+		return "res://assets/maps_v029/map_"+key+".png"
 	return "res://assets/v09/map_"+key+".png"
 static func towers_path() -> String:
 	return "res://assets/v017/towers.png"
@@ -248,7 +250,7 @@ func _draw_trait_frame(point: Vector2,trait_id: String,locked: bool,selected: bo
 	# Zero text on map plinths; ground-embedded stone geometry communicates traits.
 func _draw() -> void:
 	if not game.started:return
-	var is_ruins: bool=game.level_id=="ruins"
+	var is_ruins: bool=game.level_id in ["ruins","sanctum"]
 	var cursor: Vector2=game.mouse_world()
 	for index in range(game.level_definition.sites.size()):
 		var point: Vector2=game.level_definition.sites[index]
@@ -257,11 +259,7 @@ func _draw() -> void:
 		var locked:=game.site_locked(index)
 		var selected: bool=(game.selected_site==index)
 		var hovered: bool=(selected or cursor.distance_to(point)<55.0)
-		if game.level_id==ArenaSaltport.ID:
-			ArenaGrounding.ensure_textures()
-			ArenaSaltportArt.draw_site(self,point,index,occupied,hovered or selected)
-		else:
-			ArenaGrounding.draw_contact(self,point,occupied,is_ruins,index,trait_id,locked,hovered,selected)
+		ArenaGrounding.draw_contact(self,point,occupied,is_ruins,index,trait_id,locked,hovered,selected)
 	if not _world_dust.is_empty():
 		if _dust_tex == null and ResourceLoader.exists("res://assets/v018/particles/smoke_07.png"):
 			_dust_tex = load("res://assets/v018/particles/smoke_07.png")

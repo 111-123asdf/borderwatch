@@ -12,7 +12,6 @@ func _process(delta: float) -> bool:
 	if waiting or game==null:return false
 	elapsed+=delta
 	if phase==0:
-		if game.choice_open:game.choose_perk(game.choices[0])
 		if game.game_over:
 			if game.victory or game.core_health!=0:failures+=1
 			print("NATURAL FAILURE elapsed=",int(elapsed)," wave=",game.cycle," core=",game.core_health)
@@ -21,7 +20,7 @@ func _process(delta: float) -> bool:
 	return false
 func restart() -> void:
 	game.restart_run();await process_frame;await process_frame;await process_frame;game=current_scene
-	if not game.started or game.level_id!="creek" or game.hero.class_id!="healer" or game.gold!=280 or game.hero.level!=1 or game.cycle!=1:failures+=1
+	if not game.started or game.level_id!="creek" or game.hero.class_id!="healer" or game.gold!=ArenaGame.START_GOLD or game.hero.meta_level!=1 or game.cycle!=1:failures+=1
 	game.return_to_menu();await process_frame;await process_frame;game=current_scene
 	if game.started or not is_instance_valid(game.hud.menu):failures+=1
 	await done()

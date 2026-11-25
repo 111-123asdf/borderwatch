@@ -11,8 +11,16 @@ func _initialize() -> void:call_deferred("run")
 func tower_for(kind: String) -> ArenaTower:
 	game.gold=20000
 	for index in range(game.level_definition.sites.size()):
-		if game.site_tower(index)==null and game.build_tower(index,kind):return game.site_tower(index)
+		if game.site_tower(index)==null and game.build_tower(index,kind):
+			var tower := game.site_tower(index)
+			tower.finish_project()
+			return tower
 	return null
+func up(tower: ArenaTower, doctrine := "") -> bool:
+	if not tower.upgrade(doctrine):
+		return false
+	tower.finish_project()
+	return true
 func run() -> void:
 	check_data()
 	game=load("res://scenes/arena.tscn").instantiate();root.add_child(game);await process_frame
@@ -26,7 +34,6 @@ func run() -> void:
 	check_zone()
 	check_menu()
 	check_barracks()
-	game.choice_queue=0;game.choice_open=false
 	game.running=false;game.audio.shutdown();await process_frame;OS.delay_msec(150);game.queue_free();await process_frame
 	paused=false
 	print("V08 DOCTRINE CHECKS: %d, FAILURES: %d"%[checks,failures]);quit(0 if failures==0 else 1)
@@ -48,11 +55,12 @@ func check_data() -> void:
 	for key in ArenaDefinitions.TOWER_IDS:check(ArenaDoctrines.for_tower(key).size()==3,"three doctrines per "+key)
 func check_upgrade_flow() -> void:
 	var tower:=tower_for("archer");towers["archer"]=tower
-	check(tower.upgrade() and tower.level==2 and not tower.awaiting_doctrine,"level two stays numeric")
-	check(tower.upgrade() and tower.level==3 and tower.awaiting_doctrine and tower.doctrine_id=="","level three asks for a doctrine")
-	check(not tower.choose_doctrine("frost"),"wrong tower kind is rejected")
-	check(tower.choose_doctrine("sentinel") and tower.doctrine_id=="sentinel" and not tower.awaiting_doctrine,"doctrine applies once")
+	check(up(tower) and tower.level==2 and not tower.awaiting_doctrine,"level two stays numeric")
+	check(up(tower,"sentinel") and tower.level==3 and not tower.awaiting_doctrine and tower.doctrine_id=="sentinel","explicit doctrine applies on L3 upgrade")
 	check(not tower.choose_doctrine("repeater"),"doctrine cannot be replaced")
+	var auto_arch:=tower_for("archer")
+	up(auto_arch);up(auto_arch)
+	check(auto_arch.level==3 and not auto_arch.awaiting_doctrine and auto_arch.doctrine_id==ArenaTower.AUTO_DEFAULT_DOCTRINE["archer"],"formal L3 auto-assigns control doctrine")
 
 func check_archer() -> void:
 	var tower: ArenaTower=towers["archer"]
@@ -62,7 +70,7 @@ func check_archer() -> void:
 	check(tower.forced_target()=="strongest" and tower.target_mode=="strongest","sentinel forces strongest targeting")
 	check(is_equal_approx(tower.doc_mod("mark_bonus"),0.15),"sentinel marks for extra damage")
 	var repeater:=tower_for("archer")
-	repeater.upgrade();repeater.upgrade("repeater")
+	up(repeater);up(repeater,"repeater")
 	var repeater_reach:=float(repeater.data.reach)+(repeater.level-1)*16
 	check(is_equal_approx(repeater.attack_range(),repeater_reach*0.85),"repeater trades range")
 	check(is_equal_approx(repeater.reload_time(),float(repeater.data.interval)/(1.0+0.14*2.0)*0.625),"repeater buys attack speed")
@@ -75,7 +83,7 @@ func check_archer() -> void:
 		if game.actors.get_child_count()-before>1:triples+=1
 	check(triples>=15 and triples<=45,"repeater triple volley fires about a quarter of the time")
 	var piercer:=tower_for("archer")
-	piercer.upgrade();piercer.upgrade("piercer")
+	up(piercer);up(piercer,"piercer")
 	check(is_equal_approx(piercer.penetration(),0.4),"piercer ignores forty percent armour")
 	var brute:=game.spawn_enemy("brute",0,320)
 	var fox:=game.spawn_enemy("fox",0,340)
@@ -83,19 +91,19 @@ func check_archer() -> void:
 	check(is_equal_approx(piercer.doctrine_multiplier(fox),1.0),"piercer leaves light targets alone")
 func check_mage() -> void:
 	var tower:=tower_for("mage");towers["mage"]=tower
-	tower.upgrade();tower.upgrade("frost")
+	up(tower);up(tower,"frost")
 	check(is_equal_approx(tower.doc_mod("damage_mult"),0.8),"frost pays damage")
 	check(is_equal_approx(tower.penetration(),0.0),"frost has no penetration")
 	check(is_equal_approx(tower.doc_mod("slow_amount"),0.3) and tower.doc_mod("freeze_time")==1.5,"frost carries slow and freeze")
 	var breaker:=tower_for("mage")
-	breaker.upgrade();breaker.upgrade("breaker")
+	up(breaker);up(breaker,"breaker")
 	check(is_equal_approx(breaker.penetration(),0.4),"breaker ignores forty percent resistance")
 	var wisp:=game.spawn_enemy("wisp",0,360)
 	var fox:=game.spawn_enemy("fox",0,380)
 	check(is_equal_approx(breaker.doctrine_multiplier(wisp),1.25),"breaker punishes high resistance")
 	check(is_equal_approx(breaker.doctrine_multiplier(fox),1.0),"breaker ignores low resistance")
 	var arcfire:=tower_for("mage")
-	arcfire.upgrade();arcfire.upgrade("arcfire")
+	up(arcfire);up(arcfire,"arcfire")
 	check(arcfire.doc_mod("explode_radius")==60.0,"arcfire detonates on kill")
 	var victim:=game.spawn_enemy("fox",0,500);var witness:=game.spawn_enemy("fox",0,520)
 	victim.position=Vector2(700,500);witness.position=Vector2(720,500)
@@ -105,13 +113,13 @@ func check_mage() -> void:
 	check(witness.health<witness_health,"arcfire explosion hits nearby enemies")
 func check_cannon() -> void:
 	var tower:=tower_for("cannon");towers["cannon"]=tower
-	var base_radius:=64.0+(3-1)*12
-	tower.upgrade();tower.upgrade("siege")
+	var base_radius:=ArenaTowerTrial.stat("cannon","splash",3)
+	up(tower);up(tower,"siege")
 	check(is_equal_approx(tower.splash_radius(),base_radius*0.6),"siege shrinks splash")
 	var elite:=game.spawn_enemy("fox",0,400,true)
 	check(is_equal_approx(tower.doctrine_multiplier(elite),1.5*1.4),"siege punishes elites")
 	var frag:=tower_for("cannon")
-	frag.upgrade();frag.upgrade("frag")
+	up(frag);up(frag,"frag")
 	check(is_equal_approx(frag.splash_radius(),base_radius*1.5),"frag widens splash")
 	check(frag.doc_mod("knockback")==15.0,"frag knocks enemies back")
 func check_enemy_effects() -> void:
@@ -130,15 +138,20 @@ func check_enemy_effects() -> void:
 	frozen.frost_hit(0.3,2.0,5,1.5)
 	check(frozen.frost_stacks==0 and frozen.stun>=1.4,"fifth stack freezes the target")
 func check_menu() -> void:
+	for existing in game.towers.duplicate(): existing.sell()
+	game.gold=20000
+	game.tower_lab=true
 	var tower:=tower_for("archer")
-	tower.upgrade();tower.upgrade()
+	up(tower);up(tower)
+	tower.doctrine_id="";tower.doctrine_data={};tower.awaiting_doctrine=true;game.pending_doctrine_site=tower.site_id
 	game.selected_site=tower.site_id;game.hud.show_context(tower.site_id)
-	check(tower.awaiting_doctrine and game.hud.context.size.x>=480,"doctrine menu widens the tower panel")
+	check(tower.awaiting_doctrine and game.hud.context.size.x>=480,"tower_lab doctrine menu widens the tower panel")
 	check(game.hud.context.find_child("Doctrine_sentinel",true,false)!=null,"doctrine menu lists the first card")
 	check(game.hud.context.find_child("Doctrine_repeater",true,false)!=null and game.hud.context.find_child("Doctrine_piercer",true,false)!=null,"doctrine menu lists every option")
 	check(game.choose_doctrine(tower.site_id,"piercer") and tower.doctrine_id=="piercer","menu choice applies through the game")
 	check(not tower.awaiting_doctrine and game.hud.context.size.x<480,"menu returns to the normal tower panel")
 	game.hud.close_context()
+	game.tower_lab=false
 func check_zone() -> void:
 	var fox:=game.spawn_enemy("fox",0,480)
 	var point:=Vector2(600,600)
@@ -156,19 +169,19 @@ func check_zone() -> void:
 func check_barracks() -> void:
 	for tower in game.towers.duplicate():tower.sell()
 	game.hud.close_context();game.gold=20000
+	var base_l3_hp:=160.0+50.0*2.0
 	var shield:=tower_for("barracks")
-	check(shield.upgrade() and shield.upgrade() and shield.awaiting_doctrine,"barracks asks for a doctrine at level three")
-	check(shield.choose_doctrine("shield") and shield.doctrine_id=="shield","shield doctrine applies")
+	check(up(shield) and up(shield,"shield") and shield.doctrine_id=="shield","shield doctrine applies")
 	check(shield.troops.size()==3 and shield.troops[0].block_capacity()==2,"shield soldiers hold two each")
 	check(shield.troops[0].taunt(),"shield soldiers taunt")
-	check(is_equal_approx(shield.troops[0].max_health,210.0*1.5),"shield soldiers gain half health")
+	check(is_equal_approx(shield.troops[0].max_health,base_l3_hp*1.5),"shield soldiers gain half health")
 	var hunter:=tower_for("barracks")
-	hunter.upgrade();hunter.upgrade("hunter")
+	up(hunter);up(hunter,"hunter")
 	check(hunter.troops.size()==2 and hunter.troops[0].ranged(),"hunter keeps two ranged soldiers")
-	check(is_equal_approx(hunter.troops[0].max_health,210.0*0.8),"hunter soldiers lose health")
+	check(is_equal_approx(hunter.troops[0].max_health,base_l3_hp*0.8),"hunter soldiers lose health")
 	check(is_equal_approx(hunter.troops[0].attack_range(),180.0),"hunter soldiers reach further")
 	var charge:=tower_for("barracks")
-	charge.upgrade();charge.upgrade("charge")
+	up(charge);up(charge,"charge")
 	check(is_equal_approx(charge.troops[0].move_speed(),110.0*1.3),"charge soldiers move faster")
 	check(is_equal_approx(charge.troops[0].soldier_mod("charge_stun"),1.0),"charge soldiers stun on contact")
 	var soldier: ArenaSoldier=shield.troops[0]

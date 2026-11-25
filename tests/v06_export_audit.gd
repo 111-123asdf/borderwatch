@@ -5,17 +5,22 @@ func check(ok: bool,message: String) -> void:
 	checks+=1
 	if not ok:failures+=1;push_error("EXPORT FAIL: "+message)
 func _initialize() -> void:
-	check(ProjectSettings.get_setting("application/config/version")=="0.23.0","pack version")
-	for file in ["preview","terrain","pump","warehouse","mill","dock","rocks","salt_cart","shore_ledge","saltgrass","pad_wood","pad_stone","fiddler","mudshrimp","salt_hermit","anchor_crab","body_fiddler","body_mudshrimp","body_salt_hermit","body_anchor_crab"]:
-		check(ResourceLoader.exists("res://assets/saltport/"+file+".png"),"saltport art ships "+file)
-	for file in ["arena_attack_timing", "arena_construct_rig", "arena_grounding"]:
+	check(ProjectSettings.get_setting("application/config/version")=="0.32.0","pack version")
+	for stage in ["saltport","lighthouse","ruins","sanctum"]:
+		check(ResourceLoader.exists("res://assets/maps_v029/map_"+stage+".png"),"v029 map ships "+stage)
+	for kind in ["murloc_hunter","tide_rider","water_sprite","storm_wyrm","tide_warrior","wind_captain","conch_mage","water_elder","tempest_elemental","bluegale","bloodshell_crab","leviathan"]:
+		check(ResourceLoader.exists("res://assets/monsters_v029_coast/creature_"+kind+".png"),"v029 coast atlas ships "+kind)
+		check(ResourceLoader.exists("res://assets/monsters_v029_coast/portrait_"+kind+".png"),"v029 coast portrait ships "+kind)
+	for kind in ["void_eyeling","void_gazer","twilight_harasser","spectral_cutter","twilight_avenger","avenger_rider","venom_spitter","soul_reaver","twilight_golem","vile_eyenest","bloodsoil_behemoth","baj_nimen"]:
+		check(ResourceLoader.exists("res://assets/monsters_v029_ruins/creature_"+kind+".png"),"v029 ruins atlas ships "+kind)
+		check(ResourceLoader.exists("res://assets/monsters_v029_ruins/portrait_"+kind+".png"),"v029 ruins portrait ships "+kind)
+	for file in ["arena_attack_timing", "arena_stage_gimmicks", "arena_grounding", "arena_rift_pcg", "arena_relic_engine"]:
 		check(ResourceLoader.exists("res://scripts/arena/"+file+".gd"),"current presentation code ships "+file)
+	check(ResourceLoader.exists("res://assets/rift_v032/tiles_wilds_floor.png"),"v032 modular floor tiles ship")
 	for file in ["site_plinths", "ruins_mechanisms"]:
 		check(ResourceLoader.exists("res://assets/v018/"+file+".png"),"current prop atlas ships "+file)
 	check(ResourceLoader.exists("res://assets/v018/particles/smoke_07.png"),"world dust texture ships")
-	for file in ["towers","rigs","layout","terrain_blocks","art_layers"]:
-		check(FileAccess.file_exists("res://assets/v017/"+file+".json"),"v017 runtime metadata ships "+file)
-	for file in ["map_ruins","map_ruins_open","towers","core_ruins"]:
+	for file in ["towers"]:
 		check(ResourceLoader.exists("res://assets/v017/"+file+".png"),"v017 current artwork ships "+file)
 	check(ResourceLoader.exists("res://assets/v021/towers.png"),"new tower tiers ship")
 	for kind in ArenaDefinitions.DEFAULT_TOWERS:

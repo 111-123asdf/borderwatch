@@ -37,7 +37,7 @@ func run() -> void:
 			if not shots.is_empty():
 				var shot: ArenaProjectile=shots[0];shot.set_physics_process(false)
 				check(shot.presentation==identity and shot.damage_type==hero.data.type,identity+" projectile stores presentation and actual damage")
-				check(shot.pierce==0,identity+" baseline attack does not inherit penetration")
+				check(shot.pierce==1,identity+" projectile uses configured baseline penetration")
 				var tag:=shot.feedback_tag;hero.cancel_action();check(shot.feedback_tag==tag,identity+" projectile retains origin after action changes")
 				hero.release_action();check(projectiles().size()==1,identity+" marker/clock cannot double emit")
 				shot.queue_free()

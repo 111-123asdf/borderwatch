@@ -10,12 +10,12 @@ func run() -> void:
 	root.add_child(game);current_scene=game
 	await process_frame;await process_frame;await process_frame
 	check(game.started,"--stage=ruins auto-starts run on boot")
-	check(game.level_id=="ruins","--stage=ruins loads stage 3 directly")
-	check(game.keystone_mode,"keystone mode enabled via direct CLI launch")
+	check(game.level_id=="ruins","--stage=ruins loads stage 5 ruins directly")
+	check(game.total_waves()==5 and game.rift_domain.theme_key=="void","v0.30 dual-domain void rift active via CLI launch")
 	check(game.campaign.gems()==9999,"playtest currency active")
-	check(game.routes.size()==4,"--stage=ruins loads 4 routes")
-	check(game.level_definition.sites.size()==18,"--stage=ruins loads 13 sites")
-	check(game.tilemap_scene==null and game.ground.visible,"--stage=ruins uses current painted terrain, not the retired TileMap")
+	check(game.routes.size()==3,"--stage=ruins loads 3 routes")
+	check(game.level_definition.sites.size()==12,"--stage=ruins loads 12 sites")
+	check(game.tilemap_scene==null and game.ground.visible,"--stage=ruins uses current pixel terrain, not the retired TileMap")
 	check(game.atmosphere!=null,"--stage=ruins installs ArenaAtmosphere")
 	game.running=false;game.audio.shutdown();await process_frame;OS.delay_msec(100);game.queue_free();await process_frame
 	print("V015 STAGE3 CLI CHECKS: %d, FAILURES: %d"%[checks,failures])

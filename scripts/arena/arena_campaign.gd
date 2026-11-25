@@ -3,13 +3,13 @@ extends RefCounted
 
 const SAVE_PATH:="user://campaign_v3.cfg"
 const PLAYTEST_PATH:="user://playtest_v013.cfg"
-const CONDITION_PATH:="user://condition_lab_v020.cfg"
 const TOWER_TRIAL_PATH:="user://tower_lab_v020.cfg"
 const PLAYTEST_GEMS:=9999
 const COSTS:=[0,2,3,5,8]
 const HP:=[0.0,0.0,0.03,0.03,0.06,0.08]
 const ATTACK:=[0.0,0.0,0.0,0.03,0.03,0.06]
-var data: Dictionary={"gems":0,"levels":{"lord":1,"druid":1,"healer":1,"werewolf":1,"gunner":1},"cleared":{"forest":false,"creek":false,"ruins":false,"saltport":false},"last_run":"","settled":{},"tutorial_done":false,"volume":0.8,"reduced_motion":false,"selected_hero":"lord","equipped_towers":["archer","mage","cannon","barracks"]}
+const DEFAULT_KEYBINDS:={"dodge":KEY_V,"recall":KEY_R,"portal":KEY_T}
+var data: Dictionary={"gems":0,"levels":{"lord":1,"druid":1,"healer":1,"werewolf":1,"gunner":1},"cleared":{"forest":false,"creek":false,"saltport":false,"lighthouse":false,"ruins":false,"sanctum":false},"last_run":"","settled":{},"tutorial_done":false,"volume":0.8,"reduced_motion":false,"selected_hero":"lord","equipped_towers":["archer","mage","cannon","barracks"],"keybinds":{"dodge":KEY_V,"recall":KEY_R,"portal":KEY_T}}
 var path: String
 var persistent: bool
 var locked:=false
@@ -83,6 +83,22 @@ func settle(run_id: String,stage: String,won: bool,completed: int) -> Dictionary
 func settings(volume: float,reduced: bool) -> bool:
 	var candidate:=data.duplicate(true);candidate.volume=clampf(volume,0,1);candidate.reduced_motion=reduced
 	return _commit(candidate)
+func keybind(action: String) -> int:
+	var kb: Dictionary=data.get("keybinds",DEFAULT_KEYBINDS)
+	return int(kb.get(action,DEFAULT_KEYBINDS.get(action,KEY_V)))
+func keybind_label(action: String) -> String:
+	var code:=keybind(action)
+	if code==KEY_SPACE:return "Space"
+	if code==KEY_SHIFT:return "Shift"
+	var txt:=OS.get_keycode_string(code)
+	return txt if not txt.is_empty() else "V"
+func set_keybind(action: String,code: int) -> bool:
+	if locked or not DEFAULT_KEYBINDS.has(action) or code<=0:return false
+	var candidate:=data.duplicate(true)
+	var kb: Dictionary=candidate.get("keybinds",DEFAULT_KEYBINDS.duplicate()).duplicate()
+	kb[action]=code
+	candidate.keybinds=kb
+	return _commit(candidate)
 func complete_tutorial() -> bool:
 	var candidate:=data.duplicate(true);candidate.tutorial_done=true
 	return _commit(candidate)
@@ -109,10 +125,20 @@ func _valid(candidate: Dictionary) -> bool:
 			if typeof(candidate.cleared.get(key))!=TYPE_BOOL:return false
 		elif candidate.cleared.has(key) and typeof(candidate.cleared.get(key))!=TYPE_BOOL:
 			return false
+	if candidate.has("keybinds"):
+		if typeof(candidate.keybinds)!=TYPE_DICTIONARY:return false
+		for act in DEFAULT_KEYBINDS:
+			if candidate.keybinds.has(act) and (typeof(candidate.keybinds[act])!=TYPE_INT or int(candidate.keybinds[act])<=0):
+				return false
 	return typeof(candidate.get("settled"))==TYPE_DICTIONARY and typeof(candidate.get("last_run"))==TYPE_STRING and typeof(candidate.get("volume"))==TYPE_FLOAT and is_finite(candidate.volume) and candidate.volume>=0 and candidate.volume<=1 and typeof(candidate.get("reduced_motion"))==TYPE_BOOL
 func _commit(candidate: Dictionary) -> bool:
 	for key in ArenaLevelCatalog.IDS:
 		if not candidate.cleared.has(key):candidate.cleared[key]=false
+	if not candidate.has("keybinds") or not (candidate.keybinds is Dictionary):
+		candidate.keybinds=DEFAULT_KEYBINDS.duplicate()
+	else:
+		for act in DEFAULT_KEYBINDS:
+			if not candidate.keybinds.has(act):candidate.keybinds[act]=DEFAULT_KEYBINDS[act]
 	if locked or not _valid(candidate):last_error="养成数据无效，未写入";return false
 	if persistent:
 		var cfg:=ConfigFile.new();cfg.set_value("campaign","version",3);cfg.set_value("campaign","data",candidate)
@@ -134,5 +160,10 @@ func _load() -> void:
 	data=candidate.duplicate(true)
 	if not data.has("selected_hero"):data.selected_hero="lord"
 	if not data.has("equipped_towers"):data.equipped_towers=ArenaDefinitions.DEFAULT_TOWERS.duplicate()
+	if not data.has("keybinds") or not (data.keybinds is Dictionary):
+		data.keybinds=DEFAULT_KEYBINDS.duplicate()
+	else:
+		for act in DEFAULT_KEYBINDS:
+			if not data.keybinds.has(act):data.keybinds[act]=DEFAULT_KEYBINDS[act]
 	for key in ArenaLevelCatalog.IDS:
 		if not data.cleared.has(key):data.cleared[key]=false

@@ -21,8 +21,6 @@ func frames(count := 2) -> void:
 func cleanup() -> void:
 	paused = false
 	if is_instance_valid(game):
-		game.choice_queue = 0
-		game.choice_open = false
 		game.running = false
 		game.audio.shutdown()
 		await frames(2)
@@ -115,6 +113,9 @@ func test_anti_air_and_tower_jam() -> void:
 	var cannon: ArenaTower = game.site_tower(0)
 	var archer: ArenaTower = game.site_tower(1)
 	var mage: ArenaTower = game.site_tower(2)
+	cannon.finish_project()
+	archer.finish_project()
+	mage.finish_project()
 	var vulture := game.spawn_enemy("scout_vulture", 0, 220.0)
 	vulture.position = cannon.position + Vector2(30, 0)
 	game.hero.position = vulture.position + Vector2(18, 0)
@@ -152,6 +153,7 @@ func test_monster_abilities_and_bosses() -> void:
 	game.start_run("lord", "creek")
 	game.gold = 1000
 	game.build_tower(0, "barracks")
+	game.site_tower(0).finish_project()
 	var s: ArenaSoldier = game.soldiers[0]
 	# 1. Throat Cutter shadow-step bypasses first soldier once
 	var rat := game.spawn_enemy("throat_cutter", 0, 120.0)
@@ -200,15 +202,15 @@ func test_monster_abilities_and_bosses() -> void:
 	await cleanup()
 
 func test_stage_waves_and_settlement() -> void:
-	check(ArenaLevelCatalog.total_waves("forest") == 8, "stage 1 has 8 waves")
-	check(ArenaLevelCatalog.total_waves("creek") == 10, "stage 2 has 10 waves")
+	check(ArenaLevelCatalog.total_waves("forest") == 5, "stage 1 has 5 rounds")
+	check(ArenaLevelCatalog.total_waves("creek") == 5, "stage 2 has 5 rounds")
 	check(not bool(ArenaLevelCatalog.definition("forest").boss), "stage 1 has no big boss")
-	check(bool(ArenaLevelCatalog.wave_profile("creek", 6).has_mini_boss), "stage 2 wave 6 has darksteel mini-boss")
-	check(bool(ArenaLevelCatalog.wave_profile("creek", 10).has_boss), "stage 2 wave 10 has two-headed troll boss")
-	check(bool(ArenaLevelCatalog.wave_profile("creek", 2).has_flying), "stage 2 wave 2 warns about flying units")
+	check(bool(ArenaLevelCatalog.wave_profile("creek", 3).has_mini_boss), "stage 2 round 3 has darksteel mini-boss")
+	check(bool(ArenaLevelCatalog.wave_profile("creek", 5).has_boss), "stage 2 round 5 has two-headed troll boss")
+	check(bool(ArenaLevelCatalog.wave_profile("creek", 2).has_flying), "stage 2 round 2 warns about flying units")
 	var path := "user://v023-settle-" + str(Time.get_ticks_usec()) + ".cfg"
 	var camp := ArenaCampaign.new(path, true)
-	check(not bool(camp.settle("bad-8", "creek", true, 8).ok), "creek victory rejects 8-wave count")
-	var ok10 := camp.settle("ok-10", "creek", true, 10)
-	check(bool(ok10.ok) and int(ok10.amount) == 8, "creek victory settles cleanly at 10 waves")
+	check(not bool(camp.settle("bad-4", "creek", true, 4).ok), "creek victory rejects 4-round count")
+	var ok5 := camp.settle("ok-5", "creek", true, 5)
+	check(bool(ok5.ok) and int(ok5.amount) == 8, "creek victory settles cleanly at 5 rounds")
 	await frames(1)
