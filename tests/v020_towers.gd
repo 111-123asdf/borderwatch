@@ -29,7 +29,7 @@ func run() -> void:
 	root.add_child(game)
 	game.start_run("knight","forest")
 	await process_frame
-	check(game.tower_lab and game.condition_lab,"the CLI starts the separate tower trial")
+	check(game.tower_lab,"the CLI starts the separate tower trial")
 	check(game.campaign.path==ArenaCampaign.TOWER_TRIAL_PATH and game.gold==280,"trial profile is isolated and starts with the normal budget")
 	check(game.available_towers()==ArenaDefinitions.DEFAULT_TOWERS,"all four offers are available immediately")
 	check(game.build_tower(0,"archer") and game.build_tower(2,"barracks"),"two builds can run concurrently")

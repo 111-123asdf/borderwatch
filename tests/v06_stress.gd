@@ -13,20 +13,21 @@ func run() -> void:
 		if argument.begins_with("--hero="):identity=argument.trim_prefix("--hero=")
 	if identity not in ArenaDefinitions.HERO_IDS:identity="knight"
 	game=load("res://scenes/arena.tscn").instantiate();game.campaign=ArenaCampaign.new("",false);game.campaign.data.levels[identity]=5;root.add_child(game);current_scene=game;await process_frame
-	game.start_run(identity,"creek");game.hero.position=game.routes[0].sample_baked(1100)
+	game.start_run(identity,"creek");game.choose_defense_rule("");game.hero.position=game.routes[0].sample_baked(1100)
 	game.cycle=8;game.gold=20000;game.core_max=100000;game.core_health=100000
 	game.hero.max_health=100000;game.hero.health=100000
 	for i in range(10):
 		if game.site_locked(i):game.unlock_site(i)
 		game.build_tower(i,["archer","mage","cannon","barracks"][i%4]);var tower: ArenaTower=game.site_tower(i)
 		if tower==null:push_error("Stress fixture could not build tower");quit(1);return
-		tower.upgrade();tower.upgrade();tower.choose_doctrine(str(ArenaDoctrines.for_tower(tower.kind)[0].id))
+		tower.finish_project()
+		tower.upgrade();tower.finish_project();tower.upgrade();tower.finish_project();tower.choose_doctrine(str(ArenaDoctrines.for_tower(tower.kind)[0].id))
 	for i in range(population+15):game.spawn_enemy(["fox","brute","wisp","spearman","spore"][i%5],i%2,150+i*12)
 	game.begin_wave();Input.action_press("shoot")
 func _process(delta: float) -> bool:
 	if has_meta("finished") or game==null or not game.started:return false
 	elapsed+=delta
-	if game.choice_open:game.choose_perk(game.choices[0]);game.suppress_primary=false
+	if not game.rule_offers.is_empty():game.choose_defense_rule("");game.suppress_primary=false
 	var target:=game.nearest_enemy(game.hero.position,350)
 	if target!=null:
 		game.hero.cast(0,target.position);game.hero.cast(1,target.position)

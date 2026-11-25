@@ -30,8 +30,11 @@ func run() -> void:
 		var index: int=ArenaDefinitions.DEFAULT_TOWERS.find(kind)
 		check(game.build_tower(index,kind),"foundation fixture builds "+kind)
 		var tower:=game.site_tower(index)
+		tower.finish_project()
 		for tier in range(1,4):
-			if tier>1:tower.upgrade()
+			if tier>1:
+				tower.upgrade()
+				tower.finish_project()
 			var contact:=ArenaBattleArt.contact(kind,tier,tower.body.texture.get_size())
 			var local: Vector2=(Vector2(contact.uv)-Vector2(0.5,0.5))*tower.body.texture.get_size()+tower.body.offset
 			check(tower.body.to_global(local).distance_to(tower.position)<0.01,"contact stays at authored site "+kind+str(tier))
@@ -52,11 +55,11 @@ func run() -> void:
 		check(c_base.get_pixel(int(c_sock.x),int(c_sock.y)+12).a>0.9,"cannon base has solid cradle interior without oval hole lv"+str(lv))
 		var m_base: Image=(load("res://assets/v017/tower_mage_%d_base.png"%lv) as Texture2D).get_image()
 		check(m_base.get_pixel(258,280).a>0.7 and m_base.get_pixel(258,310).a>0.9,"mage base preserves caster hands and pedestal lv"+str(lv))
-	var hound:=game.spawn_enemy("construct_hound",0,0)
+	var hound:=game.spawn_enemy("murloc_hunter",0,0)
 	hound.position=Vector2(820,330)
 	var arrow:=game.fire_projectile(hound.center()+Vector2(80,0),hound.center(),23,0,"tower",{"target":hound,"feedback":"tower_arrow"})
 	arrow._physics_process(0.16)
-	check(is_equal_approx(hound.max_health-hound.health,21.85),"unbuffed arrow resolves once against hound armour")
+	check(is_equal_approx(hound.max_health-hound.health,21.85),"unbuffed arrow resolves once against murloc armour")
 	check(hound.visual.feedback.age==0.0 and hound.visual.feedback.incoming.x < -0.99,"light hit reacts from actual flight direction")
 	game.feel.trauma=0.0
 	cannon.fire_cannon(hound,48.0)
@@ -66,7 +69,7 @@ func run() -> void:
 	for fx in game.effects:
 		if str(fx.get("kind",""))=="cannon_blast":has_cannon_blast=true;break
 	check(has_cannon_blast and game.feel.trauma>0.1,"cannon shell impact spawns cannon_blast and adds camera trauma")
-	var protected_hound:=game.spawn_enemy("construct_hound",0,0)
+	var protected_hound:=game.spawn_enemy("murloc_hunter",0,0)
 	protected_hound.barrier_shield=40
 	protected_hound.take_hit(12,0,"tower",0,0,0,"tower_arrow",Vector2.RIGHT)
 	check(protected_hound.health==protected_hound.max_health and game.effects.back().kind=="ward_contact","shield absorbs hit and owns contact cue")

@@ -8,7 +8,7 @@ func check(ok: bool,message: String) -> void:
 	if not ok:failures+=1;push_error("COMBAT FAIL: "+message)
 func _initialize() -> void:call_deferred("run")
 func cleanup() -> void:
-	paused=false;game.choice_queue=0;game.choice_open=false;game.running=false;game.audio.shutdown();await process_frame;OS.delay_msec(150);game.queue_free();await process_frame
+	paused=false;game.running=false;game.audio.shutdown();await process_frame;OS.delay_msec(150);game.queue_free();await process_frame
 func run() -> void:
 	for identity in ArenaDefinitions.HERO_IDS:
 		game=load("res://scenes/arena.tscn").instantiate();game.campaign=ArenaCampaign.new("",false);root.add_child(game);await process_frame
@@ -44,19 +44,16 @@ func run() -> void:
 		elif identity=="healer":check(h.healer_sanctuary_clock>0,"healer ult opens blooming sanctuary")
 		elif identity=="werewolf":check(h.werewolf_beast_clock>0 and h.visual.active_form=="werewolf_beast","werewolf ult transforms into giant white werewolf")
 		elif identity=="gunner":check(h.gunner_overdrive_clock>0,"gunner ult activates overdrive")
-		for card in ArenaPerks.CARDS:
-			var key:=str(card.id)
-			for rank in range(int(card.max)):check(h.apply_perk(key),"valid perk "+identity+" "+key)
-			check(not h.apply_perk(key),"perk cap "+key)
-		h.meta_cooldown=0.1
+		h.meta_cooldown=0.4
 		check(is_equal_approx(h.cooldown_scale(),0.7),"CD reduction hard cap thirty percent")
 		check(h.visual.has_complete_set(),"seven states and three directions "+identity)
 		h.path=PackedVector2Array([h.position+Vector2(60,0)])
 		Input.action_press("move_up");h._physics_process(0.016);Input.action_release("move_up")
 		check(h.path.is_empty(),"manual movement cancels mouse order")
-		# No input means no automatic attack.
-		var enemy:=game.spawn_enemy("fox",0,400);h.position=enemy.position+Vector2(20,0);h.attack_cooldown=0;h.cancel_action();h.rolling=0;Input.action_release("shoot");h._physics_process(0.016)
-		check(h.action=="","no click means no primary attack")
+		# Out-of-range enemy does not trigger auto-attack.
+		var enemy:=game.spawn_enemy("fox",0,400);h.position=enemy.position+Vector2(580,0);h.attack_cooldown=0;h.cancel_action();h.rolling=0;h.queued_attack_point=Vector2.INF;Input.action_release("shoot");h._physics_process(0.016)
+		check(h.action=="","out of range means no primary attack")
+		h.position=enemy.position+Vector2(20,0);h.attack_cooldown=0
 		check(h.begin_attack(enemy),"primary starts from a valid target")
 		var release:=ArenaActor.CONTACT_FRAME
 		var shot_count:=h.shots;h.visual.frame=release-1
@@ -75,7 +72,7 @@ func run() -> void:
 		check(h.shots==whiff_before+1,"moving empty attack completes release "+identity)
 		h.cancel_action()
 		# Enemy projectile can pass a tower and a soldier without hitting either.
-		game.gold=1000;game.build_tower(0,"barracks");var s: ArenaSoldier=game.soldiers[0]
+		game.gold=1000;game.build_tower(0,"barracks");game.site_tower(0).finish_project();var s: ArenaSoldier=game.soldiers[0]
 		var hp:=s.health;var shot:=game.fire_projectile(s.center() if s.has_method("center") else s.position,s.position+Vector2(50,0),40,1,"enemy")
 		shot._physics_process(0.05);check(s.health==hp,"hostile bullets don't damage soldiers")
 		var boss:=game.spawn_enemy("moth",0,game.routes[0].get_baked_length()-1)

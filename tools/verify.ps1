@@ -15,26 +15,34 @@ try {
     $jobs = @()
     $jobs += ,@('--headless','--editor','--path',$projectRoot,'--import','--quit')
     $names = @('import')
-    foreach ($test in @('v06_rules','v06_layout','v06_combat','v06_assets','v06_outcome','v07_perks','v08_doctrines','v08_economy','v08_waves','v08_integration','v09_campaign','v09_projectiles','v09_settlement_flow','v010_loadouts','v011_feel','v011_lab_cli','v012_feel','v012_lab_cli','v013_playtest','v013_playtest_cli','v015_stage3','v015_stage3_cli','v017_rules','v022_heroes','v023_monsters','v020_passives','v020_conditions','v020_towers')) {
+    foreach ($test in @('v06_rules','v06_layout','v06_combat','v06_assets','v06_outcome','v08_doctrines','v08_economy','v08_waves','v08_integration','v09_campaign','v09_projectiles','v09_settlement_flow','v010_loadouts','v011_feel','v011_lab_cli','v012_feel','v012_lab_cli','v013_playtest','v013_playtest_cli','v015_stage3','v015_stage3_cli','v022_heroes','v023_monsters','v020_towers')) {
         $testArgs = @('--headless','--path',$projectRoot,'--script',"res://tests/$test.gd")
         if ($test -eq 'v013_playtest_cli') { $testArgs += @('--','--playtest') }
         if ($test -eq 'v015_stage3_cli') { $testArgs += @('--','--playtest','--stage=ruins') }
         if ($test -eq 'v06_outcome') { $testArgs += @('--fixed-fps','60') }
         if ($test -in @('v011_lab_cli','v012_lab_cli')) { $testArgs += @('--','--feel-lab') }
-        if ($test -eq 'v020_passives') { $testArgs += @('--','--passive-lab') }
-        if ($test -eq 'v020_conditions') { $testArgs += @('--','--condition-lab') }
         if ($test -eq 'v020_towers') { $testArgs += @('--','--tower-lab') }
-        if ('--' -notin $testArgs) { $testArgs += '--' }
-        $testArgs += '--legacy-rules'
         $jobs += ,$testArgs
         $names += $test
     }
     $jobs += ,@('--headless','--path',$projectRoot,'--script','res://tests/v020_defense.gd','--fixed-fps','60')
     $names += 'v020_defense'
-    $jobs += ,@('--headless','--path',$projectRoot,'--script','res://tests/v020_battle_orders.gd','--fixed-fps','60')
-    $names += 'v020_battle_orders'
     $jobs += ,@('--headless','--path',$projectRoot,'--script','res://tests/v021_tower_roster.gd','--fixed-fps','60')
     $names += 'v021_tower_roster'
+    $jobs += ,@('--headless','--path',$projectRoot,'--script','res://tests/v025_combat_and_vfx.gd','--fixed-fps','60')
+    $names += 'v025_combat_and_vfx'
+    $jobs += ,@('--headless','--path',$projectRoot,'--script','res://tests/v026_gameplay_and_polish.gd','--fixed-fps','60')
+    $names += 'v026_gameplay_and_polish'
+    $jobs += ,@('--headless','--path',$projectRoot,'--script','res://tests/v027_frontend_ui.gd','--fixed-fps','60')
+    $names += 'v027_frontend_ui'
+    $jobs += ,@('--headless','--path',$projectRoot,'--script','res://tests/v028_passive_system.gd','--fixed-fps','60')
+    $names += 'v028_passive_system'
+    $jobs += ,@('--headless','--path',$projectRoot,'--script','res://tests/v029_chapters_and_legions.gd','--fixed-fps','60')
+    $names += 'v029_chapters_and_legions'
+    $jobs += ,@('--headless','--path',$projectRoot,'--script','res://tests/v030_rift_and_passives.gd','--fixed-fps','60')
+    $names += 'v030_rift_and_passives'
+    $jobs += ,@('--headless','--path',$projectRoot,'--script','res://tests/v030_se_balance_proof.gd','--fixed-fps','60')
+    $names += 'v030_se_balance_proof'
     for ($index = 0; $index -lt $jobs.Count; $index++) {
         $caseProfile=Join-Path $profile ($names[$index]+'-'+$runTag)
         $env:APPDATA=Join-Path $caseProfile 'Roaming'

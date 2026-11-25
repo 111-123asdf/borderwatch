@@ -23,7 +23,7 @@ func run() -> void:
 	game.campaign.select_hero("gunner")
 	game.hud.frontend.entry()
 	await frames()
-	check(game.hud.menu.get_node("TitleProgress").text.ends_with("1 / 4"),"Saltport counts toward the four-stage total")
+	check(game.hud.menu.get_node("TitleProgress").text.ends_with("1 / 6"),"Saltport counts toward the six-stage total")
 	var hero_label:=game.hud.menu.find_children("*","Label",false,false).any(func(label):return label.text=="%s · LV.3"%ArenaDefinitions.HEROES["gunner"].name)
 	check(hero_label,"title displays current five-hero roster selection and permanent level")
 	await snapshot("v013-title-progress")
@@ -63,12 +63,7 @@ func run() -> void:
 		for route in range(3):
 			await press("TowerRoute_"+str(route));check(game.hud.frontend.route_body.text==str(ArenaDoctrines.for_tower(identity)[route].summary),"all real doctrine descriptions "+identity+str(route))
 		await snapshot("v013-tower-"+identity)
-	await press("Back");await press("被动图鉴");await snapshot("v013-codex")
-	var codex:=game.hud.codex;var background_id:=codex.find_child("CodexScenery",true,false).get_instance_id()
-	check(codex.nodes.size()==40,"all original forty cards remain")
-	await press("CodexFilter_star");check(codex.find_child("CodexScenery",true,false).get_instance_id()==background_id,"filter preserves codex background")
-	await press("CodexCard_chain");check(codex.body_text.text.contains("联动条件"),"full synergy conditions displayed")
-	await snapshot("v013-codex-detail");await key(KEY_ESCAPE)
+	await press("Back")
 	# Keys are real input events: Space retired, E releases the unlocked ultimate.
 	game.campaign.data.levels["lord"]=5;game.campaign.select_hero("lord")
 	await press("Level_forest");await press("Deploy");await key(KEY_SPACE)
