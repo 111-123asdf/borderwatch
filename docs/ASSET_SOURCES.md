@@ -24,3 +24,10 @@ v011/audio：Kenney RPG Audio与Impact Sounds，CC0-1.0，许可在third_party/k
 商业角色立绘、用户视频和公开截图仅为构图/动作研究，保存在工程外，不进入运行包。Godot版权见godot-copyright.txt；不分发Windows字体。不擅自为团队源码指定开放源码许可。
 
 v0.19 的运行时表现还包括地面降噪、无字塔位图形、攻击时序、步态、世界步尘、局部反馈和音频并发；均为2D混合实现。素材画法与实际体验仍待负责人反馈，不能由来源声明或自动测试证明好看。
+
+## v0.25–v0.32 新增视觉资源与着色器
+
+- **界面、被动图标与圣物徽章（`assets/ui_v027/`、`assets/ui_v028/`、`assets/ui_v030/`、`assets/ui_v032/`）**：包含主菜单/英雄界面切图、14 项主动特效被动徽章、双域裂隙 HUD 控件与 8 枚八角金边跨界圣物图标，由 `tools/build_frontend_ui_v027.py`、`tools/build_passive_ui_v028.py`、`tools/build_v030_assets.py`、`tools/build_v032_tiles.py` 生成或裁切。
+- **三章六关地图与双军团（`assets/maps_v029/`、`assets/monsters_v029_coast/`、`assets/monsters_v029_ruins/`）**：新增盐港/灯塔/遗迹/圣所战场底图与海岸、遗迹两套 12 种敌军精灵表及头像，由 `tools/build_v029_prep.py`、`tools/build_v029_assets.py` 切图打包。
+- **裂隙地牢、模块化砖块与粒子特效（`assets/rift_v030/`、`assets/rift_v031/`、`assets/vfx_v031/`、`assets/rift_v032/`、`assets/towers_v024/prop_exit_pillar.png`）**：包含裂隙房间基础素材、传送门/技能序列帧、25 组 `64×64` 模块化生态地砖/墙体/走廊/柱体与 5 组共享交互道具（可引爆晶桶、血祭祭坛、锻造铁砧、星辉底座、深渊下潜传送门），由 `tools/build_v030_assets.py`、`tools/build_v031_assets.py`、`tools/build_v032_tiles.py`、`tools/build_pixel_towers.py` 构建；负责人提供的生成原图在工程外 `美术参考/` 保留并经授权裁切进入工程，不伪称手绘分层源文件。
+- **GL Compatibility 着色器（`scripts/shaders/`）**：新增 `magma_zone.gdshader`、`portal_iris.gdshader`、`rift_fog.gdshader` 与 `rift_tile_floor.gdshader`（2D 哈希值噪声房间底纹）。

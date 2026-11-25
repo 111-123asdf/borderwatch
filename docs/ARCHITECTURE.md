@@ -1,16 +1,26 @@
-# 战斗与存档
+# 《边境守望》系统架构总览（v0.32 程序化地牢与割草重构版）
 
-关卡包含森林、溪谷、遗迹和白帆盐港。五英雄动作来自 ArenaActor 的像素帧，德鲁伊的双狼由 ArenaCompanion 管理。溪谷的新怪使用 ArenaEnemy 的阶段与能力数据，盐港通过 ArenaSaltport 与 ArenaSaltportArt 注册地形、美术和波表。
+> **工程版本**：`0.32.0`（Godot 4.7.2 · GL Compatibility）  
+> **核心定位**：左侧战略塔防主域（Defense）与右侧程序化多层级暗影裂隙（Rift）实时并行的双域耦合防御游戏，以英雄为核心机动/清场主力，通过经验驱动肉鸽被动与跨界圣物反向赋能防线。
 
-| 入口 | 职责 |
-|---|---|
-| ArenaGame、ArenaLevelCatalog | 组装同一战斗场景，按关卡生成道路、塔位和波次队列。待出队列与在场主队清空且该关首领已击杀，才结算末波。 |
-| ArenaRuleDeck、ArenaDefenseOrders | 保存本局所选完整配对。按地图、可用兵力、金币和实际波次过滤候选。预览和开波复用队列，击杀、漏怪、清波按事件顺序结算指令。 |
-| ArenaCampaign、ArenaFrontEnd | 保存英雄、钻石、阵容、设置及已结算的 run_id。世界地图选塔，部署快照锁定阵容，同局重试沿用。旧 v3 档补默认，异常档保护原件。 |
-| ArenaTower、ArenaTowerTrial、ArenaDoctrines | 塔负责施工、目标、攻击与退款。参数区分正式守线和四塔实验，三级改造及双分支使用同一配置入口。 |
-| ArenaHero、ArenaSoldier、ArenaBlocking | 英雄直接移动或在 20 像素网格寻路，建塔后更新导航。按单位容量分配拦截；驻军换岗时解除拦截，回到旗位再接敌。 |
-| ArenaEnemy、ArenaCombat | 敌人沿 Curve2D 采样并记录道路与进度。击退、分岔与目标预判复用所属道路，伤害显式区分物理和法术。投射物每物理帧共享敌人快照，增删即失效。 |
-| ArenaRuinsSiege、ArenaBattleCamera | 管理遗迹破障、封路和一次性援兵。大图镜头支持平移、全图与聚焦，界面坐标通过画布变换投影。 |
-| ArenaHUD、ArenaMenuArt | 选牌、预览、指令、塔位菜单与结算。弹窗持有暂停状态，取消选点先于移动或攻击。 |
+---
 
-英雄动作与释放点由 ArenaHeroArt、ArenaMotion 提供，塔和士兵使用 ArenaAttackTiming。ArenaBattleArt 管地表、稳定塔身和局部机关，ArenaConstructRig 按位移驱动二维部件。ArenaAudio 限制同族音效并发。运行资源来自 res://，存档位于 user://。[素材记录](ASSET_SOURCES.md)
+## 1. 模块分层与核心脚本职责
+
+| 层级 | 核心脚本 / 着色器 | 职责与 v0.32 关键特性 |
+| :--- | :--- | :--- |
+| **战役与状态中枢** | `scripts/arena/arena_game.gd` | 双域协同主控（`siege_alert_at = 85.0`、`siege_start_at = 95.0`）；永久随时召波 `request_next_wave_anytime()`（`[F]` / 按钮支持休整开波、前哨快进至总攻赏金、堆波 `+45g`）；局内/轮次确定性前哨扰动；`72` 掉落物智能合并与 `110` 特效上限保护；裂隙奇遇事件仲裁（`open_rift_event()` / `choose_rift_event()`）。 |
+| **程序化地牢生成** | `scripts/arena/arena_rift_pcg.gd` | `ArenaRiftPCG` 确定性随机种子生成引擎：`5×5` 网格（`GRID_COLS = 5`, `GRID_ROWS = 5`, `TILE_SIZE = 64.0`），按关卡生成 `9..12` 间不规则足迹房间（`hub` / `standard` / `wide_hall` / `tall_arena` / `vault` / `boss_sanctum`），严格连通邻接开门（零假门）、`6` 种房间词缀（`MUTATORS`）、`6` 套柱体/晶桶/加速带/陷阱模板（`TEMPLATES`）与动态 `world_rect` / `grid_bounds`。 |
+| **裂隙域与多层下潜** | `scripts/arena/arena_rift_domain.gd`<br>`scripts/shaders/rift_tile_floor.gdshader`<br>`scripts/arena/arena_battle_camera.gd` | `_RiftFloorCanvas` 模块化 `64×64` 砖墙/地砖/走廊平铺与 2D 哈希值噪声着色器；AABB 柱体碰撞；可引爆连锁晶桶（`prop_barrel_crystal`）与 `damage_barrels_in_radius()`；血祭/锻造/星辉三类交互事件祭坛；首领清空后开启深渊下潜传送门 `descend_next_floor()`（2 层起双首领并倍率增益）；`26..48` 怪/房割草波次与动态 `rift_world_rect()` 摄像机钳制。 |
+| **跨界圣物与被动引擎** | `scripts/arena/arena_relic_engine.gd`<br>`scripts/arena/arena_passive_engine.gd` | **圣物引擎**（`MAX_RELICS = 6`）：`8` 件跨界圣物（`ember_ordnance`、`chrono_prism`、`orbital_beacon`、`aegis_reactor`、`chain_detonator`、`titan_breaker`、`vampiric_chalice`、`gilded_compass`）与 EventBus 跨界响应。<br>**被动引擎**：`14` 项高表现主动特效被动，`MAX_TOTAL_PICKS = 10` / `MAX_RUN_LEVEL = 11` 纯经验解耦（`xp_needed(lv) = 72 + 52*(lv-1) + 18*(lv-1)^1.45`），满级后经验溢流自动转化为金币与基地圣盾。 |
+| **实体与主域塔防** | `scripts/arena/arena_hero.gd`<br>`scripts/arena/arena_tower.gd`<br>`scripts/arena/arena_enemy.gd`<br>`scripts/arena/arena_projectile.gd` | 5 位可控英雄的差异化普攻/技能与裂隙清场机制；塔防主域防御向/联动向自动塔群；杂兵差异化血量系数（主域 `is_swarm_fodder = 0.72x`、裂隙 `0.52x` + 层数缩放）兼顾割草爽感与数值防线压力。 |
+| **关卡目录与长波调优** | `scripts/arena/arena_level_catalog.gd`<br>`scripts/arena/arena_saltport.gd` | 全部 6 关（`forest`、`creek`、`saltport`、`lighthouse`、`ruins`、`sanctum`）统一为 `95s` 总攻开启、`95..128s` 轮次长度（`28..36s` 总攻波长）、`55..135` 只/轮高密度兽潮与多首领波次表。 |
+| **平视显示与防误触 UI** | `scripts/arena/arena_hud.gd`<br>`scripts/arena/arena_menu_art.gd` | 动态 `5×5` 投影 `_RiftMinimap`（`1370, 72` / `218×204`，整合轮次显示并彻底消除裂隙右上角与 `护盾(B)` / `CallNextWave` 重叠）；永久 `[F] CallNextWave` 按钮、`OwnedRelicsStrip`（`1010, 782`）、`DescentReadyBadge`；奇遇事件与被动三选一 `0.45s`/`0.55s` 防误触保护。 |
+
+---
+
+## 2. 美术资产与构建工具流
+
+- `tools/build_v032_tiles.py` -> 生成 `assets/rift_v032/` 下 `25` 组 `64×64` 生态地砖/墙体/走廊/柱体图集与 `5` 组共享交互道具（`prop_barrel_crystal`、`prop_altar_blood`、`prop_anvil_forge`、`prop_pedestal_choice`、`prop_descent_gate`），以及 `assets/ui_v032/` 下 `8` 枚八角金边圣物图标。
+- `tools/verify.ps1`：全量无头回归验证脚本（涵盖规则、布局、经济、波次、物理手感、英雄/怪物/防御塔、章节军团、裂隙 PCG、三策略平衡性证明）。
+- `tools/verify_window.ps1`：双分辨率（`1600×900` 与 `1024×576`）实机窗口交互回归。

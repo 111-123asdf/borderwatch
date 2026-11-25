@@ -1,23 +1,25 @@
-# 《边境守望》v0.23 接手说明
+# 《边境守望》接手指南（v0.32.0）
 
-唯一正式工程为 D:/godot/边境守望。使用 Godot 4.7.2 Standard 与 GL Compatibility，主场景 scenes/arena.tscn。开工前读本文件及 [README](README.md)、[架构](docs/ARCHITECTURE.md)、[测试](docs/TESTING.md) 和 [贡献约定](CONTRIBUTING.md)。
+Codex 和 Antigravity 在 `D:/godot/边境守望` 工作。先运行 `git status -sb` 和 `git log -3 --oneline`，核对队友的新改动，再按负责人在新窗口给的目标动手。当前版本为 `v0.32.0`（分支 `work/v032-dual-domain-20261125`，基于 `main@b14b959`）。工作区源码优先；暂存、提交、推送和 PR 须经负责人明确授权或由负责人手动操作。
 
-## 合并来源与确认的玩法
+## 运行与存档
 
-- 本地共同基线为 3e666b6，保留本地未提交的领主、德鲁伊、爱神、狼王、星衡及操作时序、四关地形、盐港和 v023 怪物。溪谷按本地十波编排，森林、遗迹、盐港八波。遗迹第五波随已开路线均摊，第八波巨像在 20 秒入场。
-- 守线系统来自 [PR #14](https://github.com/111-123asdf/borderwatch/pull/14) 的 46fa2c2。正式战役在开局和非末波清场选祝福及代价，按 B 下令。七塔统一接入四关。保留 assets/towers_v024 的现行塔外观，缺少对应贴图时沿用既有资源。移除精英营地与改造券。课程文档来自 e27465e。
-- 保留 v0.22 的永久等级、技能解锁及存档兼容。旧 ID knight、mage、longbow、ranger 对应 lord、healer、werewolf、gunner。迁移读取旧键及已保存的塔阵容。正式用户档 campaign_v3.cfg、独立试玩 playtest_v013.cfg、条件和塔实验各用独立档。--feel-lab 是非持久化的 5 级英雄夹具。
+Godot 4.7.2 Standard，GL Compatibility，入口 `scenes/arena.tscn`。外层「试玩.bat」进入源码试玩，「开发编辑器.bat」打开正式工程。Windows 包里的 `Play.bat` 进战役，`Play-HeroLab.bat` 进五英雄试招场。正式档 `campaign_v3.cfg`，试玩档 `playtest_v013.cfg`；`--feel-lab` 为非持久化 5 级试招夹具。自动验证隔离 `APPDATA` 和 `LOCALAPPDATA`。真实存档、Git 历史、素材原件、许可和课程材料须保留。
 
-## 代码和美术入口
+## 当前玩法
 
-- scripts/arena 内 arena_game.gd 串联关卡和战斗，arena_rule_deck.gd、arena_defense_orders.gd 管正式选牌和指令，arena_conditions.gd 管条件被动实验。读取波表和地图时从 arena_level_catalog.gd 和 arena_saltport.gd 开始。
-- arena_hero.gd、arena_actor.gd 与 arena_companion.gd 管英雄与双狼。arena_tower.gd、arena_tower_trial.gd、arena_attack_timing.gd 管塔。五英雄素材在 assets/heroes_v022，新怪在 assets/monsters_v023，相关复建工具位于 tools。
-- 合并前工作区的完整回退包位于 D:/godot/稳定交付包/合并PR14前-正式工程.zip。PR 自带的旧版实测保留在 [分支验收](docs/STAGE_CLOSEOUT.md)，整合版验证看 [测试](docs/TESTING.md)。
+- **六关与七塔工坊**：三章六关（`forest`、`creek`、`saltport`、`lighthouse`、`ruins`、`sanctum`）共用七塔工坊，每局装备一至四种塔。主域塔位保持简洁，全图统一于 `95s` 开启总攻，总攻波长 `28..36s`（`55..135` 只/轮），支持 `[F]` / 按钮随时召波（休整开波、前哨快进至总攻赏金、堆波 `+45g`）。
+- **双域与程序化多层裂隙**：玩家通过 `[T]` / `[R]` 主动召唤传送门往返主域与右侧裂隙。裂隙由 `ArenaRiftPCG` 按随机种子在 `5×5` 网格生成 `9..12` 间不规则房间、严格连通门洞、`6` 种词缀、`6` 套柱体/可引爆晶桶/加速带/陷阱模板与 `26..48` 怪/房割草兽潮；首领清空后开启深渊下潜传送门（2 层起双首领并倍率增益）。
+- **纯经验被动与跨界圣物**：`14` 项高表现主动特效被动与房间数彻底解耦，仅绑定裂隙经验曲线（`MAX_TOTAL_PICKS = 10` / `MAX_RUN_LEVEL = 11`），满级后经验溢流自动折算金币与基地圣盾；升级时通过 `[Tab]` 队列与防误触弹窗三选一，不打断战斗。另有 `3` 类奇遇祭坛与 `8` 件跨界圣物（`MAX_RELICS = 6`）反向赋能塔防。
+- **英雄与存档兼容**：领主、德鲁伊、爱神、狼王和星衡保留各自的移动及出手时序。永久等级 2、4 解锁 Q、E。旧档英雄 ID（`knight`、`mage`、`longbow`、`ranger`）迁移见 `arena_campaign.gd` 与 `arena_definitions.gd`。
 
-## 当前交付
+## 从哪里改
 
-源码、双尺寸窗口和隔离 Windows 成品功能检查全部通过。40 局固定策略自动对局均进入结算，27 胜、13 负。四关战果和复跑命令见 [验证](docs/TESTING.md)。旧版成绩单独保留。真人手感及难度仍待试玩。
+- `scripts/arena/` 下：`arena_game.gd` 串联双域战斗、随时召波与事件仲裁；`arena_rift_pcg.gd` 与 `arena_rift_domain.gd` 管程序化地牢、下潜、晶桶与祭坛；`arena_relic_engine.gd` 与 `arena_passive_engine.gd` 管圣物、经验曲线与主动特效被动；`arena_level_catalog.gd` 和 `arena_saltport.gd` 管六关与长波排布。
+- 实体与表现：`arena_hero.gd`、`arena_actor.gd`、`arena_companion.gd` 管五英雄与双狼；`arena_tower.gd`、`arena_projectile.gd`、`arena_enemy.gd` 管塔防与割草血量倍率；`arena_hud.gd` 与 `arena_frontend.gd` 管双域 HUD（动态 `5×5` 小地图、圣物栏、防误触弹窗）与首页；着⾊器在 `scripts/shaders/`（`rift_tile_floor.gdshader`、`rift_fog.gdshader`、`portal_iris.gdshader`、`magma_zone.gdshader`）。
+- 现行素材：英雄/怪物/塔基础资源在 `assets/heroes_v022`、`assets/monsters_v023`、`assets/towers_v024`；UI/地图/军团/裂隙/特效新资源在 `assets/ui_v027`–`ui_v032`、`assets/maps_v029`、`assets/monsters_v029_coast`、`assets/monsters_v029_ruins`、`assets/rift_v030`–`rift_v032`、`assets/vfx_v031`。
+- 详见 [架构](docs/ARCHITECTURE.md)、[测试入口](docs/TESTING.md)、[素材来源](docs/ASSET_SOURCES.md) 和 [贡献约定](CONTRIBUTING.md)。课程周材料在 `docs/course/`。
 
-第 4 周发布分支为 work/week04-integration-20261122，基于远端 main 的 b2bc5a8。首页接入 PR #15 的布局、进度、出战英雄和键盘焦点，保持四关及五英雄档案。负责人手动提交时将 46fa2c2 记录为第二父提交。周志和日志记录在 docs/course/week-04。助教包用课程材料目录中的 04组-第4周-代码仓库.zip。回退包和原始测试日志在 D:/godot/稳定交付包/第4周交付。
+## 验证与下一轮试玩
 
-保留实际存档、Git 历史、素材原件、许可和课程材料。Git 暂存、提交、推送及 PR 由负责人手动处理。
+`v0.32.0` 正式源码已通过 `tools/verify.ps1` 全部 `34` 项源码步骤（`import` + `33` 套无头测试，含 `v025_combat_and_vfx` 至 `v030_se_balance_proof`，`FAILURES: 0`）、`tests/v06_export_audit.gd`（`220/220` 资源审计全过）与 `tools/verify_window.ps1`（`10` 套脚本 × `1600×900`/`1024×576` 共 `20` 次实窗回归全过）。三策略软件工程平衡性证明（`v030_se_balance_proof.gd`）验证了纯裂隙不回防败北、纯守线不入裂隙败北、双域协同胜利的设计约束。下一轮真人试玩可重点观察多层下潜后的构筑爽感、随时召波赏金节奏以及六关长波割草手感。
