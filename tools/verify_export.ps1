@@ -18,16 +18,16 @@ try {
     New-Item -ItemType Directory -Path $env:APPDATA,$env:LOCALAPPDATA -Force | Out-Null
     $jobs=@()
     $failedPlaythroughs=@()
-    foreach($name in @('v06_rules','v06_layout','v06_combat','v06_assets','v06_outcome','v08_doctrines','v08_economy','v08_waves','v08_integration','v09_campaign','v09_projectiles','v09_settlement_flow','v010_loadouts','v011_feel','v011_lab_cli','v012_feel','v012_lab_cli','v013_playtest','v013_playtest_cli','v015_stage3','v015_stage3_cli','v017_rules','v022_heroes','v023_monsters','v020_towers','v06_export_audit')) {
+    foreach($name in @('v06_rules','v06_layout','v06_combat','v06_assets','v06_outcome','v08_doctrines','v08_economy','v08_waves','v08_integration','v09_campaign','v09_projectiles','v09_settlement_flow','v010_loadouts','v011_feel','v011_lab_cli','v012_feel','v012_lab_cli','v013_playtest','v013_playtest_cli','v015_stage3','v015_stage3_cli','v022_heroes','v023_monsters','v020_towers','v06_export_audit')) {
         $jobs+=,@($name,@())
     }
-    $defenseTests=@('v020_defense','v020_battle_orders','v021_tower_roster','v025_combat_and_vfx','v026_gameplay_and_polish','v027_frontend_ui','v028_passive_system')
+    $defenseTests=@('v020_defense','v021_tower_roster','v025_combat_and_vfx','v026_gameplay_and_polish','v027_frontend_ui','v028_passive_system','v029_chapters_and_legions','v030_rift_and_passives','v030_se_balance_proof')
     foreach($name in $defenseTests) { $jobs+=,@($name,@()) }
     if($FullPlaythrough) {
       foreach($rank in @(1,5)) {
         foreach($heroKey in @('lord','druid','healer','werewolf','gunner')) {
-            foreach($stageKey in @('forest','creek','ruins','saltport')) {
-                $jobs+=,@('v06_playthrough',@(('--hero='+$heroKey),('--level='+$stageKey),('--hero-level='+$rank),'--rule=draw'))
+            foreach($stageKey in @('forest','creek','ruins','saltport','lighthouse','sanctum')) {
+                $jobs+=,@('v06_playthrough',@(('--hero='+$heroKey),('--level='+$stageKey),('--hero-level='+$rank)))
             }
         }
       }

@@ -9,42 +9,42 @@ const MAX_RELICS := 6
 const RELICS := {
 	"ember_ordnance": {
 		"id": "ember_ordnance", "name": "余烬弹药箱", "tag": "塔防联动",
-		"desc": "全防御塔攻击附加灼烧（26/秒，持续3秒），溅射范围 +15%",
+		"desc": "攻击塔命中附加灼烧（每秒 26 伤，持续 3 秒），火炮溅射范围 +15%。",
 		"icon": "res://assets/ui_v032/relic_ember_ordnance.png"
 	},
 	"chrono_prism": {
 		"id": "chrono_prism", "name": "时序棱镜", "tag": "双域急速",
-		"desc": "全防御塔攻速 +18%；英雄主动技能与闪避冷却 -15%",
+		"desc": "攻击塔攻速 +18%，英雄主动技能和闪避冷却 −15%。",
 		"icon": "res://assets/ui_v032/relic_chrono_prism.png"
 	},
 	"orbital_beacon": {
 		"id": "orbital_beacon", "name": "星穹支援信标", "tag": "回防震击",
-		"desc": "每次从裂隙瞬回防线 [R]，自动朝防线最前锋敌群降下天基激光",
+		"desc": "回防时追踪防御域已行进最远的敌人，降下天基激光。",
 		"icon": "res://assets/ui_v032/relic_orbital_beacon.png"
 	},
 	"aegis_reactor": {
 		"id": "aegis_reactor", "name": "圣盾反应堆", "tag": "护盾联动",
-		"desc": "裂隙每击杀 12 只怪物，自动为基地充能 +25 圣盾并恢复英雄 5% 生命",
+		"desc": "每击败 12 名裂隙敌人，基地获得至多 25 圣盾，英雄回复 5% 最大生命。",
 		"icon": "res://assets/ui_v032/relic_aegis_reactor.png"
 	},
 	"chain_detonator": {
 		"id": "chain_detonator", "name": "晶核引爆器", "tag": "爆裂割草",
-		"desc": "爆裂水晶桶伤害 +60%，且英雄每击杀 8 敌在目标点引爆 120 范围紫晶震波",
+		"desc": "水晶桶伤害 +60%。双域每累计击败 8 敌，就在最后一个敌人的位置引爆半径 120 的震波。",
 		"icon": "res://assets/ui_v032/relic_chain_detonator.png"
 	},
 	"titan_breaker": {
 		"id": "titan_breaker", "name": "巨兽破甲徽", "tag": "首领克星",
-		"desc": "英雄与全防御塔对精英、小首领和关底 Boss 的伤害提升 +28%",
+		"desc": "英雄与攻击塔对精英、统领和首领造成的伤害 +28%。",
 		"icon": "res://assets/ui_v032/relic_titan_breaker.png"
 	},
 	"vampiric_chalice": {
 		"id": "vampiric_chalice", "name": "猩红圣杯", "tag": "战神续航",
-		"desc": "英雄最大生命 +22%、伤害 +15%，击杀敌人缩减大招冷却 0.35 秒",
+		"desc": "英雄最大生命 +22%、伤害加成 +15%。双域每击败一敌，缩短大招冷却 0.35 秒。",
 		"icon": "res://assets/ui_v032/relic_vampiric_chalice.png"
 	},
 	"gilded_compass": {
 		"id": "gilded_compass", "name": "鎏金罗盘", "tag": "财富加速",
-		"desc": "双域金币与经验获取 +30%，防线提前召潮 [F] 赏金额外 +50%",
+		"desc": "击杀赏金、裂隙金币掉落和房间宝箱金币 +30%，获得经验 +30%。[F] 召波赏金 +50%，仍受对应上限限制。",
 		"icon": "res://assets/ui_v032/relic_gilded_compass.png"
 	},
 }
@@ -85,10 +85,6 @@ func reset() -> void:
 
 func has_relic(id: String) -> bool:
 	return id in owned
-
-
-func can_add_relic() -> bool:
-	return owned.size() < MAX_RELICS
 
 
 func grant_relic(id: String) -> bool:
@@ -192,12 +188,12 @@ func _on_enemy_killed(payload: Dictionary) -> void:
 		_rift_kill_counter += 1
 		if _rift_kill_counter >= 12:
 			_rift_kill_counter = 0
-			game.add_core_shield(25.0)
+			var gained: float = game.add_core_shield(25.0)
 			if not hero.knocked_out:
 				hero._heal_self(hero.max_health * 0.05, true)
 			game.numbers.append({
 				"point": hero.center() + Vector2(0.0, -32.0),
-				"text": "圣盾反应堆 +25盾!",
+				"text": "圣盾反应堆 +%d 盾" % roundi(gained) if gained > 0.0 else "圣盾反应堆 · 基地圣盾已满",
 				"colour": Color("7fe8ff"),
 				"life": 0.90,
 				"duration": 0.90

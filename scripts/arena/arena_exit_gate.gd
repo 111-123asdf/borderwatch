@@ -11,7 +11,6 @@ var pair_positions: Array[Vector2] = []
 var ground_center := Vector2.ZERO
 var road_tangent := Vector2.RIGHT
 var _clock := 0.0
-var _floor_overlay: Node2D
 
 
 static func all_gate_groups(arena: Node2D) -> Array[Dictionary]:

@@ -8,6 +8,9 @@ func large_map() -> bool:return game!=null and game.started and game.world_size(
 func sync_domain() -> void:
 	if game == null or not game.started: return
 	overview = false
+	dragging = false
+	offset = Vector2.ZERO
+	game.feel.trauma = 0.0
 	zoom = Vector2.ONE
 	if game.active_domain == "rift":
 		if is_instance_valid(game.hero):
@@ -58,7 +61,7 @@ func _process(delta: float) -> void:
 		return
 	if game.active_domain == "rift":
 		if is_instance_valid(game.hero):
-			var follow_t := 1.0 - exp(-9.5 * minf(delta, 0.08))
+			var follow_t := 1.0 if bool(game.campaign.data.reduced_motion) else 1.0 - exp(-9.5 * minf(delta, 0.08))
 			position = position.lerp(game.hero.position, follow_t)
 			clamp_to_map()
 		return

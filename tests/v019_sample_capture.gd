@@ -49,10 +49,6 @@ func _setup() -> void:
 			if t.site_id == s2 or t.site_id == s3:
 				t.upgrade()
 				t.upgrade()
-				if t.awaiting_doctrine:
-					var opts: Array = ArenaDoctrines.for_tower(t.kind)
-					if not opts.is_empty():
-						t.choose_doctrine(str(opts[0].id))
 
 	# Frame the central-west corridor (sites + roads 0/1) with room for visible open plinth.
 	if game.camera != null:

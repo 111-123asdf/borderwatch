@@ -82,7 +82,7 @@ class _RiftMinimap:
 			var gx := clampf(local_h.x / ArenaRiftPCG.CELL_STEP.x - float(gb.position.x), -0.35, float(span_c) - 0.65)
 			var gy := clampf(local_h.y / ArenaRiftPCG.CELL_STEP.y - float(gb.position.y), -0.35, float(span_r) - 0.65)
 			var h_pt := orig + Vector2(gx * (cw + gap.x), gy * (ch + gap.y)) + cell * 0.5
-			var pulse := 0.75 + 0.25 * sin(float(Time.get_ticks_msec()) * 0.012)
+			var pulse := 0.88 if bool(game.campaign.data.reduced_motion) else 0.75 + 0.25 * sin(float(Time.get_ticks_msec()) * 0.012)
 			draw_circle(h_pt, 5.0, Color(0.08, 0.12, 0.16, 0.92))
 			draw_circle(h_pt, 3.5 * pulse, Color("ffe97a"))
 
@@ -90,7 +90,13 @@ var game: ArenaGame
 var root: Control
 var menu: Control
 var modal: Control
+var _modal_return_focus: Control
+var _leave_confirmation: Panel
 var context: Panel
+var order_hint: Panel
+var order_label: Label
+var order_notice := ""
+var order_notice_left := 0.0
 var preview_tower := ""
 var wave_button: Button
 var wave_glyph: ArenaGlyph
@@ -100,7 +106,7 @@ var hero_health: ArenaMeter
 var xp_bar: ArenaMeter
 var core_health: ArenaMeter
 var core_shield_bar: ArenaMeter
-var aegis_button: Button
+var tower_purchase: Button
 var coins: Label
 var wave_label: Label
 var hero_level: Label
@@ -114,7 +120,6 @@ var objective_title: Label
 var objective_body: Label
 var phase_label: Label
 var build_label: Label
-var preview_stats: Label
 var last_objective := ""
 var tutorial_finished := false
 var skills: Array[Button] = []
@@ -155,7 +160,7 @@ var _passive_card_buttons: Array[Button] = []
 var _event_unlock_msec := 0
 var _event_lock_bar: ArenaMeter
 var _event_lock_lbl: Label
-var owned_passives_box: HBoxContainer
+var owned_passives_box: GridContainer
 var owned_relics_box: HBoxContainer
 var owned_passive_popover: Panel
 var _last_owned_sig := ""
@@ -174,9 +179,7 @@ var frontend: ArenaFrontEnd
 const CREAM := Color("f2e4c5")
 const GOLD := Color("f3cc65")
 const MUTED := Color("b6c0cb")
-const INK := Color("121e2c")
 const COPPER := Color("b88943")
-const PANEL := Color("1d2a38f2")
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -205,6 +208,19 @@ func sub_card(parent: Node, rect: Rect2, paper := true) -> Panel:
 	ArenaMenuArt.panel(node, paper)
 	parent.add_child(node)
 	return node
+
+func enhancement_card(parent: Node, rect: Rect2, entry: Dictionary, status: String, tint: Color, index: int) -> Panel:
+	var tile := sub_card(parent, rect, false)
+	ArenaMenuArt.obsidian_panel(tile, true)
+	tile.name = "Enhancement_%d" % index
+	image(tile,ArenaMenuArt.perk(str(entry.icon)),Rect2(11,11,34,34)).texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	label(tile,str(entry.name),Rect2(53,7,rect.size.x-62,24),17,CREAM).name = "Title"
+	label(tile,status,Rect2(53,30,rect.size.x-62,20),13,tint).name = "Status"
+	var effect := label(tile,str(entry.summary),Rect2(11,54,rect.size.x-22,minf(54,rect.size.y-60)),14,MUTED)
+	effect.name = "Effect"
+	effect.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	effect.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	return tile
 
 func keycap(parent: Node, message: String, rect: Rect2, tint := GOLD) -> Panel:
 	var node := Panel.new()
@@ -275,26 +291,6 @@ func colour_block(parent: Node, rect: Rect2, colour: Color) -> ColorRect:
 	parent.add_child(node)
 	return node
 
-func entry_button(message: String, rect: Rect2, callback: Callable, glyph: String, primary := false) -> Button:
-	var node := button(menu, message, rect, callback)
-	node.name = message
-	node.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	node.add_theme_constant_override("icon_max_width", 34)
-	node.add_theme_constant_override("h_separation", 16)
-	node.add_theme_font_size_override("font_size", 22)
-	for state in ["normal", "hover", "pressed", "disabled"]:
-		var style := StyleBoxFlat.new()
-		style.bg_color = ({"normal": Color("b88943"), "hover": Color("d1a55d"), "pressed": Color("8d6835"), "disabled": Color("6d6a59")}[state] if primary else {"normal": Color("263a30e8"), "hover": Color("3c5543f2"), "pressed": Color("1c2d25f2"), "disabled": Color("26312be0")}[state])
-		style.border_color = Color("f0d59c") if state == "hover" else Color("8e805f")
-		style.set_border_width_all(1)
-		style.set_corner_radius_all(6)
-		style.content_margin_left = 68
-		node.add_theme_stylebox_override(state, style)
-	node.add_theme_color_override("font_color", INK if primary else CREAM)
-	node.add_theme_color_override("font_hover_color", INK if primary else Color.WHITE)
-	icon(node, glyph, Rect2(18, 15, 32, 32), INK if primary else GOLD)
-	return node
-
 func meter(parent: Node, rect: Rect2, colour: Color) -> ArenaMeter:
 	var node := ArenaMeter.new()
 	node.position = rect.position
@@ -350,27 +346,23 @@ func reset_menu() -> void:
 	menu.mouse_filter = Control.MOUSE_FILTER_STOP
 	root.add_child(menu)
 
-func backdrop() -> void:
-	var path: String = ArenaBattleArt.map_path("forest")
-	if ResourceLoader.exists(path):
-		image(menu, load(path), Rect2(Vector2.ZERO, Vector2(1600, 900)), true).modulate = Color(0.56, 0.59, 0.5)
-	else:
-		var bg := ColorRect.new()
-		bg.color = Color("607447")
-		bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		menu.add_child(bg)
+func fade_in(control: Control,start_alpha := 0.65) -> void:
+	if bool(game.campaign.data.reduced_motion):
+		return
+	control.modulate.a = start_alpha
+	control.create_tween().tween_property(control,"modulate:a",1.0,0.15).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+func refresh_motion() -> void:
+	var reduced := bool(game.campaign.data.reduced_motion)
+	for control in root.find_children("*","Button",true,false):
+		ArenaMenuArt.interact(control,reduced)
 
 func show_entry() -> void:
 	frontend.entry()
 
-func show_heroes() -> void:
-	frontend.hall()
-
-func show_levels(_key: String = "") -> void:
-	frontend.levels()
-
 func show_battle() -> void:
 	if is_instance_valid(menu):
+		menu.hide()
 		menu.queue_free()
 	for node in battle_nodes:
 		if is_instance_valid(node):
@@ -378,6 +370,14 @@ func show_battle() -> void:
 	battle_nodes.clear()
 	skills.clear()
 	skill_glyphs.clear()
+	order_notice_left = 0.0
+	order_hint = sub_card(root,Rect2(460,816,680,36),false)
+	order_hint.name = "OrderHint"
+	pod_style(order_hint)
+	order_hint.hide()
+	order_label = label(order_hint,"",Rect2(8,6,664,27),16,CREAM)
+	order_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	battle_nodes.append(order_hint)
 
 	alarm_vignette = _AlarmVignette.new()
 	alarm_vignette.name = "AlarmVignette"
@@ -405,7 +405,7 @@ func show_battle() -> void:
 	ArenaMenuArt.obsidian_panel(rift_minimap, true)
 	rift_map_title = label(rift_minimap, "F1 秘境 · 1/5轮", Rect2(10, 6, 198, 20), 12, ArenaMenuArt.STEEL_CYAN)
 	rift_map_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	rift_map_footer = label(rift_minimap, "探索 0/8 · 被动 0/10", Rect2(10, 178, 198, 20), 12, GOLD)
+	rift_map_footer = label(rift_minimap, "", Rect2(10, 178, 198, 20), 12, GOLD)
 	rift_map_footer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	rift_minimap.hide()
 	root.add_child(rift_minimap)
@@ -464,13 +464,6 @@ func show_battle() -> void:
 	pause_button.name = "Pause"
 	pause_button.tooltip_text = "暂停 · Esc"
 
-	aegis_button = steel_btn(root, "护盾(B) %dg" % ArenaGame.CORE_AEGIS_COST, Rect2(1378, 70, 132, 32), func():
-		game.charge_core_aegis()
-	, "gold", 13)
-	aegis_button.name = "ChargeAegis"
-	aegis_button.tooltip_text = "消耗 %d 金币为基地施加 +180 护盾，并使全防御塔攻速 +35%%（持续 8 秒 · 快捷键 B）" % ArenaGame.CORE_AEGIS_COST
-	battle_nodes.append(aegis_button)
-
 	next_wave_btn = steel_btn(root, "▶ 立刻开轮 [F]", Rect2(1378, 108, 210, 34), func():
 		game.request_next_wave_anytime()
 	, "cyan", 12)
@@ -511,14 +504,8 @@ func show_battle() -> void:
 	radar_status = label(radar_panel, "主域防线 · 安稳", Rect2(14, 4, 434, 18), 12, CREAM)
 	radar_meter = meter(radar_panel, Rect2(14, 24, 434, 10), Color("6bd39c"))
 	radar_meter.max_value = 100.0
-	domain_switch_btn = steel_btn(radar_panel, "[T] 进裂隙", Rect2(458, 5, 152, 34), func():
-		if game.active_domain == "defense":
-			game.enter_rift()
-		else:
-			game.recall_to_defense()
-	, "cyan", 13)
+	domain_switch_btn = steel_btn(radar_panel, "[T] 进裂隙", Rect2(458, 5, 152, 34), game.toggle_domain, "cyan", 13)
 	domain_switch_btn.name = "DomainSwitch"
-	domain_switch_btn.tooltip_text = "主域按下可随时经基地传送门进入裂隙猎场；在裂隙按下可随时瞬回防线并触发守望震击"
 
 	wave_label = label(root, "1 / " + str(game.total_waves()), Rect2(1514, 74, 72, 22), 14, CREAM)
 	wave_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -578,7 +565,7 @@ func show_battle() -> void:
 		skill_glyphs.append(glyph)
 		image(glyph, ArenaMenuArt.skill(game.hero.class_id, slot), Rect2(4, 3, 42, 42))
 		keycap(b, "Q" if slot == 0 else "E", Rect2(35, 40, 20, 18))
-		b.tooltip_text = ArenaDefinitions.skill_text(game.hero.class_id, slot)
+		b.tooltip_text = ArenaDefinitions.skill_text(game.hero.class_id, slot, game.hero.passive_rank)
 
 	dodge_button = button(skill_dock, "", Rect2(128, 4, 58, 62), func():
 		if is_instance_valid(game.hero):
@@ -592,12 +579,7 @@ func show_battle() -> void:
 			dodge_cap_label = c
 			c.add_theme_font_size_override("font_size", 10)
 
-	portal_button = button(skill_dock, "", Rect2(192, 4, 58, 62), func():
-		if game.active_domain == "defense":
-			game.enter_rift()
-		else:
-			game.recall_to_defense()
-	)
+	portal_button = button(skill_dock, "", Rect2(192, 4, 58, 62), game.toggle_domain)
 	portal_button.name = "PortalSkill"
 	portal_glyph = icon(portal_button, "overview", Rect2(8, 5, 42, 42), Color("7fe8ff"))
 	var p_cap := keycap(portal_button, game.campaign.keybind_label("portal"), Rect2(14, 41, 40, 17), GOLD)
@@ -613,7 +595,7 @@ func show_battle() -> void:
 	if not game.bridge_gate_config.is_empty():
 		bridge_button = button(root, "", Rect2(game.bridge_gate_point() + Vector2(-22, 36), Vector2(44, 44)), game.trigger_bridge_gate)
 		bridge_button.name = "BridgeGate"
-		bridge_button.tooltip_text = "吊桥 · G：封锁14秒。冷却28秒。"
+		bridge_button.tooltip_text = "吊桥 [G] · 迫使敌人绕行 %d 秒，冷却 %d 秒。" % [ArenaGame.BRIDGE_SEAL_DURATION,ArenaGame.BRIDGE_COOLDOWN_DURATION]
 		battle_nodes.append(bridge_button)
 		icon(bridge_button, "flag", Rect2(8, 6, 26, 26), GOLD)
 		keycap(bridge_button, "G", Rect2(25, 24, 17, 17))
@@ -658,19 +640,20 @@ func refresh_keybind_labels() -> void:
 	if is_instance_valid(dodge_cap_label):
 		dodge_cap_label.text = dodge_k
 	if is_instance_valid(dodge_button):
-		dodge_button.tooltip_text = "短距小闪避 · %s\n向移动方向快速闪避，获得短暂无敌帧并解除减速" % dodge_k
+		dodge_button.tooltip_text = "短距闪避 [%s]\n沿移动方向闪避，静止时朝面向闪避。短暂无敌，完美闪避强化下次普攻。" % dodge_k
 	if is_instance_valid(portal_cap_label) and game != null:
 		portal_cap_label.text = portal_k if game.active_domain == "defense" else recall_k
 
 func create_owned_passives_strip() -> void:
 	_last_owned_sig = "__init__"
 	_open_owned_id = ""
-	owned_passives_box = HBoxContainer.new()
+	owned_passives_box = GridContainer.new()
 	owned_passives_box.name = "OwnedPassivesStrip"
 	owned_passives_box.position = Vector2(1010, 834)
 	owned_passives_box.size = Vector2(574, 52)
-	owned_passives_box.alignment = BoxContainer.ALIGNMENT_END
-	owned_passives_box.add_theme_constant_override("separation", 6)
+	owned_passives_box.columns = 10
+	owned_passives_box.add_theme_constant_override("h_separation", 6)
+	owned_passives_box.add_theme_constant_override("v_separation", 6)
 	owned_passives_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(owned_passives_box)
 	battle_nodes.append(owned_passives_box)
@@ -722,6 +705,11 @@ func refresh_owned_passives() -> void:
 		return
 	_last_owned_sig = sig
 	clear_children(owned_passives_box)
+	var width := mini(items.size(),10)*54-6
+	var top := 780.0 if items.size() > 10 else 834.0
+	owned_passives_box.position = Vector2(1584-maxi(0,width),top)
+	owned_passives_box.size = Vector2(maxi(0,width),900-top-12)
+	owned_passive_popover.position.y = top-140.0
 	var reduced := bool(game.campaign.data.get("reduced_motion", false)) if game != null and game.campaign != null else false
 	for it in items:
 		var pid := str(it.id)
@@ -842,16 +830,20 @@ func refresh_radar() -> void:
 	radar_status.add_theme_color_override("font_color", Color("ff8a8a") if tier >= 2 else (Color("ffd082") if tier == 1 else CREAM))
 	var portal_k := game.campaign.keybind_label("portal") if game.campaign != null else "T"
 	var recall_k := game.campaign.keybind_label("recall") if game.campaign != null else "R"
-	if game.active_domain == "defense":
+	var in_defense := game.active_domain == "defense"
+	domain_switch_btn.disabled = game.game_over or has_modal() or game.portal_transition_active() or (in_defense and not rd.can_enter_rift())
+	if game.portal_transition_active():
+		domain_switch_btn.text = "切换中…"
+	elif in_defense:
 		if rd.portal_cooldown > 0.0:
 			domain_switch_btn.text = "充能 %ds" % ceili(rd.portal_cooldown)
-			domain_switch_btn.disabled = true
 		else:
-			domain_switch_btn.text = "[%s] 进裂隙" % portal_k
-			domain_switch_btn.disabled = game.game_over or has_modal()
+			domain_switch_btn.text = ("[%s] 继续战斗房" if not rd.active_combat_room.is_empty() else "[%s] 进裂隙") % portal_k
 	else:
-		domain_switch_btn.text = "[%s] 瞬回防线" % recall_k
-		domain_switch_btn.disabled = game.game_over or has_modal()
+		domain_switch_btn.text = "[%s] 回防线" % recall_k
+	domain_switch_btn.tooltip_text = "从离开的位置继续探索。回防后充能 %d 秒。" % ArenaRiftDomain.PORTAL_COOLDOWN if in_defense else "回防时震击核心附近的敌人，裂隙房间暂停。"
+	if is_instance_valid(portal_button):
+		portal_button.tooltip_text = domain_switch_btn.tooltip_text
 
 func show_context(index: int) -> void:
 	if not game.can_manage_defense():
@@ -874,7 +866,7 @@ func _trait_badge(parent: Control, site_trait: String, trait_name: String, trait
 	pod_style(badge)
 	badge.tooltip_text = trait_name + "：" + trait_desc
 	var glyph: String = str({"highground": "physical", "choke": "shield", "conduit": "magic"}.get(site_trait, "magic"))
-	var stat: String = str({"highground": "+18%", "choke": "+20%", "conduit": "+14%"}.get(site_trait, "+"))
+	var stat: String = str({"highground": "+18%", "choke": ("+18%" if game.tower_lab else "+25%"), "conduit": "+14%"}.get(site_trait, "+"))
 	icon(badge, glyph, Rect2(6, 5, 16, 16), trait_tint)
 	var lbl := label(badge, stat, Rect2(24, 3, rect.size.x - 28, 20), 13, trait_tint)
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -885,26 +877,28 @@ func refresh_context() -> void:
 	if game.selected_site < 0 or not game.can_manage_defense():
 		return
 	clear_children(context)
+	tower_purchase = null
 	context.show()
 	_set_range_preview("")
 	var tower: ArenaTower = game.site_tower(game.selected_site)
-	if tower != null and game.tower_lab and tower.awaiting_doctrine:
-		doctrine_context(tower)
-		return
 	var locked := tower == null and game.site_locked(game.selected_site)
 	var sealed := tower != null and tower.has_method("is_sealed") and tower.is_sealed()
 	var work_allowed := game.can_change_towers() and not sealed
 	var sell_allowed := game.can_sell_towers() and not sealed
-	var has_doctrine := tower != null and game.tower_lab and tower.doctrine_id != ""
+	var has_doctrine := tower != null and not tower.doctrine_id.is_empty() and not game.tower_lab
+	if has_doctrine:
+		ArenaMenuArt.obsidian_panel(context,false)
+	else:
+		panel_style(context)
 	var cannon_order := tower != null and game.tower_lab and tower.can_set_bombard()
 	var fixed_order := cannon_order and tower.bombard_point.is_finite()
 	if not game.tower_lab:
-		context.size = Vector2(328, 154) if locked else (Vector2(372, 172) if tower == null else Vector2(316, 206))
+		context.size = Vector2(328, 154) if locked else (Vector2(372, 172) if tower == null else (Vector2(658, 356) if has_doctrine else Vector2(316, 206)))
 	else:
-		context.size = Vector2(328, 154) if locked else (Vector2(372, 172) if tower == null else (Vector2(442, 314 if fixed_order else 270) if has_doctrine else Vector2(316, 260 if fixed_order else 228)))
+		context.size = Vector2(328, 154) if locked else (Vector2(372, 172) if tower == null else Vector2(316, 260 if fixed_order else 228))
 
 	var point: Vector2 = game.world_to_hud(game.level_definition.sites[game.selected_site])
-	context.position = Vector2(clampf(point.x - context.size.x * 0.5, 12, 1600 - context.size.x - 12), clampf(point.y + 38, 86, 900 - context.size.y - 15))
+	_position_tower_context(point)
 	var traits: Array = game.level_definition.get("site_traits", [])
 	var site_trait: String = str(traits[game.selected_site]) if game.selected_site < traits.size() else ""
 	var trait_name: String = ArenaTower.trait_label(site_trait)
@@ -916,8 +910,8 @@ func refresh_context() -> void:
 	var role_name: String = str(roles[game.selected_site]) if game.selected_site < roles.size() else ""
 
 	if not work_allowed and tower == null:
-		label(context, "战中封工", Rect2(18, 12, 200, 28), 19, GOLD)
-		label(context, "下次整备可建塔或解锁塔位", Rect2(18, 55, 284, 30), 17, MUTED)
+		label(context, "塔位暂不可用", Rect2(18, 12, 200, 28), 19, GOLD)
+		label(context, "在防御域可建塔或解锁塔位", Rect2(18, 55, 284, 30), 17, MUTED)
 		button(context, "关闭", Rect2(18, 100, 118, 38), close_context)
 		return
 	if locked:
@@ -926,99 +920,37 @@ func refresh_context() -> void:
 		_trait_badge(context, site_trait, trait_name, trait_desc, trait_tint, Rect2(228, 12, 82, 26))
 		var unlock := button(context, "解锁    %d  ◉" % price, Rect2(18, 52, 292, 48), game.unlock_site.bind(game.selected_site), true)
 		unlock.name = "UnlockSite"
+		unlock.set_meta("required_gold",price)
 		unlock.disabled = game.gold < price
 		unlock.tooltip_text = (role_name + "\n" if role_name != "" else "") + "解锁后可建造或出售防御塔"
-		var lock_count: int = game.level_definition.get("locked_sites", []).size()
-		label(context, "+%d 火力位" % lock_count if lock_count > 1 else "+1 火力位", Rect2(18, 108, 290, 22), 13, MUTED)
+		unlock.set_meta("base_tip",unlock.tooltip_text)
+		label(context, "+1 火力位", Rect2(18, 108, 290, 22), 13, MUTED)
 	elif tower == null:
-		label(context, "一建即用 · 自动控场塔", Rect2(18, 10, 220, 28), 18, GOLD)
+		label(context, "建造防御塔", Rect2(18, 10, 220, 28), 18, GOLD)
 		_trait_badge(context, site_trait, trait_name, trait_desc, trait_tint, Rect2(272, 10, 84, 26))
 		for column in range(game.run_towers.size()):
 			var key: String = game.run_towers[column]
 			var data := game.tower_display_data(key)
 			var b := button(context, "", Rect2(14 + column * 86, 44, 80, 108), _build.bind(key))
 			b.name = "Build_" + key
+			b.set_meta("required_gold",int(data.cost))
+			b.set_meta("tower_kind",key)
 			b.disabled = key not in game.available_towers() or game.gold < int(data.cost)
 			var b_img := image(b, tower_portrait(key), Rect2(6, 4, 68, 68))
 			b_img.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 			icon(b, "coin", Rect2(12, 79, 18, 18))
 			label(b, str(data.cost), Rect2(34, 78, 42, 22), 16, GOLD)
-			if game.level_id in [ArenaSaltport.ID, "lighthouse", "ruins", "sanctum"]:
+			b.mouse_entered.connect(_set_range_preview.bind(key))
+			b.mouse_exited.connect(_set_range_preview.bind(""))
+			if game.level_id in [ArenaSaltport.ID,"lighthouse","ruins","sanctum"]:
 				b.focus_mode = Control.FOCUS_ALL
-				b.mouse_entered.connect(_set_range_preview.bind(key))
-				b.mouse_exited.connect(_set_range_preview.bind(""))
 				b.focus_entered.connect(_set_range_preview.bind(key))
 				b.focus_exited.connect(_set_range_preview.bind(""))
-			b.tooltip_text = data.name + " · 战斗自动升至3级\n" + (trait_name + "：" + trait_desc if trait_name != "" else str(data.description))
-	elif not game.tower_lab:
-		label(context, "%s  Lv.%d/3" % [str(tower.data.name), tower.level], Rect2(18, 12, 190, 30), 20, GOLD)
-		if sealed:
-			label(context, "触手封锁 %.1f秒" % tower.seal_clock, Rect2(178, 14, 126, 26), 14, Color("ff809a")).horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		else:
-			_trait_badge(context, site_trait, trait_name, trait_desc, trait_tint, Rect2(216, 12, 84, 26))
-		icon(context, "physical" if tower.data.type == 0 else "magic", Rect2(18, 48, 22, 22), ArenaCombat.colour(tower.data.type))
-		var description := label(context, ArenaCombat.label(tower.data.type) + " · " + str(tower.data.description), Rect2(48, 44, 250, 40), 13, MUTED)
-		description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		var prog := tower.auto_xp_progress()
-		if tower.level >= 3:
-			label(context, "★ 满级控场形态已就绪", Rect2(18, 96, 280, 22), 14, GOLD)
-		else:
-			label(context, "自动升级 XP · %d%%" % int(round(prog * 100.0)), Rect2(18, 92, 280, 20), 13, Color("7fe8ff"))
-			var xm := meter(context, Rect2(18, 114, 280, 10), Color("4be3ff"))
-			xm.max_value = 100.0
-			xm.value = prog * 100.0
-		if tower.kind != "snare":
-			var is_barracks := tower.kind == "barracks"
-			var target := button(context, "⚑ 集结" if is_barracks else "◎ 目标", Rect2(16, 144, 88, 44), _rally if is_barracks else _target)
-			target.name = "TowerGroundOrder" if is_barracks else "TowerPriority"
-			target.disabled = sealed or tower.project_level == 1
-			_sale_button(tower, Rect2(114, 144, 116, 44), sell_allowed)
-		else:
-			_sale_button(tower, Rect2(16, 144, 214, 44), sell_allowed)
-		button(context, "×", Rect2(240, 144, 60, 44), close_context)
+			var upgrade_hint := " · 点击塔位升级" if game.tower_lab else " · 金币足够时自动升级"
+			b.tooltip_text = data.name + upgrade_hint + "\n" + (trait_name + " · " + trait_desc if trait_name != "" else str(data.description))
+			b.set_meta("base_tip",b.tooltip_text)
 	elif has_doctrine:
-		var entry: Dictionary = ArenaDoctrines.by_id(tower.doctrine_id)
-		label(context, str(tower.data.name) + " · " + str(entry.name), Rect2(18, 12, 250, 30), 21, GOLD)
-		if sealed:
-			label(context, "触手封锁 %.1f秒" % tower.seal_clock, Rect2(272, 14, 152, 26), 15, Color("ff809a")).horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		else:
-			label(context, "%d / 10 阶" % tower.total_steps(), Rect2(304, 14, 120, 26), 17, Color("7fd8ff")).horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		icon(context, "physical" if tower.data.type == 0 else "magic", Rect2(18, 46, 20, 20), ArenaCombat.colour(tower.data.type))
-		var doc_sub: String = ArenaCombat.label(tower.data.type) + " · " + str(entry.role) + (" · " + trait_name if trait_name != "" else "（双分支可同修）")
-		label(context, doc_sub, Rect2(44, 44, 380, 24), 14, MUTED)
-		var hidden_up := Button.new()
-		hidden_up.name = "Upgrade"
-		hidden_up.disabled = true
-		hidden_up.visible = false
-		context.add_child(hidden_up)
-		var b_list: Array = ArenaDoctrines.branches(tower.doctrine_id)
-		for b in range(b_list.size()):
-			var b_info: Dictionary = b_list[b]
-			var rank: int = tower.branch_rank(b)
-			var b_price: int = tower.branch_price(b)
-			var maxed: bool = rank >= 3
-			var btn := button(context, "", Rect2(14 + b * 210, 76, 202, 126), _upgrade_branch.bind(b))
-			btn.name = "Branch_" + str(b)
-			btn.disabled = not work_allowed or maxed or game.gold < b_price
-			var accent_tint := Color("f5cd6a") if b == 0 else Color("7fd8ff")
-			label(btn, str(b_info.name), Rect2(12, 8, 136, 24), 16, accent_tint)
-			label(btn, str(rank) + "/3", Rect2(150, 9, 40, 22), 15, accent_tint).horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-			var desc := label(btn, str(b_info.summary), Rect2(12, 36, 178, 52), 12, CREAM)
-			desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			var price_text := "✓ 已满阶" if maxed else ("↑  %d ◉" % b_price)
-			var price_tint := Color("9ee4a8") if maxed else (GOLD if game.gold >= b_price else Color("e7a28a"))
-			label(btn, price_text, Rect2(12, 92, 178, 24), 15, price_tint).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		var ground_order := tower.kind in ["barracks", "snare"] or cannon_order
-		var order_label := "设落点" if cannon_order else ("⚑ 集结" if tower.kind == "barracks" else "◎ 目标")
-		var target := button(context, order_label, Rect2(14, 214, 126, 42), _rally if ground_order else _target)
-		target.disabled = sealed
-		if tower.kind == "snare":
-			target.text = "设绊索"
-		_sale_button(tower, Rect2(154, 214, 148, 42), sell_allowed)
-		button(context, "×", Rect2(316, 214, 110, 42), close_context)
-		if fixed_order:
-			var clear_b := button(context, "恢复自动瞄准", Rect2(14, 266, 288, 36), tower.clear_bombard)
-			clear_b.disabled = sealed
+		_show_tower_specialization(tower, sealed, sell_allowed, trait_name)
 	else:
 		label(context, str(tower.data.name) + "  " + str(tower.level) + "/3", Rect2(18, 12, 160, 30), 21, GOLD)
 		if sealed:
@@ -1028,31 +960,104 @@ func refresh_context() -> void:
 		icon(context, "physical" if tower.data.type == 0 else "magic", Rect2(18, 48, 22, 22), ArenaCombat.colour(tower.data.type))
 		var description := label(context, ArenaCombat.label(tower.data.type) + " · " + str(tower.data.description), Rect2(48, 44, 250, 40), 14, MUTED)
 		description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		var price := tower.upgrade_price()
-		if tower.project_level != 0:
+		if tower.project_level == 1 or (tower.project_level != 0 and game.tower_lab):
 			var caption := "建造中 · 取消" if tower.project_level == 1 else "升级中 · 取消"
 			var cancel := button(context, caption, Rect2(16, 88, 284, 46), tower.cancel_project)
 			cancel.name = "CancelTowerWork"
 			cancel.disabled = sealed
-		else:
-			var caption := "触手封锁 · 停摆中" if sealed else ("↑    %d  ◉" % price if tower.level < 3 else "已达三级")
+		elif not game.tower_lab:
+			var stage_name := "二级" if tower.level == 1 else "三级"
+			var state := "自动升%s · %d 金币" % [stage_name,tower.upgrade_price()]
+			if tower.project_level != 0:
+				state = "正在升%s · 已付 %d 金币" % [stage_name,tower.project_gold]
+			elif sealed:
+				state = "解除封锁后自动升级"
+			label(context, state, Rect2(16, 94, 284, 34), 16, GOLD)
+		elif tower.level < 3:
+			var price := tower.upgrade_price()
+			var caption := "触手封锁 · 停摆中" if sealed else "升到%s级    %d 金币" % ["二" if tower.level == 1 else "三",price]
 			var up := button(context, caption, Rect2(16, 88, 284, 46), tower.upgrade, true)
 			up.name = "Upgrade"
-			up.disabled = not work_allowed or tower.level >= 3 or game.gold < price
-		if not game.tower_lab or tower.kind == "barracks" or cannon_order:
-			var title := "改落点" if fixed_order else ("设落点" if cannon_order else ("⚑" if tower.kind == "barracks" else "◎"))
-			var ground_order := tower.kind in ["barracks", "snare"] or cannon_order
-			var target := button(context, title, Rect2(16, 150, 84, 44), _rally if ground_order else _target)
+			tower_purchase = up
+			up.set_meta("required_gold", price)
+			_sync_tower_purchase(work_allowed)
+		else:
+			var up := button(context, "已达三级", Rect2(16, 88, 284, 46), tower.upgrade, true)
+			up.name = "Upgrade"
+			up.disabled = true
+		var can_order := (tower.kind == "barracks" or cannon_order) if game.tower_lab else tower.kind not in ["mage","snare"]
+		if can_order:
+			var ground_order := tower.kind == "barracks" or cannon_order
+			var title := "⚑ 集结" if tower.kind == "barracks" else _tower_priority_label(tower)
+			if cannon_order:
+				title = "改落点" if fixed_order else "设落点"
+			var target := button(context, title, Rect2(16, 150, 88, 44), _rally if ground_order else _target)
 			target.name = "TowerGroundOrder" if ground_order else "TowerPriority"
-			if tower.kind == "snare":
-				target.text = "设绊索"
+			target.add_theme_font_size_override("font_size", 14)
 			target.disabled = sealed or tower.project_level == 1
+			if not game.tower_lab:
+				target.tooltip_text = "选择士兵集结点" if ground_order else "点击切换优先目标"
 		if fixed_order:
 			var automatic := button(context, "恢复自动瞄准", Rect2(16, 201, 284, 36), tower.clear_bombard)
 			automatic.name = "ResetBombard"
 			automatic.disabled = sealed
-		_sale_button(tower, Rect2(110, 150, 120, 44), sell_allowed)
+		_sale_button(tower, Rect2(110, 150, 120, 44) if can_order else Rect2(16, 150, 214, 44), sell_allowed)
 		button(context, "×", Rect2(240, 150, 60, 44), close_context)
+
+func _show_tower_specialization(tower: ArenaTower, sealed: bool, sell_allowed: bool, trait_name: String) -> void:
+	var entry := tower.doctrine_data
+	label(context, "%s  /  三级" % str(tower.data.name), Rect2(20,9,400,31),21,GOLD)
+	var site_label := label(context,"触手封锁中" if sealed else trait_name,Rect2(485,12,151,25),14,Color("ff809a") if sealed else MUTED)
+	site_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+
+	var spec := sub_card(context,Rect2(18,47,622,83),false)
+	ArenaMenuArt.obsidian_panel(spec,true)
+	spec.name = "TowerSpecialization"
+	image(spec,tower_image(tower.kind,3,tower.doctrine_id),Rect2(9,4,75,75)).texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	label(spec,"生效专精",Rect2(91,8,82,24),14,ArenaMenuArt.STEEL_CYAN)
+	label(spec,str(entry.name),Rect2(174,6,151,26),19,GOLD).name = "Title"
+	label(spec,str(entry.role),Rect2(333,8,270,24),14,MUTED)
+	var description := label(spec,ArenaDoctrines.field_summary(tower.doctrine_id),Rect2(91,38,512,38),14,CREAM)
+	description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	description.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+
+	var growth := Control.new()
+	growth.name = "TowerEnhancements"
+	growth.position = Vector2(18,139)
+	growth.size = Vector2(622,162)
+	growth.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	context.add_child(growth)
+	var stages := tower.enhancements()
+	label(growth,"专精强化",Rect2(0,0,168,27),18,GOLD)
+	var heading := "全部强化已生效" if tower.unlocked_enhancements == stages.size() else "金币足够时自动施工"
+	label(growth,heading,Rect2(180,3,442,22),14,MUTED).horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	var width := (622.0-8.0*(stages.size()-1))/stages.size()
+	for index in range(stages.size()):
+		var price: int = ArenaDoctrines.ENHANCEMENT_PRICES[index]
+		var status := "待解锁 · %d 金币" % price
+		var tint := MUTED
+		if index < tower.unlocked_enhancements:
+			status = "已生效"
+			tint = Color("a6dfac")
+		elif index == tower.unlocked_enhancements:
+			status = "施工中 · 已付 %d 金币" % price if tower.project_level != 0 else "下一项 · %d 金币" % price
+			tint = ArenaMenuArt.STEEL_CYAN
+		enhancement_card(growth,Rect2(index*(width+8),36,width,126),stages[index],status,tint,index)
+
+	var can_order := tower.kind not in ["mage", "snare"] and tower.forced_target().is_empty()
+	if can_order:
+		var is_barracks := tower.kind == "barracks"
+		var order_label := "⚑ 集结" if is_barracks else _tower_priority_label(tower)
+		var target := button(context,order_label,Rect2(18,308,126,35),_rally if is_barracks else _target)
+		target.name = "TowerGroundOrder" if is_barracks else "TowerPriority"
+		target.disabled = sealed
+	_sale_button(tower,Rect2(152 if can_order else 18,308,148,35),sell_allowed)
+	button(context,"×",Rect2(566,308,74,35),close_context)
+
+func _sync_tower_purchase(allowed: bool) -> void:
+	var shortfall := int(tower_purchase.get_meta("required_gold")) - game.gold
+	tower_purchase.disabled = not allowed or shortfall > 0
+	tower_purchase.tooltip_text = "还需 %d 金币" % shortfall if allowed and shortfall > 0 else ""
 
 func _sale_button(tower: ArenaTower, rect: Rect2, sell_allowed: bool) -> void:
 	var sealed := tower != null and tower.has_method("is_sealed") and tower.is_sealed()
@@ -1060,37 +1065,13 @@ func _sale_button(tower: ArenaTower, rect: Rect2, sell_allowed: bool) -> void:
 	if sealed:
 		caption = "触手封锁"
 	elif not sell_allowed:
-		caption = "整备出售"
+		caption = "回防后出售" if game.active_domain == "rift" else "暂不可出售"
 	elif tower.project_level != 0:
 		caption = "完工出售"
 	var sale := button(context, caption, rect, tower.sell)
 	sale.name = "SellTower"
 	sale.disabled = not sell_allowed or tower.project_level != 0
-	sale.tooltip_text = "深渊触手封锁期间无法拆除" if sealed else ("整备期间可回收防线；售价 %d 金币" % tower.sale_value() if not sell_allowed else "售价 %d 金币" % tower.sale_value())
-
-func doctrine_context(tower: ArenaTower) -> void:
-	var options: Array = ArenaDoctrines.for_tower(tower.kind)
-	var sealed := tower != null and tower.has_method("is_sealed") and tower.is_sealed()
-	context.size = Vector2(516, 312)
-	var point: Vector2 = game.world_to_hud(game.level_definition.sites[tower.site_id])
-	context.position = Vector2(clampf(point.x - context.size.x * 0.5, 12, 1600 - context.size.x - 12), clampf(point.y + 38, 86, 900 - context.size.y - 15))
-	label(context, "L3 改造 · 触手封锁中" if sealed else "L3 改造 · 选择专属流派", Rect2(18, 10, 300, 30), 20, Color("ff809a") if sealed else GOLD)
-	label(context, "选定后开放双分支 10 阶养成", Rect2(276, 14, 224, 22), 12, MUTED).horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	for index in range(options.size()):
-		var entry: Dictionary = options[index]
-		var card := button(context, "", Rect2(14 + index * 166, 46, 154, 250), game.choose_doctrine.bind(tower.site_id, str(entry.id)))
-		card.name = "Doctrine_" + str(entry.id)
-		card.disabled = sealed
-		label(card, str(entry.name), Rect2(10, 10, 134, 28), 19, GOLD)
-		label(card, str(entry.role), Rect2(10, 38, 134, 22), 12, Color("8bdadf"))
-		var body := label(card, str(entry.summary), Rect2(10, 64, 134, 122), 13, CREAM)
-		body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		label(card, "代价：" + str(entry.drawback), Rect2(10, 192, 134, 46), 12, Color("e7a28a"))
-
-func _upgrade_branch(index: int) -> void:
-	var tower := game.site_tower(game.selected_site)
-	if tower != null and tower.upgrade_branch(index):
-		refresh_context()
+	sale.tooltip_text = "深渊触手封锁期间无法拆除" if sealed else "出售可回收实付金币的 %d%%，本塔回收 %d 金币。" % [roundi(ArenaTower.SALE_REFUND_RATIO*100.0),tower.sale_value()]
 
 func _build(key: String) -> void:
 	if game.build_tower(game.selected_site, key):
@@ -1100,7 +1081,12 @@ func _rally() -> void:
 	if not game.can_manage_defense():
 		return
 	game.rally_site = game.selected_site
+	game.targeting_slot = -1
+	order_notice_left = 0.0
 	close_context()
+
+func _tower_priority_label(tower: ArenaTower) -> String:
+	return "优先强敌" if tower.target_mode == "strongest" else "优先先锋"
 
 func _target() -> void:
 	if not game.can_manage_defense():
@@ -1109,6 +1095,32 @@ func _target() -> void:
 	if tower != null and tower.forced_target() == "":
 		tower.target_mode = "strongest" if tower.target_mode == "first" else "first"
 		refresh_context()
+
+func _position_tower_context(anchor: Vector2) -> void:
+	var y := anchor.y + 38.0
+	if y + context.size.y > 885.0:y = anchor.y - context.size.y - 38.0
+	context.position = Vector2(clampf(anchor.x-context.size.x*0.5,12,1588-context.size.x),clampf(y,86,885-context.size.y))
+
+func show_order_notice(message: String) -> void:
+	order_notice = message
+	order_notice_left = 1.15
+
+func _refresh_order_hint(delta: float) -> void:
+	if not is_instance_valid(order_hint):
+		return
+	order_notice_left = maxf(0.0,order_notice_left-delta)
+	var hint := ""
+	if order_notice_left > 0.0:
+		hint = order_notice
+	elif game.targeting_slot >= 0:
+		hint = "左键施放技能   ·   右键 / Esc 取消"
+	elif game.rally_site >= 0:
+		var tower := game.site_tower(game.rally_site)
+		if tower != null:
+			var order := "炮击落点" if tower.can_set_bombard() else ("绊索位置" if tower.kind == "snare" else "集结点")
+			hint = "左键确定%s   ·   右键 / Esc 取消" % order
+	order_hint.visible = not hint.is_empty() and not has_modal() and not game.game_over
+	if order_hint.visible:order_label.text = hint
 
 func close_context() -> void:
 	context.hide()
@@ -1146,6 +1158,7 @@ func announce_unlock() -> void:
 
 func modal_panel(size: Vector2) -> Panel:
 	close_modal()
+	_modal_return_focus = get_viewport().gui_get_focus_owner()
 	modal = Control.new()
 	modal.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	modal.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -1159,6 +1172,7 @@ func modal_panel(size: Vector2) -> Panel:
 	panel.position = (Vector2(1600, 900) - size) * 0.5
 	modal.add_child(panel)
 	ArenaMenuArt.obsidian_panel(panel)
+	fade_in(panel)
 	return panel
 
 func close_modal() -> void:
@@ -1166,9 +1180,27 @@ func close_modal() -> void:
 		root.remove_child(modal)
 		modal.queue_free()
 	modal = null
+	if is_instance_valid(_modal_return_focus) and _modal_return_focus.is_visible_in_tree():
+		_modal_return_focus.grab_focus()
+	_modal_return_focus = null
 
 func has_modal() -> bool:
 	return is_instance_valid(modal)
+
+func focus_dialog(preferred: Control) -> void:
+	var controls: Array[Control] = []
+	for control: Control in modal.find_children("*","Control",true,false):
+		if control.focus_mode != Control.FOCUS_NONE and control.is_visible_in_tree() and (not control is BaseButton or not control.disabled):
+			controls.append(control)
+	for index in controls.size():
+		var control := controls[index]
+		control.focus_next = control.get_path_to(controls[(index+1)%controls.size()])
+		control.focus_previous = control.get_path_to(controls[posmod(index-1,controls.size())])
+		control.focus_neighbor_top = control.focus_previous
+		control.focus_neighbor_bottom = control.focus_next
+		control.focus_neighbor_left = control.focus_previous
+		control.focus_neighbor_right = control.focus_next
+	if preferred in controls:preferred.grab_focus()
 
 func _toggle_passive_detail(popover: Panel, offer: Dictionary) -> void:
 	if not is_instance_valid(popover):
@@ -1439,23 +1471,25 @@ func show_pause() -> void:
 	game.rally_site = -1
 	var panel := modal_panel(Vector2(880, 560))
 	label(panel, "战 术 手 册", Rect2(30, 22, 820, 40), 28, ArenaMenuArt.STEEL_GOLD).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label(panel, "按 H 或 Esc 暂停 · 一建即用自动升级防御塔 · 基地护盾 [B]", Rect2(30, 62, 820, 24), 13, ArenaMenuArt.STEEL_MUTED).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var tower_hint := "选中塔位可建造或升级" if game.tower_lab else "金币足够时，已建成的塔会自动升阶并解锁专精强化"
+	label(panel, "按 H 或 Esc 继续 · " + tower_hint, Rect2(30, 62, 820, 24), 13, ArenaMenuArt.STEEL_MUTED).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var left := sub_card(panel, Rect2(28, 94, 404, 370), false)
 	ArenaMenuArt.obsidian_panel(left, true)
 	label(left, "双域操控与快捷键", Rect2(24, 16, 230, 28), 18, ArenaMenuArt.STEEL_GOLD)
-	var kb_btn := steel_btn(left, "改键设置", Rect2(280, 14, 100, 30), func():
-		frontend.settings()
+	var kb_btn := steel_btn(left, "设置", Rect2(280, 14, 100, 30), func():
+		frontend.settings(true)
 	, "steel", 13)
 	kb_btn.name = "OpenSettingsFromPause"
 	var d_lbl := game.campaign.keybind_label("dodge")
 	var p_lbl := game.campaign.keybind_label("portal")
 	var r_lbl := game.campaign.keybind_label("recall")
 	keycap(left, "WASD / 右键", Rect2(24, 52, 112, 26), ArenaMenuArt.STEEL_GOLD)
-	label(left, "走位；普攻自动连发", Rect2(146, 54, 232, 24), 14, ArenaMenuArt.STEEL_TEXT)
+	label(left, "走位 · " + ("左键攻击" if game.feel_lab or game.tower_lab else "自动攻击附近敌人"), Rect2(146, 54, 232, 24), 14, ArenaMenuArt.STEEL_TEXT)
 	keycap(left, d_lbl, Rect2(24, 84, 112, 26), ArenaMenuArt.STEEL_CYAN)
 	label(left, "短距闪避并短暂无敌", Rect2(146, 86, 232, 24), 14, ArenaMenuArt.STEEL_TEXT)
-	keycap(left, p_lbl + " / " + r_lbl, Rect2(24, 116, 112, 26), GOLD)
-	label(left, "进出多层程序化裂隙地牢 [F]召潮/下潜", Rect2(146, 118, 240, 24), 13, ArenaMenuArt.STEEL_TEXT)
+	if game.rift_domain != null:
+		keycap(left, p_lbl + " / " + r_lbl, Rect2(24, 116, 112, 26), GOLD)
+		label(left, "进裂隙 / 回防 · [F] 召波或下潜", Rect2(146, 118, 240, 24), 13, ArenaMenuArt.STEEL_TEXT)
 	colour_block(left, Rect2(24, 152, 356, 1), Color(ArenaMenuArt.STEEL_MUTED, 0.28))
 	for slot in range(2):
 		var y_off := 166 + slot * 98
@@ -1469,18 +1503,20 @@ func show_pause() -> void:
 		left.add_child(badge_box)
 		image(badge_box, ArenaMenuArt.skill(game.hero.class_id, slot), Rect2(5, 5, 46, 46))
 		keycap(left, "Q" if slot == 0 else "E", Rect2(90, y_off, 26, 24), ArenaMenuArt.STEEL_GOLD)
-		label(left, sk_name + (" (已解锁)" if unlocked else " (%d级解锁)" % (2 if slot == 0 else 4)), Rect2(122, y_off, 258, 26), 16, ArenaMenuArt.STEEL_TEXT if unlocked else ArenaMenuArt.STEEL_MUTED)
-		var sk_desc := label(left, ArenaDefinitions.skill_text(game.hero.class_id, slot), Rect2(90, y_off + 28, 290, 62), 12, ArenaMenuArt.STEEL_MUTED)
+		label(left, sk_name + (" (已解锁)" if unlocked else " (%d级解锁)" % ArenaDefinitions.SKILL_UNLOCK_LEVELS[slot]), Rect2(122, y_off, 258, 26), 16, ArenaMenuArt.STEEL_TEXT if unlocked else ArenaMenuArt.STEEL_MUTED)
+		var sk_desc := label(left, ArenaDefinitions.skill_text(game.hero.class_id, slot, game.hero.passive_rank), Rect2(90, y_off + 28, 290, 62), 12, ArenaMenuArt.STEEL_MUTED)
 		sk_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 	var right := sub_card(panel, Rect2(448, 94, 404, 370), false)
 	ArenaMenuArt.obsidian_panel(right, true)
 	var owned := game.passive_engine.owned_list() if game.passive_engine != null else []
-	label(right, "已获被动进化 · %d/%d 次上限" % [game.passive_engine.picks_taken if game.passive_engine != null else owned.size(), ArenaPassiveEngine.MAX_TOTAL_PICKS], Rect2(24, 16, 352, 28), 18, ArenaMenuArt.STEEL_GOLD)
-	label(right, "纯经验升级按 [Tab] 三选一（上限10次）；探索随机地牢/事件祭坛收集跨双域遗物。", Rect2(24, 46, 356, 42), 13, ArenaMenuArt.STEEL_MUTED).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	var has_rift := game.rift_domain != null
+	label(right, "已选被动 · %d/%d" % [game.passive_engine.picks_taken,ArenaPassiveEngine.MAX_TOTAL_PICKS] if has_rift else "练习模式", Rect2(24, 16, 352, 28), 18, ArenaMenuArt.STEEL_GOLD)
+	label(right, "升级后按 [Tab] 三选一。探索裂隙可收集遗物。" if has_rift else "在战役中可获得局内被动与裂隙遗物。", Rect2(24, 46, 356, 42), 13, ArenaMenuArt.STEEL_MUTED).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	colour_block(right, Rect2(24, 96, 356, 1), Color(ArenaMenuArt.STEEL_MUTED, 0.28))
 	if owned.is_empty():
-		label(right, "尚未选择被动 · 进入裂隙拾取经验晶石", Rect2(24, 114, 356, 28), 14, ArenaMenuArt.STEEL_MUTED)
+		if has_rift:
+			label(right, "尚未选择被动 · 进入裂隙拾取经验晶石", Rect2(24, 114, 356, 28), 14, ArenaMenuArt.STEEL_MUTED)
 	else:
 		var scroll := ScrollContainer.new()
 		scroll.position = Vector2(18, 106)
@@ -1505,8 +1541,28 @@ func show_pause() -> void:
 			sum_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			list_box.add_child(row)
 
-	steel_btn(panel, "继续守望", Rect2(156, 486, 264, 50), resume, "cyan", 18)
-	steel_btn(panel, "返回地图", Rect2(460, 486, 264, 50), game.return_to_menu, "steel", 18)
+	var resume_button := steel_btn(panel, "继续守望", Rect2(156, 486, 264, 50), resume, "cyan", 18)
+	var exit_button := steel_btn(panel, "返回地图", Rect2(460, 486, 264, 50), _confirm_leave, "steel", 18)
+	exit_button.name = "LeaveBattle"
+	for b in [kb_btn,resume_button,exit_button]:b.focus_mode = Control.FOCUS_ALL
+	focus_dialog(resume_button)
+
+func _confirm_leave() -> void:
+	var panel := modal_panel(Vector2(560,238))
+	_leave_confirmation = panel
+	label(panel,"结束本局并返回地图？",Rect2(24,22,512,44),26,GOLD).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label(panel,"本局进度和奖励将不会保存。",Rect2(24,78,512,32),18,MUTED).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var keep := steel_btn(panel,"继续本局",Rect2(28,150,232,56),_back_to_pause,"cyan",18)
+	keep.name = "CancelLeaveBattle"
+	var leave := steel_btn(panel,"结束本局",Rect2(300,150,232,56),game.return_to_menu,"steel",18)
+	leave.name = "ConfirmLeaveBattle"
+	for b in [keep,leave]:b.focus_mode = Control.FOCUS_ALL
+	focus_dialog(keep)
+
+func _back_to_pause() -> void:
+	_leave_confirmation = null
+	close_modal()
+	show_pause()
 
 func resume() -> void:
 	if not game.passive_offers.is_empty():
@@ -1518,26 +1574,6 @@ func resume() -> void:
 	close_modal()
 	game.suppress_primary = Input.is_action_pressed("shoot")
 	game.pump_modals()
-
-func show_guide() -> void:
-	var panel := modal_panel(Vector2(820, 520))
-	label(panel, "守望者双域作战指南", Rect2(30, 22, 760, 42), 28, ArenaMenuArt.STEEL_GOLD).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var card := sub_card(panel, Rect2(34, 76, 752, 354), false)
-	ArenaMenuArt.obsidian_panel(card, true)
-	var d_k := game.campaign.keybind_label("dodge") if game.campaign != null else "V"
-	var p_k := game.campaign.keybind_label("portal") if game.campaign != null else "T"
-	var r_k := game.campaign.keybind_label("recall") if game.campaign != null else "R"
-	label(card, "1  自动控场塔", Rect2(28, 24, 150, 28), 18, ArenaMenuArt.STEEL_GOLD)
-	label(card, "防御塔一建即用、杀敌自动升至3级；按 B 消耗120金充能基地护盾。", Rect2(188, 24, 536, 28), 16, ArenaMenuArt.STEEL_TEXT)
-	label(card, "2  裂隙发育", Rect2(28, 76, 150, 28), 18, ArenaMenuArt.STEEL_GOLD)
-	label(card, "按 %s 进裂隙收割经验晶石与宝箱精英；红框警报时按 %s 瞬回震击解围。" % [p_k, r_k], Rect2(188, 76, 536, 46), 16, ArenaMenuArt.STEEL_TEXT).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label(card, "3  双域英雄", Rect2(28, 136, 150, 28), 18, ArenaMenuArt.STEEL_GOLD)
-	label(card, "WASD/右键移动，普攻智能连发（左键优先索敌），%s 闪避，Q/E 放技。" % d_k, Rect2(188, 136, 536, 46), 16, ArenaMenuArt.STEEL_TEXT).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	colour_block(card, Rect2(28, 196, 696, 1), Color(ArenaMenuArt.STEEL_MUTED, 0.28))
-	label(card, "攻城节奏", Rect2(28, 214, 120, 28), 18, ArenaMenuArt.STEEL_CYAN)
-	label(card, "每轮前段为分散小怪（绝佳进裂隙窗口），后段爆发重甲攻城大军！", Rect2(188, 214, 536, 46), 16, ArenaMenuArt.STEEL_TEXT).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label(card, "提示：英雄倒下 15 秒后原地复活，唯有防线核心失守才会战败。", Rect2(28, 298, 696, 28), 15, ArenaMenuArt.STEEL_MUTED)
-	steel_btn(panel, "开始守望", Rect2(250, 448, 320, 52), close_modal, "cyan", 19)
 
 func show_result() -> void:
 	close_context()
@@ -1558,19 +1594,23 @@ func show_result() -> void:
 	colour_block(card, Rect2(28, 198, 636, 1), Color(ArenaMenuArt.STEEL_MUTED, 0.25))
 	image(card, ArenaMenuArt.utility("diamond"), Rect2(28, 218, 32, 32))
 	var saved := bool(game.settlement.get("ok", false))
+	var save_button: Button
 	label(card, ("+" + str(game.settlement.get("amount", 0)) + " 钻石    总计 " + str(game.campaign.gems())) if saved else "奖励尚未保存", Rect2(72, 218, 400, 32), 20, ArenaMenuArt.STEEL_GOLD if saved else Color("f28b82"))
 	if not saved:
-		var save_button := steel_btn(card, "重试保存", Rect2(504, 214, 160, 40), game.retry_settlement, "gold", 16)
+		save_button = steel_btn(card, "重试保存", Rect2(504, 214, 160, 40), game.retry_settlement, "gold", 16)
 		save_button.name = "RetrySave"
+		save_button.focus_mode = Control.FOCUS_ALL
 	var hall := steel_btn(panel, "英雄养成", Rect2(34, 404, 204, 56), game.open_hero_hall, "steel", 18)
 	hall.name = "ResultHeroHall"
 	var retry := steel_btn(panel, "再次出战", Rect2(278, 404, 204, 56), game.restart_run, "cyan", 18)
 	retry.name = "RetryRun"
-	steel_btn(panel, "返回地图", Rect2(522, 404, 204, 56), game.return_to_menu, "steel", 18)
+	var exit_button := steel_btn(panel, "返回地图", Rect2(522, 404, 204, 56), game.return_to_menu, "steel", 18)
+	for b in [hall,retry,exit_button]:b.focus_mode = Control.FOCUS_ALL
+	focus_dialog(retry if saved else save_button)
 
 func objective_state() -> Dictionary:
 	if game.built == 0:
-		return {"step": "守望指引 · 1 / 3", "title": "部署第一座自动控场塔", "body": "点击道路旁金色塔位建造，塔会随战斗自动升级。"}
+		return {"step": "守望指引 · 1 / 3", "title": "部署第一座自动控场塔", "body": "点击道路旁的金色塔位建造。金币足够时，已建成的塔会自动升级。"}
 	if game.phase == "rest" and game.cycle == 1:
 		return {"step": "守望指引 · 2 / 3", "title": "侦察或进入裂隙发育", "body": "点击怪物图标开轮，或按 T 进裂隙割草拿被动。"}
 	if game.cycle == 1:
@@ -1598,7 +1638,7 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and not event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		_passive_require_release = false
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		if not game.started and is_instance_valid(frontend.stage_panel):
+		if not game.started and not has_modal() and is_instance_valid(frontend.stage_panel):
 			if not frontend.stage_panel.get_global_rect().has_point(event.position):
 				frontend.close_stage()
 		if is_instance_valid(owned_passive_popover) and owned_passive_popover.visible:
@@ -1642,6 +1682,17 @@ func _input(event: InputEvent) -> void:
 			frontend.escape()
 			get_viewport().set_input_as_handled()
 		return
+	if event.keycode == KEY_TAB and not has_modal() and not game.portal_transition_active() and game.open_pending_passive_choice():
+		get_viewport().set_input_as_handled()
+		return
+	if event.keycode in [KEY_H,KEY_ESCAPE] and frontend.settings_open():
+		frontend.close_settings()
+		get_viewport().set_input_as_handled()
+		return
+	if event.keycode in [KEY_H,KEY_ESCAPE] and is_instance_valid(_leave_confirmation) and _leave_confirmation.get_parent() == modal:
+		_back_to_pause()
+		get_viewport().set_input_as_handled()
+		return
 	if event.keycode == KEY_H or (event.keycode == KEY_ESCAPE and has_modal() and not game.game_over):
 		if has_modal():
 			resume()
@@ -1650,6 +1701,8 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 func _process(delta: float) -> void:
+	_refresh_order_hint(delta)
+	var reduced := bool(game.campaign.data.reduced_motion)
 	if unlock_clock > 0:
 		unlock_clock -= delta
 	if is_instance_valid(unlock_hint):
@@ -1661,7 +1714,7 @@ func _process(delta: float) -> void:
 			var rd := game.rift_domain
 			var show_vig := game.active_domain == "rift" and (rd.alarm_level >= 1 or rd.core_hit_alert > 0.0)
 			if show_vig:
-				var pulse := 0.55 + 0.45 * sin(Time.get_ticks_msec() * 0.008)
+				var pulse := 0.70 if reduced else 0.55 + 0.45 * sin(Time.get_ticks_msec() * 0.008)
 				alarm_vignette.critical = rd.alarm_level >= 2 or rd.core_hit_alert > 0.0
 				alarm_vignette.intensity = (0.45 + 0.55 * pulse) if alarm_vignette.critical else (0.35 + 0.30 * pulse)
 			else:
@@ -1672,6 +1725,7 @@ func _process(delta: float) -> void:
 			if transition_veil.material is ShaderMaterial:
 				var sm := transition_veil.material as ShaderMaterial
 				sm.set_shader_parameter("progress", p_iris)
+				sm.set_shader_parameter("reduced_motion", reduced)
 				var f_uv := Vector2(0.5, 0.5)
 				if p_iris > 0.005 and game.rift_domain != null:
 					var wpt: Vector2 = game.hero.position if is_instance_valid(game.hero) else game.rift_domain.defense_portal_pos
@@ -1698,8 +1752,6 @@ func _process(delta: float) -> void:
 			if show_desc:
 				descent_badge.text = "▼ 深层跃迁门已开 · 按 [F] 下潜第%d层" % (game.rift_domain.floor_index + 1)
 		var in_def_clean := game.active_domain == "defense" and game.can_manage_defense() and not has_modal()
-		if is_instance_valid(aegis_button):
-			aegis_button.visible = in_def_clean
 		if is_instance_valid(next_wave_btn):
 			next_wave_btn.visible = in_def_clean
 		if is_instance_valid(wave_label):
@@ -1729,7 +1781,7 @@ func _process(delta: float) -> void:
 		passive_ready_badge.visible = show_badge
 		if show_badge:
 			_passive_badge_pulse = maxf(0.0, _passive_badge_pulse - delta)
-			var bounce := 1.0 + 0.045 * sin(float(Time.get_ticks_msec()) * 0.008) + (_passive_badge_pulse * 0.06)
+			var bounce := 1.0 if reduced else 1.0 + 0.045 * sin(float(Time.get_ticks_msec()) * 0.008) + (_passive_badge_pulse * 0.06)
 			passive_ready_badge.pivot_offset = passive_ready_badge.size * 0.5
 			passive_ready_badge.scale = Vector2.ONE * bounce
 			passive_ready_badge.text = "★ 进化就绪 (×%d) · 按 [Tab] 开启" % pend
@@ -1754,9 +1806,11 @@ func _process(delta: float) -> void:
 	if is_instance_valid(xp_bar) and game.passive_engine != null:
 		var pe := game.passive_engine
 		if pe.is_maxed_out():
-			xp_bar.max_value = 90.0
+			xp_bar.max_value = ArenaPassiveEngine.OVERFLOW_XP_STEP
 			xp_bar.value = pe.overflow_xp
-			xp_bar.tooltip_text = "被动已达上限 (%d/%d) · 溢出经验自动转金币与基地圣盾！" % [pe.picks_taken, ArenaPassiveEngine.MAX_TOTAL_PICKS]
+			xp_bar.tooltip_text = "满级溢流 · 每 %d XP 兑换 %d 金币和至多 %d 基地圣盾" % [ArenaPassiveEngine.OVERFLOW_XP_STEP,ArenaPassiveEngine.OVERFLOW_GOLD,ArenaPassiveEngine.OVERFLOW_SHIELD]
+			if pe.pending_ups > 0:
+				xp_bar.tooltip_text += "\n还有 %d 次升级待选择 [Tab]" % pe.pending_ups
 		else:
 			xp_bar.max_value = maxf(1.0, pe.xp_needed())
 			xp_bar.value = pe.run_xp
@@ -1769,10 +1823,21 @@ func _process(delta: float) -> void:
 	if is_instance_valid(core_shield_bar):
 		core_shield_bar.max_value = ArenaGame.CORE_SHIELD_MAX
 		core_shield_bar.value = game.core_shield
-	if is_instance_valid(aegis_button):
-		aegis_button.visible = game.active_domain == "defense" and game.can_manage_defense() and not has_modal()
-		aegis_button.disabled = game.gold < ArenaGame.CORE_AEGIS_COST or game.core_aegis_cd > 0.0 or game.game_over
-		aegis_button.text = ("超频 %.0fs" % game.core_overdrive_clock) if game.core_overdrive_clock > 0.0 else (("冷却 %ds" % ceili(game.core_aegis_cd)) if game.core_aegis_cd > 0.0 else ("护盾(B) %dg" % ArenaGame.CORE_AEGIS_COST))
+	if context.visible:
+		var tower := game.site_tower(game.selected_site)
+		var allowed := game.can_change_towers()
+		if tower == null:
+			var available := game.available_towers()
+			for child in context.get_children():
+				if child is Button and child.has_meta("required_gold"):
+					var shortfall := int(child.get_meta("required_gold"))-game.gold
+					var key := str(child.get_meta("tower_kind",""))
+					var unavailable := not key.is_empty() and key not in available
+					child.disabled = not allowed or shortfall > 0 or unavailable
+					var reason := "\n第 %d 波可建" % int(game.level_definition.towers.get(key,1)) if unavailable else ("\n还需 %d 金币" % shortfall if shortfall > 0 else "")
+					child.tooltip_text = str(child.get_meta("base_tip",""))+reason
+		elif is_instance_valid(tower_purchase):
+			_sync_tower_purchase(allowed and not tower.is_sealed() and tower.project_level == 0)
 	if is_instance_valid(next_wave_btn):
 		var show_nw := game.active_domain == "defense" and game.can_manage_defense() and not has_modal()
 		next_wave_btn.visible = show_nw
@@ -1793,23 +1858,23 @@ func _process(delta: float) -> void:
 
 	for slot in range(2):
 		var unlocked := h.skill_unlocked(slot)
-		skills[slot].disabled = not unlocked or h.knocked_out or h.cooldowns[slot] > 0 or game.game_over
-		skills[slot].text = (str(int(ceil(h.cooldowns[slot]))) if h.cooldowns[slot] > 0 else "") if unlocked else str(2 if slot == 0 else 4) + "级"
-		skills[slot].tooltip_text = (str(h.data.small if slot == 0 else h.data.ultimate) + "\n" + ArenaDefinitions.skill_text(h.class_id, slot)) if unlocked else "英雄养成至" + str(2 if slot == 0 else 4) + "级解锁"
-		var maximum: float = float(h.data.small_cd if slot == 0 else h.data.ultimate_cd) * h.cooldown_scale()
-		skill_glyphs[slot].progress = 1.0 - h.cooldowns[slot] / maximum if unlocked else 0.0
+		skills[slot].disabled = not h.can_cast(slot) or has_modal() or game.portal_transition_active()
+		var unlock_level: int = ArenaDefinitions.SKILL_UNLOCK_LEVELS[slot]
+		skills[slot].text = (str(ceili(h.cooldowns[slot])) if h.cooldowns[slot] > 0 else "") if unlocked else "%d级" % unlock_level
+		skills[slot].tooltip_text = (str(h.data.small if slot == 0 else h.data.ultimate) + "\n" + ArenaDefinitions.skill_text(h.class_id, slot, h.passive_rank)) if unlocked else "英雄养成至 %d 级解锁" % unlock_level
+		skill_glyphs[slot].progress = 1.0 - clampf(h.cooldowns[slot] / maxf(0.01,h.cooldown_totals[slot]),0.0,1.0) if unlocked else 0.0
 		skill_glyphs[slot].modulate.a = 0.18 if not unlocked else (0.45 if h.cooldowns[slot] > 0 else 1.0)
 		skill_glyphs[slot].queue_redraw()
 	if is_instance_valid(dodge_button):
-		dodge_button.disabled = h.knocked_out or h.dodge_cooldown > 0.0 or h.debuff_stun_clock > 0.0 or game.game_over
+		dodge_button.disabled = not h.can_dodge() or has_modal() or game.portal_transition_active()
 		dodge_button.text = str(int(ceil(h.dodge_cooldown))) if h.dodge_cooldown > 0.0 else ""
-		dodge_glyph.progress = 1.0 - clampf(h.dodge_cooldown / h.DODGE_CD, 0.0, 1.0)
+		dodge_glyph.progress = 1.0 - clampf(h.dodge_cooldown / maxf(0.01,h.dodge_cooldown_total), 0.0, 1.0)
 		dodge_glyph.modulate.a = 0.42 if h.dodge_cooldown > 0.0 else 1.0
 		dodge_glyph.queue_redraw()
 	if is_instance_valid(portal_button) and game.rift_domain != null:
 		var in_def := game.active_domain == "defense"
 		var pcd := game.rift_domain.portal_cooldown if in_def else 0.0
-		portal_button.disabled = game.game_over or (in_def and pcd > 0.0)
+		portal_button.disabled = domain_switch_btn.disabled
 		portal_button.text = str(ceili(pcd)) if pcd > 0.0 else ""
 		portal_glyph.progress = 1.0 - clampf(pcd / ArenaRiftDomain.PORTAL_COOLDOWN, 0.0, 1.0) if in_def else 1.0
 		portal_glyph.tint = Color("7fe8ff") if in_def else GOLD
@@ -1877,12 +1942,12 @@ func _process(delta: float) -> void:
 
 	if context.visible and game.selected_site >= 0:
 		var anchor := game.world_to_hud(game.level_definition.sites[game.selected_site])
-		context.position = Vector2(clampf(anchor.x - context.size.x * 0.5, 12, 1588 - context.size.x), clampf(anchor.y + 38, 86, 885 - context.size.y))
+		_position_tower_context(anchor)
 
 	var total_w := game.total_waves()
 	wave_label.visible = game.active_domain == "defense" and not has_modal()
 	wave_label.text = str(game.cycle) + " / " + str(total_w)
-	wave_button.disabled = game.phase != "rest" or game.game_over
+	wave_button.disabled = not game.can_preview_wave()
 	if is_instance_valid(breach_notice) and game.siege != null:
 		breach_notice.visible = game.active_domain == "defense" and game.siege.warned and (not game.siege.opened or game.siege.warning_clock > 0.0)
 	phase_label.text = ("整备 · " + str(int(ceil(game.phase_clock))) + " 秒" if game.phase == "rest" else "敌军来袭")
@@ -1891,10 +1956,10 @@ func _process(delta: float) -> void:
 	lead = maxi(0, lead)
 	var entry: Vector2 = game.world_to_hud(game.level_definition.routes[lead][0])
 	var button_pos := Vector2(clampf(entry.x, 20, 1530), clampf(entry.y, 94, 770))
-	var defense_visible := game.can_manage_defense()
+	var defense_visible := game.can_preview_wave() and not has_modal()
 	wave_button.position = button_pos
 	wave_button.visible = game.phase == "rest" and not game.game_over and defense_visible
-	wave_button.tooltip_text = "%d / %d · %ds\n预览后再点提前开轮" % [game.cycle, total_w, maxi(0, int(ceil(game.phase_clock)))]
+	wave_button.tooltip_text = "%d / %d · %ds\n%s" % [game.cycle,total_w,ceili(game.phase_clock),("提前开轮 · +%d 金币" % game.preview_wave_bonus()) if game.wave_preview else "预览本轮兵力"]
 	wave_glyph.progress = game.phase_clock / game.rest_duration if game.phase == "rest" else 1.0
 	wave_glyph.tint = GOLD if game.wave_preview else CREAM
 	wave_glyph.queue_redraw()
@@ -1904,18 +1969,11 @@ func _process(delta: float) -> void:
 		preview.visible = show_preview
 		if preview.visible:
 			clear_children(preview)
-			var pool: Array = []
-			for group in wave_data.units:
-				if group[0] not in pool:
-					pool.append(group[0])
-			if game.cycle == total_w and game.level_definition.boss and not game.level_definition.get("boss_in_wave", false):
-				pool.append(str(game.level_definition.get("boss_kind", "moth")))
-			var profile := ArenaLevelCatalog.wave_profile(game.level_id, game.cycle, wave_data)
-			var tag_txt := str(profile.get("tag", ""))
+			var profile := ArenaLevelCatalog.preview_profile(game.wave_packets(wave_data),game.cycle)
+			var pool: Array = profile.kinds
 			var has_fly := bool(profile.get("has_flying", false))
-			var pw := maxi(308, 16 + mini(6, pool.size()) * 61)
-			var ph := 124 if (tag_txt != "" or has_fly) else 104
-			preview.size = Vector2(pw, ph)
+			var pw := maxi(374, 16 + mini(6, pool.size()) * 61)
+			preview.size = Vector2(pw, 124)
 			for index in range(mini(6, pool.size())):
 				var eid := str(pool[index])
 				var artwork := ArenaMenuArt.creature(eid)
@@ -1926,9 +1984,6 @@ func _process(delta: float) -> void:
 					var edata := ArenaDefinitions.enemy(eid)
 					var etrait := str(edata.get("trait", ""))
 					img.tooltip_text = str(edata.name) + ("\n" + etrait if etrait != "" else "")
-			label(preview, "重甲 %d%% · 高法抗 %d%% · 精英 %d" % [int(round(profile.heavy * 100.0)), int(round(profile.high_res * 100.0)), int(profile.elites)], Rect2(10, 68, pw - 20, 24), 14, MUTED)
-			if tag_txt != "" or has_fly:
-				var note := (tag_txt + (" · " if tag_txt != "" and has_fly else "")) + ("⚠ 含飞行单位 · 需防空" if has_fly else "")
-				var note_col := Color("f5cd6a") if (bool(profile.get("has_boss", false)) or bool(profile.get("has_mini_boss", false))) else (Color("7be0ff") if has_fly else Color("ffa868"))
-				label(preview, note, Rect2(10, 94, pw - 20, 22), 13, note_col)
+			label(preview, "计划 %d 敌 · %d 种 · %d 精英%s" % [profile.count,pool.size(),profile.elites," · 含飞行单位" if has_fly else ""], Rect2(10, 68, pw - 20, 24), 14, MUTED)
+			label(preview, "按生命计 · 重甲 %d%% · 高法抗 %d%%" % [roundi(profile.heavy*100.0),roundi(profile.high_res*100.0)], Rect2(10, 94, pw - 20, 22), 13, CREAM)
 	preview.position = Vector2(clampf(button_pos.x + 54, 12, 1588 - preview.size.x), clampf(button_pos.y, 86, 888 - preview.size.y))

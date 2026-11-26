@@ -58,7 +58,7 @@ func reset_targets() -> void:
 	for corpse in game.corpses:
 		if is_instance_valid(corpse.node):corpse.node.queue_free()
 	game.corpses.clear();game.hero.war_cry=0;game.hero.attack_cooldown=0
-	game.gold=ArenaGame.START_GOLD;game.kills=0;game.wave_kills=0;game.damage_stats={"hero":0.0,"tower":0.0,"soldier":0.0}
+	game.gold=ArenaGame.START_GOLD;game.kills=0;game.damage_stats={"hero":0.0,"tower":0.0,"soldier":0.0}
 	game.hero.shots=0
 	game.hero.knocked_out=false;game.hero.revive_clock=0;game.hero.rolling=0
 	for enemy in game.enemies.duplicate():

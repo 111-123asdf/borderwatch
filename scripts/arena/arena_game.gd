@@ -1,10 +1,16 @@
 class_name ArenaGame
 extends Node2D
 const START_GOLD:=300
+const DEFENSE_BOUNTY_SCALE := [0.36, 0.27, 0.20, 0.13, 0.10]
+const BLOOD_ALTAR_OVERFLOW_GOLD := 45
+const BLOOD_ALTAR_ATTACK_COST := 120
+const BLOOD_ALTAR_REST_XP := 140.0
+const FORGE_AEGIS_GOLD := 40
+const PEDESTAL_OVERFLOW_GOLD := 60
+const PEDESTAL_XP_GOLD := 55
+const PEDESTAL_XP := 260.0
+const FORGE_OVERDRIVE_SPEED := 0.35
 const CORE_SHIELD_MAX:=300.0
-const AEGIS_COST:=120
-const CORE_AEGIS_COST:=AEGIS_COST
-const CORE_AEGIS_CD:=24.0
 var event_bus := ArenaEventBus.new()
 var passive_engine := ArenaPassiveEngine.new()
 var relic_engine := ArenaRelicEngine.new()
@@ -16,6 +22,7 @@ var active_event_offer: Dictionary={}
 var next_run_seed: int = 0
 var defense_rules := true
 var boss_defeated := false
+var required_boss_escaped := false
 var level_id: String="forest"
 var level_definition: Dictionary={}
 var routes: Array[Curve2D]=[]
@@ -24,7 +31,6 @@ var terrain: Node2D
 var ground: Sprite2D
 var hero: ArenaHero
 var enemies: Array=[]
-var prisms: Array=[]
 var route_lengths: Array[float]=[]
 var enemy_revision:=0
 var projectile_snapshot: Array=[]
@@ -45,6 +51,7 @@ var campaign: ArenaCampaign
 var run_id:=""
 var settlement: Dictionary={}
 var run_towers: Array[String]=["archer","mage","cannon","barracks"]
+var run_tower_doctrines: Dictionary = {}
 var navigation:=AStarGrid2D.new()
 var navigation_static:=PackedByteArray()
 var navigation_dynamic: Array[Vector2i]=[]
@@ -63,7 +70,6 @@ var core_max:=750.0
 var core_health:=750.0
 var core_shield:=0.0
 var core_overdrive_clock:=0.0
-var core_aegis_cd:=0.0
 var cycle:=1
 var phase: String="rest"
 var phase_clock:=15.0
@@ -71,24 +77,18 @@ var rest_duration:=15.0
 var wave_preview:=false
 var rewarded:=false
 var spawn_queue: Array=[]
-var spawn_clock:=0.0
 var wave_elapsed:=0.0
 var siege_alert_at:=85.0
 var siege_start_at:=95.0
 var siege_alert_active:=false
 var siege_active:=false
-var _siege_warned:=false
 var early_wave_calls:=0
 var selected_site:=-1
-var pending_doctrine_site:=-1
 var targeting_slot:=-1
 var rally_site:=-1
 var suppress_primary:=false
 var kills:=0
 var built:=0
-var wave_started_at:=0.0
-var wave_kills:=0
-var wave_log: Array=[]
 var elapsed:=0.0
 var damage_stats: Dictionary={"hero":0.0,"tower":0.0,"soldier":0.0}
 var quitting:=false
@@ -140,6 +140,9 @@ func _ready() -> void:
 	elif get_tree().has_meta("restart_hero"):
 		var key: String=get_tree().get_meta("restart_hero");var stage: String=get_tree().get_meta("restart_level","forest")
 		if get_tree().has_meta("restart_towers"):run_towers.assign(get_tree().get_meta("restart_towers"));get_tree().remove_meta("restart_towers")
+		if get_tree().has_meta("restart_tower_doctrines"):
+			run_tower_doctrines = get_tree().get_meta("restart_tower_doctrines")
+			get_tree().remove_meta("restart_tower_doctrines")
 		get_tree().remove_meta("restart_hero");get_tree().remove_meta("restart_level");start_run.call_deferred(key,stage,true)
 	elif get_tree().has_meta("open_hero_hall"):
 		hud.frontend.hero_id=str(get_tree().get_meta("open_hero_hall"));get_tree().remove_meta("open_hero_hall");hud.frontend.hall()
@@ -175,17 +178,22 @@ func start_run(hero_id: String,stage: String,keep_loadout:=false) -> void:
 	if not keep_loadout:run_towers=campaign.tower_loadout()
 	if tower_lab: run_towers.assign(ArenaDefinitions.DEFAULT_TOWERS)
 	elif not campaign._valid_towers(run_towers): run_towers=campaign.tower_loadout()
+	if not keep_loadout or run_tower_doctrines.is_empty():
+		run_tower_doctrines.clear()
+		for kind in run_towers:
+			run_tower_doctrines[kind] = campaign.tower_doctrine(kind)
 	if next_run_seed != 0:
 		rng.seed = next_run_seed
 		next_run_seed = 0
 	gold=280 if tower_lab else START_GOLD
 	run_id=str(Time.get_unix_time_from_system())+"-"+str(Time.get_ticks_usec())+"-"+str(randi());settlement={}
-	level_id=stage;level_definition=ArenaLevelCatalog.definition(stage);breach_open=false;mouse_shoot_held=false;navigation_static.clear();navigation_dynamic.clear();routes.clear();route_lengths.clear();zones.clear();pickups.clear();passive_offers.clear();active_event_offer.clear();pending_doctrine_site=-1;prisms.clear()
-	active_domain="defense";core_shield=0.0;core_overdrive_clock=0.0;core_aegis_cd=0.0
-	siege_alert_active=false;siege_active=false;_siege_warned=false;early_wave_calls=0
+	level_id=stage;level_definition=ArenaLevelCatalog.definition(stage);breach_open=false;mouse_shoot_held=false;navigation_static.clear();navigation_dynamic.clear();routes.clear();route_lengths.clear();zones.clear();pickups.clear();passive_offers.clear();active_event_offer.clear()
+	active_domain="defense";core_shield=0.0;core_overdrive_clock=0.0
+	siege_alert_active=false;siege_active=false;early_wave_calls=0
 	event_bus.clear();passive_engine.reset();passive_engine.bind(self,event_bus)
 	relic_engine.reset();relic_engine.bind(self,event_bus)
-	boss_defeated=false
+	boss_defeated = false
+	required_boss_escaped = false
 	exit_ward_cd=0.0;exit_ward_flash=0.0;exit_ward_last_target=Vector2.ZERO;exit_ward_triggers=0
 	for points in level_definition.routes:
 		var c := ArenaLevelCatalog.curve(points)
@@ -286,11 +294,6 @@ func navigation_path(origin: Vector2,target: Vector2) -> PackedVector2Array:
 	var result: PackedVector2Array=navigation.get_point_path(a,b,true)
 	if not result.is_empty():result[0]=origin
 	return result
-func complete_defense_path(origin: Vector2,target: Vector2) -> PackedVector2Array:
-	var path:=navigation_path(origin,target)
-	if path.is_empty() or Vector2i(path[-1]/20)!=Vector2i(target/20): return PackedVector2Array()
-	return path
-
 func nearest_road(point: Vector2) -> Dictionary:
 	var best: Dictionary={"route":0,"progress":0.0,"point":Vector2.ZERO};var distance:=INF
 	for index in range(routes.size()):
@@ -336,10 +339,6 @@ func build_tower(index: int,kind: String) -> bool:
 	if timed_tower_work(): tower.start_construction(cost)
 	else: tower.invested_gold=cost
 	actors.add_child(tower);towers.append(tower);built+=1;rebuild_navigation();audio.play("tower");hud.refresh_context();return true
-func telemetry() -> Dictionary:
-	var report: Dictionary={"waves":wave_log.duplicate(true)}
-	if tower_lab: report["towers"]=tower_trial_stats.duplicate()
-	return report
 func domain_enemies(dom: String="") -> Array:
 	var target_dom := active_domain if dom.is_empty() else dom
 	var res: Array = []
@@ -348,11 +347,6 @@ func domain_enemies(dom: String="") -> Array:
 			res.append(e)
 	return res
 
-func walkable_in(dom: String, point: Vector2) -> bool:
-	if dom == "rift" and rift_domain != null:
-		return rift_domain.is_walkable_in_rift(point)
-	return walkable(point)
-
 func pump_modals() -> void:_pump_modals.call_deferred()
 func _pump_modals() -> void:
 	if game_over:return
@@ -360,15 +354,9 @@ func _pump_modals() -> void:
 	if not passive_offers.is_empty():
 		get_tree().paused=true
 		hud.show_passive_choice(passive_offers)
-func choose_doctrine(site: int,id: String) -> bool:
-	var tower:=site_tower(site)
-	if tower==null or not tower.choose_doctrine(id):return false
-	pending_doctrine_site=-1
-	if is_instance_valid(hud):hud.refresh_context()
-	return true
 func start_rest(duration: float) -> void:
 	phase="rest";phase_clock=maxf(8.0,duration);rest_duration=phase_clock;wave_preview=false;rewarded=false
-	siege_alert_active=false;siege_active=false;_siege_warned=false
+	siege_alert_active=false;siege_active=false
 	hud.announce_unlock()
 
 func open_pending_passive_choice() -> bool:
@@ -426,7 +414,6 @@ func gain_run_xp(amount: float, _at_pos := Vector2.INF) -> void:
 				"critical": true
 			})
 		audio.play("phase", -10.0, 1.35)
-		event_bus.emit_event("passive_ready", {"pending": passive_engine.pending_ups})
 		if is_instance_valid(hud) and hud.has_method("pulse_passive_badge"):
 			hud.pulse_passive_badge()
 
@@ -446,21 +433,21 @@ func open_rift_event(room_id: String) -> bool:
 	var opts: Array[Dictionary] = []
 	if ekind == "blood_altar":
 		opts = [
-			{"id": "sac_hp_relic", "title": "鲜血献祭 · 夺取遗物", "tag": "遗物/高风险", "desc": "献出 25% 当前生命，随机获得 1 件跨双域裂隙遗物（满6件则转 +150金）"},
-			{"id": "sac_gold_atk", "title": "战神血誓 · 永久增伤", "tag": "120金", "desc": "消耗 120 金币，令英雄本局所有伤害永久 +16%", "cost_gold": 120},
-			{"id": "sanctum_rest", "title": "星血沐浴 · 稳健复苏", "tag": "稳健零风险", "desc": "恢复英雄 55% 生命（溢出转护盾）并获 +140 局内经验"}
+			{"id": "sac_hp_relic", "title": "鲜血献祭 · 夺取遗物", "tag": "遗物", "desc": "献出最多 25%% 当前生命（生命不会因此低于 15），随机获得一件遗物。已持满 %d 件则获得 %d 金币。" % [ArenaRelicEngine.MAX_RELICS,BLOOD_ALTAR_OVERFLOW_GOLD]},
+			{"id": "sac_gold_atk", "title": "战神血誓 · 持续增伤", "tag": "%d 金" % BLOOD_ALTAR_ATTACK_COST, "desc": "消耗 %d 金币，本局英雄伤害加成 +16%%。" % BLOOD_ALTAR_ATTACK_COST, "cost_gold": BLOOD_ALTAR_ATTACK_COST},
+			{"id": "sanctum_rest", "title": "星血沐浴 · 稳健复苏", "tag": "治疗", "desc": "回复 55%% 最大生命，有护盾上限时溢疗可转为护盾。获得 %d 基础经验。" % BLOOD_ALTAR_REST_XP}
 		]
 	elif ekind == "forge_anvil":
 		opts = [
-			{"id": "forge_power", "title": "重铸塔锋 · 威力增幅", "tag": "塔防永久", "desc": "全主防线防御塔攻击力永久 +18%，并赋予基地 +85 圣盾"},
-			{"id": "forge_speed", "title": "精密齿轮 · 极速填装", "tag": "塔防永久", "desc": "全主防线防御塔攻速永久 +18%，并令所有在场防御塔 +90 自动经验"},
-			{"id": "forge_aegis", "title": "堡垒金钟 · 厚盾强援", "tag": "即时救急", "desc": "立即为基地充能 +220 圣盾、开启 10 秒防线超频，并获 +90 金币"}
+			{"id": "forge_power", "title": "重铸塔锋 · 威力增幅", "tag": "本局增益", "desc": "本局攻击塔伤害加成 +18%，基地获得至多 85 圣盾。"},
+			{"id": "forge_speed", "title": "精密齿轮 · 极速填装", "tag": "本局增益", "desc": "本局攻击塔攻速加成 +18%。"},
+			{"id": "forge_aegis", "title": "堡垒金钟 · 厚盾强援", "tag": "即时救急", "desc": "基地获得至多 220 圣盾，攻击塔攻速 +%d%% 持续 10 秒，另获 %d 金币。" % [roundi(FORGE_OVERDRIVE_SPEED*100.0),FORGE_AEGIS_GOLD]}
 		]
 	else:
 		opts = [
-			{"id": "pedestal_relic", "title": "摘取星辉遗物", "tag": "遗物", "desc": "随机获得 1 件跨双域裂隙遗物（若满 6 件则获 +160 金币与 +90 基地盾）"},
-			{"id": "pedestal_xp", "title": "汲取星核宝库", "tag": "急速进化", "desc": "立即获得 +260 局内经验与 +110 金币"},
-			{"id": "pedestal_ward", "title": "祈愿双域固防", "tag": "防线加固", "desc": "基地恢复 120 耐久、充能 +160 圣盾并恢复英雄全部生命"}
+			{"id": "pedestal_relic", "title": "摘取星辉遗物", "tag": "遗物", "desc": "随机获得一件遗物。已持满 %d 件则获得 %d 金币和至多 90 基地圣盾。" % [ArenaRelicEngine.MAX_RELICS,PEDESTAL_OVERFLOW_GOLD]},
+			{"id": "pedestal_xp", "title": "汲取星核宝库", "tag": "急速进化", "desc": "立即获得 %d 基础经验和 %d 金币。" % [PEDESTAL_XP,PEDESTAL_XP_GOLD]},
+			{"id": "pedestal_ward", "title": "祈愿双域固防", "tag": "防线加固", "desc": "基地最多回复 120 耐久并获得至多 160 圣盾，英雄恢复全部生命。"}
 		]
 	active_event_offer = {
 		"room_id": room_id,
@@ -500,10 +487,10 @@ func choose_rift_event(option_idx: int) -> bool:
 	match oid:
 		"sac_hp_relic":
 			if is_instance_valid(h) and not h.knocked_out:
-				h.health = maxf(15.0, h.health * 0.75)
+				h.health -= minf(h.health*0.25,maxf(0.0,h.health-15.0))
 			var rel1 := relic_engine.grant_random_relic(rng)
 			if rel1.is_empty():
-				gold += 150
+				gain_gold(BLOOD_ALTAR_OVERFLOW_GOLD, "rift_event")
 		"sac_gold_atk":
 			relic_engine.altar_hero_dmg_bonus += 0.16
 			if is_instance_valid(h):
@@ -511,31 +498,28 @@ func choose_rift_event(option_idx: int) -> bool:
 		"sanctum_rest":
 			if is_instance_valid(h) and not h.knocked_out:
 				h._heal_self(h.max_health * 0.55, true)
-			gain_run_xp(140.0)
+			gain_run_xp(BLOOD_ALTAR_REST_XP)
 		"forge_power":
 			relic_engine.forge_tower_power_bonus += 0.18
 			add_core_shield(85.0)
 			if is_instance_valid(h):
-				numbers.append({"point": h.center() + Vector2(0, -34), "text": "铁砧锻造 · 全塔威力+18%!", "colour": Color("7fe8ff"), "life": 1.2, "duration": 1.2, "critical": true})
+				numbers.append({"point": h.center() + Vector2(0, -34), "text": "铁砧锻造 · 攻击塔伤害 +18%", "colour": Color("7fe8ff"), "life": 1.2, "duration": 1.2, "critical": true})
 		"forge_speed":
 			relic_engine.forge_tower_speed_bonus += 0.18
-			for t in towers:
-				if is_instance_valid(t) and not t.destroyed:
-					t.gain_auto_xp(90.0)
 			if is_instance_valid(h):
-				numbers.append({"point": h.center() + Vector2(0, -34), "text": "铁砧齿轮 · 全塔攻速+18%!", "colour": Color("7fe8ff"), "life": 1.2, "duration": 1.2, "critical": true})
+				numbers.append({"point": h.center() + Vector2(0, -34), "text": "铁砧齿轮 · 攻击塔攻速 +18%", "colour": Color("7fe8ff"), "life": 1.2, "duration": 1.2, "critical": true})
 		"forge_aegis":
 			add_core_shield(220.0)
 			core_overdrive_clock = maxf(core_overdrive_clock, 10.0)
-			gold += 90
+			gain_gold(FORGE_AEGIS_GOLD, "rift_event")
 		"pedestal_relic":
 			var rel2 := relic_engine.grant_random_relic(rng)
 			if rel2.is_empty():
-				gold += 160
+				gain_gold(PEDESTAL_OVERFLOW_GOLD, "rift_event")
 				add_core_shield(90.0)
 		"pedestal_xp":
-			gold += 110
-			gain_run_xp(260.0)
+			gain_gold(PEDESTAL_XP_GOLD, "rift_event")
+			gain_run_xp(PEDESTAL_XP)
 		"pedestal_ward":
 			core_health = minf(core_max, core_health + 120.0)
 			add_core_shield(160.0)
@@ -553,30 +537,44 @@ func choose_rift_event(option_idx: int) -> bool:
 	audio.play("phase", -7.0, 1.32)
 	return true
 
-func add_core_shield(amount: float) -> void:
-	if amount <= 0.0:
+func gain_gold(amount: int, source: String) -> void:
+	if amount <= 0:
 		return
-	core_shield = minf(CORE_SHIELD_MAX, core_shield + amount)
+	gold += amount
+	if event_bus != null:
+		event_bus.emit_event("gold_earned", {"amount": amount, "source": source})
 
-func charge_core_aegis() -> bool:
-	if not can_manage_defense() or core_aegis_cd > 0.0 or gold < AEGIS_COST or feel_lab or tower_lab:
-		return false
-	if core_shield >= CORE_SHIELD_MAX - 1.0 and core_overdrive_clock > 4.0:
-		return false
-	gold -= AEGIS_COST
-	core_aegis_cd = CORE_AEGIS_CD
-	add_core_shield(180.0)
-	core_overdrive_clock = maxf(core_overdrive_clock, 8.0)
-	effect(level_definition.core, 90.0, Color("7cf2ff"), "upgrade", 0.55)
-	numbers.append({"point": level_definition.core + Vector2(-36, -34), "text": "圣盾+180 · 全塔加速!", "colour": Color("7ef4ff"), "life": 1.1, "duration": 1.1})
-	audio.play("phase", -8.0, 1.25)
-	return true
+func add_core_shield(amount: float) -> float:
+	if amount <= 0.0:
+		return 0.0
+	var before := core_shield
+	core_shield = minf(CORE_SHIELD_MAX, core_shield + amount)
+	return core_shield-before
+
+func clear_rift_attacks() -> void:
+	for actor in actors.get_children():
+		if actor is ArenaProjectile and actor.domain == "rift":
+			actor.set_physics_process(false)
+			actor.queue_free()
+	delayed = delayed.filter(func(attack): return attack.options.get("domain", "defense") != "rift")
+	zones = zones.filter(func(zone): return zone.domain != "rift")
+	for enemy in domain_enemies("rift"):
+		enemy.burn_clock = 0.0
+		enemy.burn_dps = 0.0
+	passive_engine.clear_rift_attacks()
 
 func enter_rift() -> bool:
 	return rift_domain != null and rift_domain.enter_rift()
 
 func recall_to_defense() -> bool:
 	return rift_domain != null and rift_domain.recall_to_defense()
+
+func toggle_domain() -> void:
+	if active_domain == "rift":
+		recall_to_defense()
+	elif not enter_rift() and rift_domain != null and running and not feel_lab and not tower_lab:
+		if rift_domain.portal_cooldown > 0.0:hud.show_order_notice("传送门充能中 · %d 秒" % ceili(rift_domain.portal_cooldown))
+		elif is_instance_valid(hero) and hero.knocked_out:hud.show_order_notice("英雄复活后可进入裂隙")
 
 func spawn_pickup(pos: Vector2, dom: String, kind: String, xp_val: int, gold_val := 0) -> ArenaXpPickup:
 	var dom_pickups: Array = []
@@ -615,34 +613,46 @@ func spawn_pickup(pos: Vector2, dom: String, kind: String, xp_val: int, gold_val
 	pickups.append(item)
 	return item
 
+func _can_call_wave() -> bool:
+	if not can_manage_defense() or active_domain != "defense" or get_tree().paused:
+		return false
+	if not passive_offers.is_empty() or not active_event_offer.is_empty():
+		return false
+	return rift_domain == null or rift_domain.warp_phase.is_empty()
+
+func can_preview_wave() -> bool:
+	return phase == "rest" and _can_call_wave()
+
+func preview_wave_bonus() -> int:
+	return mini(12, floori(12.0*clampf(phase_clock/maxf(rest_duration,1.0),0.0,1.0))) if can_preview_wave() and not rewarded else 0
+
 func request_wave() -> void:
-	if not can_manage_defense() or phase!="rest" or get_tree().paused:return
+	if not can_preview_wave():
+		return
 	if not wave_preview:wave_preview=true;return
 	if not rewarded:
-		var bonus:=12.0*clampf(phase_clock/rest_duration,0,1)
-		gold+=mini(12,int(floor(bonus)));rewarded=true
+		gain_gold(preview_wave_bonus(), "wave_call"); rewarded = true
 	begin_wave()
 
 func next_wave_button_state() -> Dictionary:
-	if not running or game_over or not can_manage_defense():
+	if not _can_call_wave():
 		return {"mode": "disabled", "label": "防线未启", "bonus_gold": 0, "enabled": false, "tip": ""}
 	if phase == "rest":
-		var bonus_r := maxi(6, int(round(clampf(phase_clock / maxf(1.0, rest_duration), 0.25, 1.0) * 28.0 * relic_engine.early_wave_bonus_mult())))
-		return {"mode": "rest", "label": "▶ 立刻开第%d轮 (+%dg) [F]" % [cycle, bonus_r], "bonus_gold": bonus_r, "enabled": not get_tree().paused, "tip": "立刻结束整备开启第 %d 轮并获 +%d 早开赏金 [快捷键 F]" % [cycle, bonus_r]}
+		var bonus_r := clampi(int(round(clampf(phase_clock / maxf(1.0, rest_duration), 0.25, 1.0) * 28.0 * relic_engine.early_wave_bonus_mult())), 6, 24)
+		return {"mode": "rest", "label": "▶ 立刻开第%d轮 (+%dg) [F]" % [cycle, bonus_r], "bonus_gold": bonus_r, "enabled": true, "tip": "立刻结束整备开启第 %d 轮并获 +%d 早开赏金 [快捷键 F]" % [cycle, bonus_r]}
 	if wave_elapsed < siege_start_at - 0.8:
 		var rem_s := siege_start_at - 0.5 - wave_elapsed
-		var bonus_f := clampi(int(round((16.0 + rem_s * 0.42) * relic_engine.early_wave_bonus_mult())), 18, 60)
-		return {"mode": "fast_siege", "label": "⚡ 提前召攻城 (+%dg) [F]" % bonus_f, "bonus_gold": bonus_f, "enabled": not get_tree().paused, "tip": "跳过剩余 %ds 游击窗，直接召出本轮大攻城并获 +%d 金赏金 [F]" % [ceili(rem_s), bonus_f]}
+		var bonus_f := clampi(int(round((16.0 + rem_s * 0.42) * relic_engine.early_wave_bonus_mult())), 18, 50)
+		return {"mode": "fast_siege", "label": "⚡ 提前召攻城 (+%dg) [F]" % bonus_f, "bonus_gold": bonus_f, "enabled": true, "tip": "缩短 %ds 游击窗，余下游击队在 10 秒内依次出场，立即获 +%d 金 [F]" % [ceili(rem_s), bonus_f]}
 	if spawn_queue.is_empty() and cycle < total_waves():
-		var bonus_s := int(round(45.0 * relic_engine.early_wave_bonus_mult()))
-		return {"mode": "stack_next", "label": "🔥 叠开第%d轮 (+%dg) [F]" % [cycle + 1, bonus_s], "bonus_gold": bonus_s, "enabled": not get_tree().paused, "tip": "不干等清怪，直接叠开第 %d 轮并奖 +%d 金（适合塔防成型的割草高手 [F]）" % [cycle + 1, bonus_s]}
+		var bonus_s := int(round(40.0 * relic_engine.early_wave_bonus_mult()))
+		return {"mode": "stack_next", "label": "🔥 叠开第%d轮 (+%dg) [F]" % [cycle + 1, bonus_s], "bonus_gold": bonus_s, "enabled": true, "tip": "不干等清怪，直接叠开第 %d 轮并奖 +%d 金（适合塔防成型的割草高手 [F]）" % [cycle + 1, bonus_s]}
 	if cycle >= total_waves() and spawn_queue.is_empty():
-		return {"mode": "final_busy", "label": "⚔ 最终轮决战中", "bonus_gold": 0, "enabled": false, "tip": "当前为本关最终轮，击退剩余敌潮即获胜"}
+		var tip := "击退剩余敌潮并击败指定首领" if bool(level_definition.boss) and not boss_defeated else "击退剩余敌潮，守住核心即可获胜"
+		return {"mode": "final_busy", "label": "⚔ 最终轮决战中", "bonus_gold": 0, "enabled": false, "tip": tip}
 	return {"mode": "siege_spawning", "label": "⚔ 攻城出兵中 (%d/%d)" % [cycle, total_waves()], "bonus_gold": 0, "enabled": false, "tip": "本轮攻城大军正在出动，出兵完毕后可按 [F] 提前叠开下一轮"}
 
 func request_next_wave_anytime() -> Dictionary:
-	if not running or game_over or not can_manage_defense() or get_tree().paused or not passive_offers.is_empty() or not active_event_offer.is_empty():
-		return {"ok": false, "mode": "blocked"}
 	var st := next_wave_button_state()
 	var mode := str(st.mode)
 	var bonus := int(st.bonus_gold)
@@ -650,7 +660,7 @@ func request_next_wave_anytime() -> Dictionary:
 		return {"ok": false, "mode": mode}
 	if mode == "rest":
 		if not rewarded:
-			gold += bonus
+			gain_gold(bonus, "wave_call")
 			rewarded = true
 		wave_preview = true
 		early_wave_calls += 1
@@ -660,114 +670,53 @@ func request_next_wave_anytime() -> Dictionary:
 		return {"ok": true, "mode": mode, "bonus": bonus}
 	if mode == "fast_siege":
 		var target_t := siege_start_at - 0.5
-		for i in range(spawn_queue.size()):
-			var pkt: Dictionary = spawn_queue[i]
-			if float(pkt.at) < target_t:
-				pkt["at"] = target_t + float(i % 10) * 0.28
-		spawn_queue.sort_custom(func(a, b): return float(a.at) < float(b.at) or (is_equal_approx(float(a.at), float(b.at)) and int(a.serial) < int(b.serial)))
+		var skirmish := spawn_queue.filter(func(packet): return float(packet.at) < siege_start_at)
+		for index in range(skirmish.size()):
+			skirmish[index].at = target_t + 10.0 * float(index) / maxi(1, skirmish.size() - 1)
+		spawn_queue.sort_custom(ArenaLevelCatalog.packet_precedes)
 		wave_elapsed = target_t
-		_siege_warned = true
 		siege_alert_active = true
-		gold += bonus
+		gain_gold(bonus, "wave_call")
 		early_wave_calls += 1
 		numbers.append({"point": level_definition.core + Vector2(-48, -42), "text": "⚡ 攻城号角 · 提前召潮 +%d金!" % bonus, "colour": Color("ffe678"), "life": 1.15, "duration": 1.15, "critical": true})
 		audio.play("heavy_hit", -8.0, 1.24)
 		audio.play("phase", -8.0, 1.12)
 		return {"ok": true, "mode": mode, "bonus": bonus}
 	if mode == "stack_next":
-		var summary: Dictionary = {"wave": cycle, "time": snappedf(elapsed - wave_started_at, 0.1), "kills": wave_kills, "core": core_health, "gold": gold}
-		wave_log.append(summary)
 		cycle += 1
-		wave_elapsed = 0.0
-		wave_started_at = elapsed
-		wave_kills = 0
-		siege_alert_active = false
-		siege_active = false
-		_siege_warned = false
-		spawn_queue = wave_packets(wave_pattern())
-		gold += bonus
+		_start_defense_wave()
+		gain_gold(bonus, "wave_call")
 		early_wave_calls += 1
-		if stage_gimmicks != null:
-			stage_gimmicks.on_wave_started(cycle)
 		numbers.append({"point": level_definition.core + Vector2(-46, -42), "text": "🔥 叠开第 %d 轮 +%d金!" % [cycle, bonus], "colour": Color("ff9e58"), "life": 1.20, "duration": 1.20, "critical": true})
 		audio.play("phase", -7.0, 1.28)
-		if is_instance_valid(hud):
-			hud.refresh_context()
 		return {"ok": true, "mode": mode, "bonus": bonus}
 	return {"ok": false, "mode": mode}
 func begin_wave() -> void:
-	if not running or game_over or phase!="rest" or not passive_offers.is_empty():return
-	phase="spawn";wave_preview=false;spawn_queue.clear();spawn_clock=0;wave_elapsed=0
-	siege_alert_active=false;siege_active=false;_siege_warned=false
-	if is_instance_valid(hud): hud.refresh_context()
-	var pattern:=wave_pattern()
-	var packets := wave_packets(pattern)
-	wave_started_at=elapsed;wave_kills=0
-	spawn_queue=packets
+	if not running or game_over or phase != "rest" or not passive_offers.is_empty() or not active_event_offer.is_empty():
+		return
+	_start_defense_wave()
+
+func _start_defense_wave() -> void:
+	phase = "spawn"
+	wave_preview = false
+	wave_elapsed = 0.0
+	siege_alert_active = false
+	siege_active = false
+	spawn_queue = wave_packets(wave_pattern())
 	if stage_gimmicks != null:
 		stage_gimmicks.on_wave_started(cycle)
+	if is_instance_valid(hud):
+		hud.refresh_context()
 func wave_packets(pattern: Dictionary) -> Array:
-	return base_wave_packets(pattern)
-
-func base_wave_packets(pattern: Dictionary) -> Array:
-	var packets: Array=[]
-	var pool: Array=pattern.get("route_pool",[])
-	if pattern.has("schedule"):
-		for group in pattern.schedule:
-			var grp_kind := str(group[0])
-			var grp_cnt := int(group[1])
-			var is_fodder := grp_cnt >= 10 and grp_kind in ["pigsoldier", "rottooth_hyena", "murloc_hunter", "tide_rider", "water_sprite", "void_eyeling", "fox"]
-			for unit in range(grp_cnt):
-				var s_route := int(group[3])
-				if level_id == "ruins" and not breach_open and s_route == 2:
-					s_route = unit % 2
-				if level_id == "sanctum" and (cycle < 3 or (stage_gimmicks != null and stage_gimmicks.is_rift_suppressed())) and s_route == 3:
-					s_route = unit % 3
-				packets.append({"kind":grp_kind,"route":s_route,"elite":unit>=grp_cnt-int(group[2]),"at":float(group[4])+unit*float(group[5]),"swarm_fodder":is_fodder})
-	else:
-		_append_standard_packets(pattern,pool,packets)
-	# Subtle seeded bonus skirmishers per run for fresh defense wave texture (deterministic per run_seed+cycle)
-	if defense_rules and not feel_lab and not tower_lab and not routes.is_empty():
-		var var_pool: Array = level_definition.get("pool", [])
-		if not var_pool.is_empty():
-			var tier_pool: Array = var_pool[mini(cycle - 1, var_pool.size() - 1)]
-			if not tier_pool.is_empty():
-				var w_rng := RandomNumberGenerator.new()
-				var s_val := rift_domain.run_seed if rift_domain != null else 1
-				w_rng.seed = int(hash(str(s_val) + "|" + level_id + "|" + str(cycle)))
-				var extra_n := w_rng.randi_range(2, 4)
-				for k in range(extra_n):
-					var ek := str(tier_pool[w_rng.randi_range(0, tier_pool.size() - 1)])
-					var er := w_rng.randi_range(0, routes.size() - 1)
-					if level_id == "ruins" and not breach_open and er == 2:
-						er = k % 2
-					if level_id == "sanctum" and cycle < 3 and er == 3:
-						er = k % 3
-					packets.append({"kind": ek, "route": er, "elite": false, "at": siege_start_at + w_rng.randf_range(4.0, 22.0), "swarm_fodder": true})
-	for serial in packets.size(): packets[serial].serial=serial
-	packets.sort_custom(func(a,b):return a.at<b.at or (a.at==b.at and a.serial<b.serial))
-	return packets
-
-func _append_standard_packets(pattern: Dictionary,pool: Array,packets: Array) -> void:
-	var index:=0
-	for group in pattern.units:
-		var amount:=int(group[1]);var elite_count:=int(group[2]) if group.size()>2 else 0
-		for unit in range(amount):
-			var lane:=0
-			if not pool.is_empty():
-				lane=int(pool[index%pool.size()])
-				if level_id=="ruins" and not breach_open and lane==2:lane=index%2
-				if level_id=="sanctum" and (cycle<3 or (stage_gimmicks!=null and stage_gimmicks.is_rift_suppressed())) and lane==3:lane=index%3
-			elif routes.size()>1:
-				lane=index%2 if pattern.lead<0 else (int(pattern.lead) if index%4<3 else 1-int(pattern.lead))
-			lane=clampi(lane,0,maxi(0,routes.size()-1))
-			var at: float=index*(0.68 if cycle<4 else 0.5)
-			if level_id=="creek" and lane==1:
-				if cycle==1: at+=4.5
-			packets.append({"kind":group[0],"route":lane,"elite":unit>=amount-elite_count,"at":at});index+=1
-	if bool(level_definition.boss) and not bool(level_definition.get("boss_in_wave",false)) and cycle==total_waves():
-		var boss_at := 88.5
-		packets.append({"kind":str(level_definition.get("boss_kind","moth")),"route":0,"elite":false,"at":boss_at})
+	var closed_route := -1
+	if level_id == "ruins" and not breach_open:
+		closed_route = 2
+	elif level_id == "sanctum" and (cycle < 3 or (stage_gimmicks != null and stage_gimmicks.is_rift_suppressed())):
+		closed_route = 3
+	var seed_for_reinforcements: Variant = null
+	if defense_rules:
+		seed_for_reinforcements = rift_domain.run_seed if rift_domain != null else 1
+	return ArenaLevelCatalog.plan_wave(pattern, level_definition, cycle, closed_route, seed_for_reinforcements, siege_start_at)
 
 func wave_pattern() -> Dictionary:
 	var authored:=ArenaLevelCatalog.wave(level_id,cycle)
@@ -847,18 +796,54 @@ func trial_tower_targets(tower: ArenaTower) -> Array[ArenaEnemy]:
 func trial_tower_can_hit(enemy: ArenaEnemy) -> bool:
 	return is_instance_valid(enemy) and not enemy.dead
 
+func _unregister_enemy(enemy: ArenaEnemy) -> bool:
+	if not is_instance_valid(enemy):
+		return false
+	var index := enemies.find(enemy)
+	if index < 0:
+		return false
+	enemy.dead = true
+	blocking.release_enemy(enemy)
+	enemies.remove_at(index)
+	enemy_revision += 1
+	return true
+
 func remove_enemy(enemy: ArenaEnemy) -> void:
-	enemy.dead=true;blocking.release_enemy(enemy);enemies.erase(enemy);prisms.erase(enemy);enemy_revision+=1;enemy.queue_free()
-func enemy_defeated(enemy: ArenaEnemy) -> void:
-	blocking.release_enemy(enemy);enemies.erase(enemy);prisms.erase(enemy);enemy_revision+=1
-	if not enemy.is_rift_mob and bool(level_definition.boss) and enemy.kind==str(level_definition.get("boss_kind","moth")) and (enemy.is_boss() or (enemy.has_method("is_mini_boss") and enemy.is_mini_boss())):
-		boss_defeated=true
+	if _unregister_enemy(enemy):
+		enemy.queue_free()
+
+func _is_required_boss(enemy: ArenaEnemy) -> bool:
+	if enemy.domain != "defense" or enemy.is_guard or not bool(level_definition.boss):
+		return false
+	return enemy.kind == str(level_definition.get("boss_kind", "moth")) and (enemy.is_boss() or enemy.is_mini_boss())
+
+func enemy_escaped(enemy: ArenaEnemy) -> void:
+	if not _unregister_enemy(enemy):
+		return
+	var required := _is_required_boss(enemy)
+	if required:
+		required_boss_escaped = true
+	var leak_damage := int(core_max) if enemy.is_boss() else ArenaDefinitions.leak_damage(enemy.kind, enemy.elite)
+	if not enemy.is_boss() and enemy.is_swarm_fodder:
+		leak_damage = maxi(6, int(round(float(leak_damage) * 0.75)))
+	if event_bus != null:
+		event_bus.emit_event("enemy_escaped", {"kind": enemy.kind, "wave": cycle, "health": enemy.health, "max_health": enemy.max_health, "required": required})
+	core_hit(leak_damage)
+	enemy.queue_free()
+
+func enemy_defeated(enemy: ArenaEnemy, source := "", direct := false, void_followup := false) -> void:
+	if not _unregister_enemy(enemy):
+		return
+	if _is_required_boss(enemy):
+		boss_defeated = true
 	kills+=1
-	wave_kills+=1
 	var was_ctrl := float(enemy.slow)>0.0 or float(enemy.stun)>0.0 or float(enemy.marked)>0.0 or float(enemy.tower_control_clock)>0.0 or int(enemy.tower_frost_layers)>0
 	var v_cursed := int(enemy.get_meta("void_cursed", 0))
 	if event_bus != null:
-		event_bus.emit_event("enemy_killed", {"enemy": enemy, "position": enemy.position, "domain": enemy.domain, "was_controlled": was_ctrl, "void_cursed": v_cursed})
+		event_bus.emit_event("enemy_killed", {
+			"enemy": enemy, "position": enemy.position, "domain": enemy.domain, "was_controlled": was_ctrl,
+			"void_cursed": v_cursed, "source": source, "direct": direct, "void_followup": void_followup
+		})
 	if enemy.is_rift_mob:
 		if rift_domain != null:
 			rift_domain.on_rift_mob_killed(enemy)
@@ -866,16 +851,20 @@ func enemy_defeated(enemy: ArenaEnemy) -> void:
 			var g_mult := relic_engine.gold_xp_mult()
 			if enemy.is_bounty_elite:
 				for i in range(2):
-					spawn_pickup(enemy.position, "rift", "violet", int(round(36.0 * g_mult)), 0)
-				spawn_pickup(enemy.position, "rift", "gold_core", int(round(58.0 * g_mult)), 0)
-				spawn_pickup(enemy.position, "rift", "bounty_bag", int(round(28.0 * g_mult)), int(round(48.0 * g_mult)))
+					spawn_pickup(enemy.position, "rift", "violet", 36, 0)
+				spawn_pickup(enemy.position, "rift", "gold_core", 58, 0)
+				spawn_pickup(enemy.position, "rift", "bounty_bag", 28, int(round(16.0 * g_mult)))
 			elif enemy.elite:
-				spawn_pickup(enemy.position, "rift", "violet", int(round(30.0 * g_mult)), int(round(5.0 * g_mult)))
+				spawn_pickup(enemy.position, "rift", "violet", 30, int(round(2.0 * g_mult)))
 			else:
-				spawn_pickup(enemy.position, "rift", "cyan", int(round(12.0 * g_mult)), int(round(2.0 * g_mult)))
+				spawn_pickup(enemy.position, "rift", "cyan", 12)
 	else:
 		var base_g := float(enemy.data.gold) * (0.62 if enemy.is_swarm_fodder else 1.0) * relic_engine.gold_xp_mult()
-		gold += maxi(5, int(round(base_g)))
+		var bounty_floor := 5
+		if defense_rules:
+			base_g *= DEFENSE_BOUNTY_SCALE[clampi(cycle - 1, 0, DEFENSE_BOUNTY_SCALE.size() - 1)]
+			bounty_floor = 1
+		gain_gold(maxi(bounty_floor, int(round(base_g))), "defense_bounty")
 		if not feel_lab and not tower_lab:
 			gain_run_xp(float(enemy.data.get("xp", 10)) * 0.10, enemy.position)
 	if not enemy.is_rift_mob and enemy.kind=="twilight_avenger":
@@ -893,9 +882,6 @@ func enemy_defeated(enemy: ArenaEnemy) -> void:
 		delayed_attack(enemy.position,92.0,40.0*enemy.damage_scale(),1,"enemy",0.25,{"telegraph":"crystal_spikes","hits_soldiers":true,"debuff":{"kind":"stun","duration":0.80},"fx_kind":"slam","fx_color":Color("cb74ff"),"domain":"defense"})
 	if not enemy.is_rift_mob and stage_gimmicks!=null:
 		stage_gimmicks.on_enemy_killed(enemy)
-	var killer:=enemy.last_tower as ArenaTower
-	if is_instance_valid(killer) and not killer.destroyed and killer.doc_mod("explode_radius")>0.0:
-		area_damage(enemy.position,killer.doc_mod("explode_radius"),killer.base_power()*killer.doc_mod("explode_mult",1.0),int(killer.data.type),"tower",0.0,0.0,0.0,0.0,"attack",true,{"domain":"defense"})
 	if kind_has_visual(enemy):
 		var ghost: ArenaCreature=enemy.visual;ghost.reparent(actors,true);ghost.show_pose("down",enemy.facing);corpses.append({"node":ghost,"life":0.65})
 	if level_id in ["ruins","sanctum"]:
@@ -949,16 +935,19 @@ func try_exit_ward_teleport(enemy: ArenaEnemy, road: Curve2D) -> bool:
 	return true
 
 func core_hit(amount: float) -> void:
-	if game_over:return
+	if game_over or amount <= 0.0:
+		return
 	var absorbed := minf(core_shield, amount)
 	core_shield -= absorbed
 	var remaining := amount - absorbed
 	if remaining > 0.0:
 		core_health=maxf(0,core_health-remaining)
-	audio.play("hurt");shake=2.5
+	audio.play("hurt")
+	if active_domain == "defense":
+		shake=2.5
+		if feel.enabled:feel.trauma=minf(1.0,feel.trauma+0.65)
 	if rift_domain != null:
 		rift_domain.note_core_hit()
-	if feel.enabled:feel.trauma=minf(1.0,feel.trauma+0.65)
 	if core_health<=0:finish(false)
 func fire_projectile(origin: Vector2,target: Vector2,amount: float,kind: int,source: String,options: Dictionary={}) -> ArenaProjectile:
 	var shot:=ArenaProjectile.new();shot.game=self;shot.position=origin;shot.direction=(target-origin).normalized();shot.damage=amount;shot.damage_type=kind;shot.source=source
@@ -995,8 +984,9 @@ func area_damage(point: Vector2,radius: float,amount: float,kind: int,source: St
 	if dom == "rift" and source == "hero" and attack != "crystal_barrel" and rift_domain != null:
 		rift_domain.damage_barrels_in_radius(point, radius, amount, dom)
 	var ground_only := (not hits_flying) or (attack in ["shell","cannon","burn_tick","werewolf_transform"])
+	var excluded := int(condition_hit.get("exclude_target",0))
 	for enemy in domain_enemies(dom):
-		if is_instance_valid(enemy) and not enemy.dead and (not ground_only or not (enemy.has_method("is_flying") and enemy.is_flying())) and enemy.position.distance_to(point)<=radius:
+		if is_instance_valid(enemy) and not enemy.dead and (excluded == 0 or enemy.get_instance_id() != excluded) and (not ground_only or not (enemy.has_method("is_flying") and enemy.is_flying())) and enemy.position.distance_to(point)<=radius:
 			enemy.take_hit(amount,kind,source,stagger,chill,pen,attack,point.direction_to(enemy.position),Vector2.INF,condition_hit)
 			if knockback>0:enemy.push_back(knockback)
 func delayed_attack(point: Vector2,radius: float,amount: float,kind: int,source: String,delay: float,options: Dictionary={}) -> void:
@@ -1021,7 +1011,9 @@ func retry_settlement() -> void:
 func restart_run() -> void:
 	if feel_lab:
 		get_tree().paused=false;hud.close_modal();lab.reset_targets();return
-	get_tree().paused=false;get_tree().set_meta("restart_hero",hero.class_id);get_tree().set_meta("restart_level",level_id);get_tree().set_meta("restart_towers",run_towers.duplicate());get_tree().reload_current_scene()
+	get_tree().paused=false;get_tree().set_meta("restart_hero",hero.class_id);get_tree().set_meta("restart_level",level_id);get_tree().set_meta("restart_towers",run_towers.duplicate())
+	get_tree().set_meta("restart_tower_doctrines",run_tower_doctrines.duplicate())
+	get_tree().reload_current_scene()
 func return_to_menu() -> void:
 	if feel_lab:get_tree().set_meta("feel_lab_consumed",true)
 	feel.clear(self)
@@ -1031,8 +1023,10 @@ func open_hero_hall() -> void:
 	feel.clear(self)
 	get_tree().paused=false;get_tree().set_meta("open_hero_hall",hero.class_id);get_tree().reload_current_scene()
 func mouse_world() -> Vector2:return get_viewport().get_canvas_transform().affine_inverse()*get_viewport().get_mouse_position()
+func portal_transition_active() -> bool:
+	return rift_domain != null and not rift_domain.warp_phase.is_empty()
 func input_blocked() -> bool:
-	if hud.has_modal() or selected_site>=0 or targeting_slot>=0 or rally_site>=0:return true
+	if portal_transition_active() or hud.has_modal() or selected_site>=0 or targeting_slot>=0 or rally_site>=0:return true
 	var hovered: Control=get_viewport().gui_get_hovered_control()
 	return hovered!=null and hud.root.is_ancestor_of(hovered) and hovered.mouse_filter!=Control.MOUSE_FILTER_IGNORE
 func skill_needs_target(slot: int) -> bool:
@@ -1040,8 +1034,18 @@ func skill_needs_target(slot: int) -> bool:
 	if slot==0:return hero.class_id in ["lord","druid"]
 	return false
 func request_skill(slot: int, from_hotkey := false) -> void:
-	if slot not in [0,1] or not hero.skill_unlocked(slot) or hero.knocked_out or hero.cooldowns[slot]>0:return
+	if not running or game_over or not is_instance_valid(hero) or slot not in [0,1] or hud.has_modal() or portal_transition_active():return
+	if not hero.skill_unlocked(slot):
+		if from_hotkey:hud.show_order_notice("英雄养成至 %d 级解锁此技能" % ArenaDefinitions.SKILL_UNLOCK_LEVELS[slot])
+		return
+	if hero.knocked_out or hero.debuff_stun_clock>0.0 or hero.cooldowns[slot]>0.0:
+		if from_hotkey:
+			var reason := "英雄倒下，等待复活" if hero.knocked_out else ("眩晕期间无法施放" if hero.debuff_stun_clock>0.0 else "技能冷却中 · %d 秒" % ceili(hero.cooldowns[slot]))
+			hud.show_order_notice(reason)
+		return
 	hud.close_context()
+	hud.order_notice_left = 0.0
+	rally_site = -1
 	if skill_needs_target(slot):
 		if from_hotkey and targeting_slot==slot:
 			if hero.cast(slot,mouse_world()):targeting_slot=-1
@@ -1052,14 +1056,16 @@ func request_skill(slot: int, from_hotkey := false) -> void:
 		hero.cast(slot,mouse_world() if from_hotkey else hero.position+hero.facing*120)
 		queue_redraw()
 func _input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.button_index==MOUSE_BUTTON_LEFT and not event.pressed:
-		suppress_primary=false;mouse_shoot_held=false
+	if event is InputEventMouseButton and event.button_index==MOUSE_BUTTON_LEFT:
+		# A held press starts blocked. Only the world input handler can arm a battle click.
+		suppress_primary=event.pressed
+		mouse_shoot_held=false
 	if wave_preview and event is InputEventMouseButton and event.pressed:
 		if not hud.wave_button.get_global_rect().has_point(event.position) and not hud.preview.get_global_rect().has_point(event.position):
 			wave_preview=false
 func _unhandled_input(event: InputEvent) -> void:
 	if not started or game_over or get_tree().paused:return
-	if rift_domain != null and rift_domain.warp_phase != "":return
+	if portal_transition_active():return
 	if event is InputEventKey and event.pressed and not event.echo:
 		var dodge_k := campaign.keybind("dodge") if campaign != null else KEY_V
 		var recall_k := campaign.keybind("recall") if campaign != null else KEY_R
@@ -1071,17 +1077,13 @@ func _unhandled_input(event: InputEvent) -> void:
 			if rift_domain != null and active_domain == "rift":rift_domain.recall_to_defense()
 			return
 		if event.keycode == portal_k:
-			if rift_domain != null:
-				if active_domain == "defense": rift_domain.enter_rift()
-				else: rift_domain.recall_to_defense()
+			toggle_domain()
 			return
 		match event.keycode:
 			KEY_TAB:
 				open_pending_passive_choice()
 			KEY_Q:request_skill(0,true)
 			KEY_E:request_skill(1,true)
-			KEY_B:
-				if active_domain == "defense":charge_core_aegis()
 			KEY_G:
 				if can_manage_defense() and active_domain == "defense":
 					if not bridge_gate_config.is_empty():trigger_bridge_gate()
@@ -1091,17 +1093,21 @@ func _unhandled_input(event: InputEvent) -> void:
 				elif active_domain == "rift" and rift_domain != null and rift_domain.can_descend_now():
 					rift_domain.descend_next_floor()
 			KEY_ESCAPE:
-				if targeting_slot>=0 or rally_site>=0:targeting_slot=-1;rally_site=-1;queue_redraw()
+				if targeting_slot>=0 or rally_site>=0:targeting_slot=-1;rally_site=-1;hud.order_notice_left=0.0;queue_redraw()
 				elif selected_site>=0:hud.close_context()
+				elif wave_preview:wave_preview=false;queue_redraw()
 				else:hud.show_pause()
 		return
 	if not (event is InputEventMouseButton and event.pressed):return
 	var clicked: Vector2=get_viewport().get_canvas_transform().affine_inverse()*event.position
 	if event.button_index==MOUSE_BUTTON_RIGHT:
 		if targeting_slot>=0 or rally_site>=0 or selected_site>=0:
-			targeting_slot=-1;rally_site=-1;hud.close_context();queue_redraw()
+			targeting_slot=-1;rally_site=-1;hud.order_notice_left=0.0;hud.close_context();queue_redraw()
 		else:
-			hero.command_move(clicked)
+			if hero.command_move(clicked):
+				effect(hero.path[-1],16.0,Color("8fe0d0"),"order_confirm",0.34)
+			else:
+				effect(clicked,13.0,Color("f3a18e"),"order_rejected",0.34)
 	elif event.button_index==MOUSE_BUTTON_LEFT:
 		if targeting_slot>=0:
 			if hero.cast(targeting_slot,clicked):targeting_slot=-1
@@ -1110,10 +1116,16 @@ func _unhandled_input(event: InputEvent) -> void:
 		if active_domain == "defense":
 			if rally_site>=0:
 				var tower:=site_tower(rally_site)
-				if tower==null:
+				if tower==null or tower.is_sealed() or tower.project_level==1:
 					rally_site=-1
+					hud.show_order_notice("此塔暂时无法接受指令")
 				elif (tower.set_bombard(clicked) if tower.can_set_bombard() else tower.set_rally(clicked)):
 					rally_site=-1
+					hud.order_notice_left=0.0
+					effect(tower.bombard_point if tower.can_set_bombard() else tower.rally_point,19.0,Color("f2dd9c"),"order_confirm",0.43)
+				else:
+					effect(clicked,13.0,Color("f3a18e"),"order_rejected",0.34)
+					hud.show_order_notice("此处无法部署 · 请选择高亮范围内的有效位置")
 				suppress_primary=true;mouse_shoot_held=false;queue_redraw();return
 			for index in range(level_definition.sites.size()):
 				if clicked.distance_to(level_definition.sites[index])<42:
@@ -1122,19 +1134,18 @@ func _unhandled_input(event: InputEvent) -> void:
 				trigger_bridge_gate();suppress_primary=true;mouse_shoot_held=false;return
 			if stage_gimmicks!=null and stage_gimmicks.try_click(clicked):
 				suppress_primary=true;mouse_shoot_held=false;return
-		elif active_domain == "rift" and rift_domain != null and rift_domain.descent_gate_active and clicked.distance_to(rift_domain.descent_gate_pos) < 58.0 and is_instance_valid(hero) and hero.position.distance_to(rift_domain.descent_gate_pos) < 110.0:
+		elif active_domain == "rift" and rift_domain != null and rift_domain.can_descend_now() and clicked.distance_to(rift_domain.descent_gate_pos) < 58.0:
 			if rift_domain.descend_next_floor():
 				suppress_primary=true;mouse_shoot_held=false;return
 		if selected_site>=0:
 			hud.close_context();suppress_primary=true;mouse_shoot_held=false;return
-		mouse_shoot_held=true
+		suppress_primary=false;mouse_shoot_held=true
 		if is_instance_valid(hero) and not hero.knocked_out:
 			hero.queued_attack_point=clicked
 func _physics_process(delta: float) -> void:
 	if not running or game_over:return
 	elapsed+=delta
 	core_overdrive_clock=maxf(0.0,core_overdrive_clock-delta)
-	core_aegis_cd=maxf(0.0,core_aegis_cd-delta)
 	exit_ward_flash=maxf(0.0,exit_ward_flash-delta)
 	if phase!="rest" and exit_ward_cd>0.0:
 		exit_ward_cd=maxf(0.0,exit_ward_cd-delta)
@@ -1143,33 +1154,12 @@ func _physics_process(delta: float) -> void:
 	_tick_stage3_systems(delta)
 	if siege!=null:siege.tick(delta)
 	if not feel_lab:
-		if phase=="rest":
-			phase_clock=maxf(0.0,phase_clock-delta)
-			if phase_clock<=0:begin_wave()
-		else:
-			wave_elapsed+=delta
-			if not tower_lab:
-				siege_alert_active = wave_elapsed >= siege_alert_at and wave_elapsed < siege_start_at
-				siege_active = wave_elapsed >= siege_start_at
-				if siege_alert_active and not _siege_warned:
-					_siege_warned = true
-					event_bus.emit_event("siege_warning", {"wave": cycle})
-			while not spawn_queue.is_empty() and float(spawn_queue[0].at)<=wave_elapsed:
-				var packet: Dictionary=spawn_queue.pop_front()
-				var unit := spawn_enemy(packet.kind,packet.route,0,packet.elite,bool(packet.get("swarm_fodder",false)))
-				unit.rule_main=true
-			if spawn_queue.is_empty():
-				var live:=0
-				for enemy in domain_enemies("defense"):
-					if is_instance_valid(enemy) and not enemy.dead and not enemy.is_guard:live+=1
-				var final_wave := cycle>=total_waves()
-				if live==0 and (not final_wave or not defense_rules or not bool(level_definition.boss) or boss_defeated):
-					var summary: Dictionary={"wave":cycle,"time":snappedf(elapsed-wave_started_at,0.1),"kills":wave_kills,"core":core_health,"gold":gold}
-					wave_log.append(summary)
-					if final_wave:
-						finish(true)
-						return
-					cycle+=1;start_rest(15)
+		_tick_defense_wave(delta)
+		if game_over:
+			return
+	if not tower_lab and can_change_towers():
+		for tower: ArenaTower in towers:
+			tower.upgrade()
 	if rift_domain!=null:rift_domain.tick(delta)
 	var finished: Array=[]
 	for attack in delayed:
@@ -1217,12 +1207,7 @@ func _physics_process(delta: float) -> void:
 				var c_doc := str(attack.options.get("doctrine_id",""))
 				var blast_col := Color("ff5c28") if c_doc=="burning" else (Color("ffd058") if c_doc=="siege" else Color("ff8c38"))
 				effect(attack.point,attack.radius,blast_col,"cannon_blast",0.72,Vector2.RIGHT,{"doctrine":c_doc,"tier":int(attack.options.get("cannon_tier",1))})
-				effect(attack.point,attack.radius*0.75,Color("d8bd8e"),"slam",0.32)
-				for d_i in range(4):
-					var da := float(d_i) * (TAU / 4.0) + 0.4
-					var dv := Vector2(cos(da) * 38.0, sin(da) * 18.0 - 14.0)
-					ArenaBattleArt.emit_world_dust(attack.point + Vector2(cos(da) * 12.0, sin(da) * 6.0), dv, 26.0, Color("b7a78e"))
-				if feel.enabled:
+				if feel.enabled and active_domain=="defense":
 					feel.trauma = minf(1.0, feel.trauma + (0.36 if c_doc=="siege" else 0.28))
 			else:
 				var fx_kind := str(attack.options.get("fx_kind","blast"))
@@ -1246,6 +1231,35 @@ func _physics_process(delta: float) -> void:
 				area_damage(zone.point,zone.radius,float(zone.dps)*0.25,zone.type,zone.source,0.0,0.0,0.0,0.0,"burn_tick",true,{"domain":str(zone.get("domain","defense")),"passive_proc":true})
 	zones=zones.filter(func(zone):return float(zone.life)>0)
 
+func _tick_defense_wave(delta: float) -> void:
+	if phase == "rest":
+		phase_clock = maxf(0.0, phase_clock - delta)
+		if phase_clock <= 0.0:
+			begin_wave()
+		return
+
+	wave_elapsed += delta
+	if not tower_lab:
+		siege_alert_active = wave_elapsed >= siege_alert_at and wave_elapsed < siege_start_at
+		siege_active = wave_elapsed >= siege_start_at
+	while not spawn_queue.is_empty() and float(spawn_queue[0].at) <= wave_elapsed:
+		var packet: Dictionary = spawn_queue.pop_front()
+		spawn_enemy(packet.kind, packet.route, 0, packet.elite, bool(packet.get("swarm_fodder", false)))
+	if not spawn_queue.is_empty():
+		return
+	for enemy in enemies:
+		if is_instance_valid(enemy) and not enemy.dead and not enemy.is_guard and enemy.domain == "defense":
+			return
+
+	if cycle < total_waves():
+		cycle += 1
+		start_rest(15)
+	elif not defense_rules or not bool(level_definition.boss) or boss_defeated:
+		finish(true)
+	elif required_boss_escaped:
+		# The last chance to defeat the required boss has passed.
+		core_hit(core_health + core_shield)
+
 func resolve_trial_shell(attack: Dictionary) -> int:
 	var options: Dictionary=attack.options
 	var struck:=0
@@ -1254,8 +1268,8 @@ func resolve_trial_shell(attack: Dictionary) -> int:
 		if not trial_tower_can_hit(enemy) or enemy.is_flying() or (focused!=0 and enemy.get_instance_id()!=focused): continue
 		var distance:=enemy.position.distance_to(attack.point)
 		if distance>float(attack.radius): continue
-		var damage:=float(attack.damage)*lerpf(1.0,0.5,distance/float(attack.radius))
-		if is_instance_valid(options.get("tower")): enemy.last_tower=options.tower
+		var edge_power: float = options.get("shell_edge_power",0.5)
+		var damage:=float(attack.damage)*lerpf(1.0,edge_power,distance/float(attack.radius))
 		enemy.take_hit(damage,ArenaCombat.Type.PHYSICAL,"tower",0.0,0.0,float(options.pen),"cannon",attack.point.direction_to(enemy.position),Vector2.INF,options.get("condition_hit",{}))
 		if not enemy.dead and float(options.get("knockback",0.0))>0.0: enemy.push_back(options.knockback)
 		struck+=1
@@ -1431,10 +1445,13 @@ func _draw() -> void:
 				var point:=road.sample_baked(offset,true);var direction:=(road.sample_baked(offset+5,true)-point).normalized()
 				draw_polyline(PackedVector2Array([point-direction.rotated(0.6)*11,point,point-direction.rotated(-0.6)*11]),(preview_col if level_id in [ArenaSaltport.ID,"lighthouse"] else Color("edcf90")),2.5,true)
 	_draw_stage3_overlays()
-	if level_id in [ArenaSaltport.ID,"lighthouse","ruins","sanctum"] and selected_site>=0 and hud.context.visible and not hud.preview_tower.is_empty() and site_tower(selected_site)==null:
+	if selected_site>=0 and hud.context.visible and not hud.preview_tower.is_empty() and site_tower(selected_site)==null:
 		var key: String=hud.preview_tower
 		var center: Vector2=level_definition.sites[selected_site]
-		var reach: float=145.0 if key=="barracks" else float(tower_display_data(key).reach)
+		var traits: Array = level_definition.get("site_traits",[])
+		var highground: bool = selected_site < traits.size() and traits[selected_site] == "highground"
+		var base_reach := ArenaTowerTrial.stat(key,"reach",1) if tower_lab else ArenaTower.field_range(tower_display_data(key),1)
+		var reach: float = base_reach * (1.18 if highground else 1.0)
 		var tint: Color=ArenaDefinitions.TOWERS[key].colour
 		draw_circle(center,reach,Color(tint,0.13))
 		draw_arc(center,reach,0,TAU,72,Color(tint,0.9),2.4,true)
@@ -1454,9 +1471,10 @@ func _draw() -> void:
 					if tower_lab or defense_rules: draw_arc(point,tower.trial_shell_core(),0,TAU,38,t_col,1.25,true)
 				draw_arc(tower.position,tower.ground_order_range(),0,TAU,56,Color(t_col,0.27),1.25,true)
 		if targeting_slot==0 and is_instance_valid(hero) and hero.class_id=="lord":
+			point=hero.skill_target(point)
 			var dir:=(point-hero.position).normalized() if point.distance_to(hero.position)>5.0 else hero.facing
 			var ang:=dir.angle()
-			var cone_r:=130.0
+			var cone_r:=hero.lord_slash_range()
 			var span:=acos(0.3)
 			var poly:=PackedVector2Array([hero.position])
 			for step in range(21):
@@ -1467,14 +1485,11 @@ func _draw() -> void:
 			draw_line(hero.position,hero.position+Vector2.from_angle(ang-span)*cone_r,Color("f4687a"),2.0,true)
 			draw_line(hero.position,hero.position+Vector2.from_angle(ang+span)*cone_r,Color("f4687a"),2.0,true)
 		elif targeting_slot==0 and is_instance_valid(hero) and hero.class_id=="druid":
-			var max_cast:=430.0
-			draw_arc(hero.position,max_cast,0,TAU,64,Color(0.60,0.92,0.62,0.26),1.6,true)
-			var rel:=point-hero.position
-			var clamped_pt:=(hero.position+rel.normalized()*max_cast) if rel.length()>max_cast else point
-			clamped_pt=clamped_pt.clamp(Vector2(0,90),world_size())
+			draw_arc(hero.position,ArenaHero.SKILL_TARGET_RANGE,0,TAU,64,Color(0.60,0.92,0.62,0.26),1.6,true)
+			var clamped_pt:=hero.skill_target(point)
 			var aoe_col:=Color("86e88e")
-			draw_circle(clamped_pt,62.0,Color(aoe_col.r,aoe_col.g,aoe_col.b,0.16))
-			draw_arc(clamped_pt,62.0,0,TAU,36,aoe_col,2.4,true)
+			draw_circle(clamped_pt,ArenaHero.DRUID_ORDER_RADIUS,Color(aoe_col.r,aoe_col.g,aoe_col.b,0.12))
+			draw_arc(clamped_pt,ArenaHero.DRUID_ORDER_RADIUS,0,TAU,48,aoe_col,2.0,true)
 			draw_line(clamped_pt+Vector2(-10,0),clamped_pt+Vector2(10,0),aoe_col,2.0,true)
 			draw_line(clamped_pt+Vector2(0,-10),clamped_pt+Vector2(0,10),aoe_col,2.0,true)
 		else:
@@ -1487,12 +1502,6 @@ func nearest_unhit_enemy(point: Vector2,distance: float,exclude_ids: Dictionary,
 		var d2: float=point.distance_squared_to(enemy.center())
 		if d2<best_d2:best_d2=d2;best=enemy
 	return best
-func prism_ward_reduction(point: Vector2) -> float:
-	if prisms.is_empty():return 0.0
-	for enemy in prisms:
-		if is_instance_valid(enemy) and not enemy.dead and enemy.center().distance_squared_to(point)<=18225.0:
-			return 0.12
-	return 0.0
 func enemy_road(enemy: ArenaEnemy) -> Curve2D:
 	# Each enemy commits exactly once at the shared fork. Never remap live positions.
 	if enemy.road_curve!=null:return enemy.road_curve
@@ -1564,6 +1573,10 @@ func _draw_stage3_overlays() -> void:
 		draw_rect(Rect2(bar_p, Vector2(48.0 * b_frac, 4.0)), Color("7fe8ff"))
 func _notification(what: int) -> void:
 	if what==NOTIFICATION_WM_CLOSE_REQUEST:quit_game()
+	elif what==NOTIFICATION_WM_WINDOW_FOCUS_OUT:
+		mouse_shoot_held=false
+		suppress_primary=true
+		if is_instance_valid(hero):hero.queued_attack_point=Vector2.INF
 func quit_game() -> void:
 	if quitting:return
 	quitting=true;get_tree().paused=false;running=false;audio.shutdown()
@@ -1581,6 +1594,4 @@ func timed_tower_work() -> bool:
 	return defense_rules or tower_lab
 func hero_move_bounds() -> Rect2:
 	return Rect2(Vector2(15,95),world_size()-Vector2(30,115))
-func hero_aim_bounds() -> Rect2:
-	return Rect2(Vector2(0,90),world_size()-Vector2(0,90))
 func world_to_hud(point: Vector2) -> Vector2:return get_viewport().get_canvas_transform()*point

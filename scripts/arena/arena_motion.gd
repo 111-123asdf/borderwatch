@@ -28,12 +28,5 @@ static func holds(identity: String,state: String,polished:=true) -> Array:
 		result.append(weight);total+=weight
 	for index in range(count):result[index]=float(result[index])*count/total
 	return result
-static func release_frame(state: String,identity: String="knight") -> int:
-	return 6 if state=="ultimate" or (state=="attack" and identity=="ranger") else 5
-static func release_fraction(identity: String,state: String,polished:=true) -> float:
-	var weights:=holds(identity,state,polished)
-	var elapsed:=0.0
-	for index in range(release_frame(state,identity)):elapsed+=float(weights[index])
-	return elapsed/float(weights.size())
 static func stride_scale(speed: float,height: float) -> float:
 	return clampf(speed*0.6/(height*1.2),0.3,1.7)

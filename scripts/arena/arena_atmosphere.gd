@@ -221,10 +221,6 @@ func _reset_state() -> void:
 	_breach_flare = 0.0
 
 
-func _is_headless() -> bool:
-	return DisplayServer.get_name() == "headless"
-
-
 func _is_reduced_motion() -> bool:
 	if game == null or not is_instance_valid(game):
 		return false

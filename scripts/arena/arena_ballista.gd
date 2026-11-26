@@ -154,22 +154,3 @@ func _draw_archer_unit(world_offset: Vector2, aim_dir: Vector2, tension: float, 
 		draw_line(grip + Vector2(2, 7 * rel), grip + Vector2(12 * rel, 0), Color(1.0, 0.95, 0.72, flash_a), 2.2, true)
 
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-
-static func draw_bolt(canvas: CanvasItem) -> void:
-	# High-contrast hand-painted arrow with dark outline, warm timber shaft, ivory fletching, and gleaming steel broadhead
-	canvas.draw_line(Vector2(-15, 0), Vector2(10, 0), Color("241a18"), 4.2, true)
-	canvas.draw_line(Vector2(-14, -0.4), Vector2(9, -0.4), Color("d9a65c"), 2.0, true)
-	for side in [-1.0, 1.0]:
-		canvas.draw_colored_polygon(PackedVector2Array([
-			Vector2(-15, side * 3.8), Vector2(-9, side * 3.2), Vector2(-6, 0), Vector2(-12, 0)
-		]), Color("241a18"))
-		canvas.draw_line(Vector2(-14.2, side * 3.0), Vector2(-7.5, 0), Color("fff5d6"), 2.1, true)
-	canvas.draw_colored_polygon(PackedVector2Array([
-		Vector2(15, 0), Vector2(5, -4.0), Vector2(7, 0), Vector2(5, 4.0)
-	]), Color("262228"))
-	canvas.draw_colored_polygon(PackedVector2Array([
-		Vector2(14, 0), Vector2(6, -2.8), Vector2(7.8, 0), Vector2(6, 2.8)
-	]), Color("dce8f2"))
-	canvas.draw_colored_polygon(PackedVector2Array([
-		Vector2(14, -0.2), Vector2(6.5, -2.5), Vector2(8.5, 0.4)
-	]), Color("fff9d2"))

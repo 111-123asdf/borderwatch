@@ -1,9 +1,6 @@
 class_name ArenaBattleArt
 extends Node2D
-const FOOTPRINT:=Vector2(96,48)
 const HEIGHTS:={"archer":[110.0,137.0,163.0],"mage":[115.0,142.0,168.0],"cannon":[65.0,85.0,110.0],"barracks":[87.0,109.0,132.0]}
-const WIDTHS:={"archer":[0.72,0.74,0.87],"mage":[0.74,0.76,0.90],"cannon":[0.74,0.74,0.88],"barracks":[0.76,0.76,0.90]}
-const CONTACT:=[0.79,0.80,0.87]
 const V024_ROOT:="res://assets/towers_v024/"
 const V024_CELL:=256.0
 const V024_FOOT_FRAC:=236.0/256.0
@@ -203,51 +200,6 @@ func _site_trait(index: int) -> String:
 	if game==null or game.level_definition.is_empty():return ""
 	var traits: Array=game.level_definition.get("site_traits",[])
 	return str(traits[index]) if index>=0 and index<traits.size() else ""
-func _trait_color(trait_id: String) -> Color:
-	return {"highground":Color("f6c862"),"choke":Color("ee7b56"),"conduit":Color("6ce8ff")}.get(trait_id,Color("d8caa8"))
-func _draw_trait_frame(point: Vector2,trait_id: String,locked: bool,selected: bool,occupied: bool) -> void:
-	var tint:=_trait_color(trait_id)
-	var alpha: float=(0.45 if locked else (0.95 if selected else 0.85)) if not occupied else (0.85 if selected else 0.42)
-	var col:=Color(tint,alpha)
-	var dark:=Color(0.08,0.07,0.14,alpha*0.95)
-	var pulse:=0.72+0.28*sin(Time.get_ticks_msec()*0.005)
-	var box:=Rect2(Vector2(roundf(point.x-48.0),roundf(point.y-24.0)),Vector2(96.0,48.0))
-	var x0:=box.position.x;var y0:=box.position.y;var x1:=box.end.x;var y1:=box.end.y
-	# Stepped pixel-art corner rune brackets (crisp 2px grid blocks, no soft arcs).
-	for sign_x in [-1.0,1.0]:
-		for sign_y in [-1.0,1.0]:
-			var cx: float=x0 if sign_x<0 else x1
-			var cy: float=y0 if sign_y<0 else y1
-			var hx:=Rect2(cx+(0.0 if sign_x<0 else -12.0),cy+(0.0 if sign_y<0 else -2.0),12.0,2.0)
-			var vx:=Rect2(cx+(0.0 if sign_x<0 else -2.0),cy+(0.0 if sign_y<0 else -8.0),2.0,8.0)
-			draw_rect(hx.grow(1.0),dark)
-			draw_rect(vx.grow(1.0),dark)
-			draw_rect(hx,col)
-			draw_rect(vx,col)
-	if occupied:
-		return
-	# Trait-specific pixel motif on the frame edges.
-	if trait_id=="highground":
-		# Stepped battlement chevrons at top and bottom centers.
-		for dx in [-6.0,-4.0,-2.0,0.0,2.0,4.0]:
-			var dy: float=-absf(dx+1.0)*0.5
-			draw_rect(Rect2(point.x+dx-1.0,y0-3.0+dy,4.0,4.0),dark)
-			draw_rect(Rect2(point.x+dx,y0-2.0+dy,2.0,2.0),col)
-	elif trait_id=="choke":
-		# Fortified iron bastion ticks flanking left and right edges.
-		for side in [-1.0,1.0]:
-			var bx: float=x0-2.0 if side<0 else x1
-			draw_rect(Rect2(bx-1.0,point.y-7.0,4.0,14.0),dark)
-			draw_rect(Rect2(bx,point.y-6.0,2.0,4.0),col)
-			draw_rect(Rect2(bx,point.y+2.0,2.0,4.0),col)
-	elif trait_id=="conduit":
-		# Arcane leyline pulsing pixel nodes on the four cardinal sides.
-		var glow:=Color(Color("c692ff").lerp(tint,pulse),alpha)
-		for offset in [Vector2(-box.size.x*0.5,0),Vector2(box.size.x*0.5,0),Vector2(0,-box.size.y*0.5),Vector2(0,box.size.y*0.5)]:
-			var p: Vector2=point+Vector2(offset)
-			draw_rect(Rect2(roundf(p.x-3.0),roundf(p.y-3.0),6.0,6.0),dark)
-			draw_rect(Rect2(roundf(p.x-2.0),roundf(p.y-2.0),4.0,4.0),glow)
-	# Zero text on map plinths; ground-embedded stone geometry communicates traits.
 func _draw() -> void:
 	if not game.started:return
 	var is_ruins: bool=game.level_id in ["ruins","sanctum"]

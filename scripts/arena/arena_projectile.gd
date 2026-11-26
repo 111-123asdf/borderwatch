@@ -58,6 +58,10 @@ func _physics_process(delta: float) -> void:
 		var dist: float=aim_vec.length()
 		if dist>0.001:direction=aim_vec/dist
 		if pierce<=0 and dist<=step:step=dist
+	var cover := Vector2.INF
+	if domain == "rift" and game.rift_domain != null:
+		cover = game.rift_domain.projectile_cover(position,position+direction*step)
+		if cover.is_finite():step = position.distance_to(cover)
 	position+=direction*step
 	arc_traveled+=step
 	if arc_height>0.5:
@@ -113,7 +117,6 @@ func _physics_process(delta: float) -> void:
 			if center.x<low.x-reach or center.x>high.x+reach or center.y<low.y-reach or center.y>high.y+reach:continue
 			if Geometry2D.get_closest_point_to_segment(center,old,position).distance_squared_to(center)>reach*reach:continue
 			hit_ids[enemy.get_instance_id()]=true
-			if is_instance_valid(tower) and not enemy.dead:enemy.last_tower=tower
 			var contact:=Geometry2D.get_closest_point_to_segment(center,old,position)
 			if splash>0:
 				var splash_opts := condition_hit.duplicate()
@@ -144,6 +147,10 @@ func _physics_process(delta: float) -> void:
 					bounce-=1;damage*=0.65;pen=clampf(pen+0.25,0.0,0.85);target=next_target;direction=(next_target.center()-position).normalized();life=maxf(life,1.0);game.effect(position,14,Color("b8f08a"),"hit",0.15);continue
 			if pierce<=0:queue_free();return
 			pierce-=1
+	if cover.is_finite():
+		game.effect(cover,11.0,Color("a6b3c1"),"edge_contact",0.15,direction)
+		queue_free()
+		return
 	queue_redraw()
 
 func advance_trial_arrow(delta: float) -> void:
@@ -167,7 +174,6 @@ func advance_trial_arrow(delta: float) -> void:
 		if not game.trial_tower_can_hit(enemy): continue
 		var scale_index:=hit_ids.size()
 		hit_ids[enemy.get_instance_id()]=true
-		if is_instance_valid(tower): enemy.last_tower=tower
 		enemy.take_hit(damage*trial_pierce_scales[scale_index],damage_type,source,0.0,0.0,pen,"pierce_arrow",direction,Vector2.INF,condition_hit)
 		game.tower_trial_stats.arrow_hits+=1
 		if not enemy.dead:

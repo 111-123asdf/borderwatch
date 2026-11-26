@@ -225,7 +225,7 @@ func run() -> void:
 
 	check(archer.upgrade(),"the paid L3 order uses the existing tower action")
 	complete(archer)
-	check(archer.level==3 and not archer.awaiting_doctrine and archer.invested_gold==350 and ArenaTowerTrial.arrow_scales(3).size()==5,"L3 increases the core mechanic without opening the old doctrine picker")
+	check(archer.level==3 and archer.enhancements().is_empty() and archer.invested_gold==350 and ArenaTowerTrial.arrow_scales(3).size()==5,"the tower lab keeps its three-tier trial mechanics")
 	var sale_gold:=game.gold
 	check(archer.sell() and game.gold-sale_gold==210,"sale returns sixty percent of the completed paid investment")
 	check(not archer.sell(),"the retired tower cannot return gold twice")

@@ -18,13 +18,7 @@ var hurt_time:=0.0
 var combat_delay:=5.0
 var healing:=false
 var redeploying:=false
-var march_path := PackedVector2Array()
-var marching_between_camps := false
 
-func march_to_flag() -> void:
-	redeploy()
-	marching_between_camps=true
-	march_path=game.complete_defense_path(position,tower.rally_point)
 func _ready() -> void:
 	visual=ArenaCreature.new();add_child(visual);refresh_visual();refresh_stats(true)
 	deployment_left=0.46
@@ -54,7 +48,7 @@ func can_engage(enemy: ArenaEnemy) -> bool:
 	return not game.tower_lab or (not enemy.is_boss() and int(enemy.data.capacity)<=1 and enemy.position.distance_squared_to(tower.rally_point)<=14400.0)
 func melee_damage() -> float:
 	var base: float=tower.base_power() if game.tower_lab else 7.0+5.0*(tower.level-1)
-	return base
+	return base * soldier_mod("soldier_damage_mult", 1.0)
 func ranged() -> bool: return soldier_mod("soldier_range")>0
 func attack_range() -> float: return soldier_mod("soldier_range",0.0)
 func move_speed() -> float: return 110.0*(1.0+soldier_mod("soldier_speed"))
@@ -88,11 +82,9 @@ func _physics_process(delta: float) -> void:
 			if not game.tower_lab and charge_ready and soldier_mod("charge_stun")>0.0:
 				stun=soldier_mod("charge_stun");charge_ready=false
 			contact_target.take_hit(damage,0,"soldier",stun,0.0,0.0,"soldier_strike",facing)
-			if is_instance_valid(tower) and tower.has_method("gain_auto_xp"):
-				tower.gain_auto_xp(2.2)
 	if dead:
 		if not (is_instance_valid(tower) and tower.has_method("is_sealed") and tower.is_sealed()):
-			respawn_clock=maxf(0,respawn_clock-delta)
+			respawn_clock=maxf(0,respawn_clock-delta*tower.soldier_respawn_scale())
 		if respawn_clock<=0:
 			deployment_left=0.46
 			var origin: Vector2=tower.position if game.tower_lab else tower.rally_point
@@ -128,14 +120,6 @@ func _physics_process(delta: float) -> void:
 	healing=combat_delay<=0 and health<max_health
 	if healing:health=minf(max_health,health+max_health*0.10*delta)
 	var destination: Vector2=tower.rally_slot(slot) if game.tower_lab else tower.rally_point+_slot_offset()
-	if marching_between_camps:
-		while not march_path.is_empty() and position.distance_to(march_path[0])<4: march_path.remove_at(0)
-		if not march_path.is_empty() and not game.walkable(march_path[0]): march_path.clear()
-		if not march_path.is_empty(): destination=march_path[0]
-		elif position.distance_to(tower.rally_point)>45:
-			march_path=game.complete_defense_path(position,tower.rally_point)
-			return
-		else: marching_between_camps=false
 	if target!=null:
 		deployment_left=0.0
 		facing=(target.position-position).normalized()
@@ -160,7 +144,7 @@ func _physics_process(delta: float) -> void:
 	else:
 		charge_ready=true
 		visual.show_pose("walk",facing);visual.pause()
-	if redeploying and not marching_between_camps and position.distance_squared_to(destination)<=16.0: redeploying=false
+	if redeploying and position.distance_squared_to(destination)<=16.0: redeploying=false
 	var emerging := deployment_left/0.46
 	var door: Vector2 = tower.to_global(tower.swivel)
 	visual.position = (door-position)*emerging

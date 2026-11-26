@@ -65,7 +65,7 @@ func test_legacy_purge() -> void:
 
 
 func test_deck_and_assets() -> void:
-	check(ArenaPassiveEngine.PASSIVES.size() == 14, "v0.31 passive engine holds 14 distinct active-FX passives")
+	check(ArenaPassiveEngine.PASSIVES.size() == 29 and ArenaPassiveEngine.ORDER.size() == 29 and not ArenaPassiveEngine.PASSIVES.has("aegis_drill"), "the draw pool holds the 29 active passives")
 	var pe := ArenaPassiveEngine.new()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
@@ -164,8 +164,9 @@ func test_ui_flow_and_unrestricted_towers() -> void:
 	check(game.build_tower(0, "archer"), "mid-wave tower build succeeds")
 	var t := game.site_tower(0)
 	t.finish_project()
-	t.gain_auto_xp(60.0)
-	check(t.level == 2 and t.sell(), "automated tower levels to L2 & mid-wave sell succeeds")
+	check(t.upgrade(), "pay to upgrade a tower mid-wave")
+	t.finish_project()
+	check(t.level == 2 and t.sell(), "paid upgrade completes and mid-wave sale succeeds")
 
 	game.finish(true)
 	await frames(2)

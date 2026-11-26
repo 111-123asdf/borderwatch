@@ -205,12 +205,13 @@ func _trigger_shrine() -> bool:
 func _pick_shrine_target() -> Vector2:
 	var best_pt := RIFT_POS
 	var best_score := -1
-	for enemy in game.domain_enemies("defense"):
+	var defenders: Array = game.domain_enemies("defense")
+	for enemy in defenders:
 		if not is_instance_valid(enemy) or enemy.dead or enemy.is_guard:
 			continue
 		var score := 0
-		for other in game.domain_enemies("defense"):
-			if is_instance_valid(other) and not other.dead and other.position.distance_to(enemy.position) <= 195.0:
+		for other in defenders:
+			if is_instance_valid(other) and not other.dead and other.position.distance_squared_to(enemy.position) <= 195.0 * 195.0:
 				score += 4 if other.is_boss() else 1
 		if score > best_score:
 			best_score = score

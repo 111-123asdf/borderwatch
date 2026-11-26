@@ -6,7 +6,6 @@ const POSE_COUNT := 8
 const CONTACT_FRAME := 4
 const CONTACT_FRACTION := float(CONTACT_FRAME)/POSE_COUNT
 const VIEWS := ["side","down","up"]
-const CELL_SIZE := 224.0
 const FOOT_OFFSET_Y := -84.0
 
 var identity := "lord"

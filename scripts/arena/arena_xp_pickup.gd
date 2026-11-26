@@ -39,6 +39,8 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if _collected or game == null or not game.running or game.game_over:
 		return
+	if domain == "rift" and game.active_domain != "rift":
+		return
 	if pop_clock > 0.0:
 		pop_clock = maxf(0.0, pop_clock - delta)
 		position += pop_vel * delta
@@ -81,7 +83,7 @@ func _collect() -> void:
 			"critical": true
 		})
 	if gold_value > 0:
-		game.gold += gold_value
+		game.gain_gold(gold_value, "rift_pickup")
 		game.numbers.append({
 			"point": position + Vector2(0.0, -18.0),
 			"text": "+%d金" % gold_value,

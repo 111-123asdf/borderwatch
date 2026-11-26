@@ -38,17 +38,22 @@ func run() -> void:
 	check(not fail_save.equip_towers(["mage"]) and fail_save.tower_loadout().size()==4,"failed write preserves tower loadout")
 	var game: ArenaGame=load("res://scenes/arena.tscn").instantiate();game.campaign=state
 	state.equip_towers(["mage","archer"]);root.add_child(game);current_scene=game;await frames()
+	state.select_tower_doctrine("archer","repeater")
 	game.start_run(state.selected_hero(),"forest")
 	check(game.hero.class_id=="gunner" and game.run_towers==["mage","archer"],"deployment snapshots selected hero and towers")
+	check(game.run_tower_doctrines == {"mage":"frost","archer":"repeater"}, "deployment snapshots the automatic specializations")
 	check(game.available_towers()==["archer","mage"],"unified rules offer equipped towers on forest")
 	var gold:=game.gold
 	check(not game.build_tower(0,"barracks") and game.gold==gold,"unequipped tower cannot consume gold")
 	game.cycle=5
 	check(game.available_towers()==["archer","mage"],"unlocks never restore unequipped towers")
 	state.equip_towers(["barracks"])
+	state.select_tower_doctrine("archer","piercer")
 	check(game.run_towers==["mage","archer"] and game.available_towers()==["archer","mage"],"out-of-run configuration does not alter a running battle")
+	check(game.run_tower_doctrines.archer == "repeater", "out-of-run changes cannot alter a running tower's specialization")
 	game.restart_run();await frames();game=current_scene as ArenaGame
 	check(game.started and game.hero.class_id=="gunner" and game.run_towers==["mage","archer"],"restart retains the original run snapshot")
+	check(game.run_tower_doctrines.archer == "repeater", "restart retains the original specialization")
 	game.return_to_menu();await frames();game=current_scene as ArenaGame
 	check(not game.started and game.hud.frontend.page_id=="world","return from battle reaches the world map")
 	for key in ArenaLevelCatalog.IDS:check(ArenaLevelCatalog.WORLD_NODES.has(key),"playable stage has authored world position "+key)

@@ -60,8 +60,18 @@ func run() -> void:
 		for tier in range(1,4):
 			await press("TowerTier_"+str(tier));check(game.hud.frontend.preview_tier==tier,"tier really selects art "+identity+str(tier))
 			check(game.hud.menu.get_instance_id()==menu_id and game.hud.menu.find_child("Scenery",true,false).get_instance_id()==scenery,"tier/roster preserve shell")
-		for route in range(3):
-			await press("TowerRoute_"+str(route));check(game.hud.frontend.route_body.text==str(ArenaDoctrines.for_tower(identity)[route].summary),"all real doctrine descriptions "+identity+str(route))
+		var doctrines := ArenaDoctrines.for_tower(identity)
+		for route in range(doctrines.size()):
+			await press("TowerRoute_"+str(route))
+			var doctrine: Dictionary = doctrines[route]
+			check(game.hud.frontend.route_name.text == doctrine.name and game.hud.frontend.route_body.text == ArenaDoctrines.field_summary(doctrine.id), "workshop presents the selected specialization " + str(doctrine.id))
+			var enhancements := ArenaDoctrines.enhancements(doctrine.id)
+			var cards := game.hud.frontend.enhancement_list
+			check(cards.get_child_count() == enhancements.size(), "workshop shows only the selected specialization's enhancements " + str(doctrine.id))
+			for index in range(enhancements.size()):
+				var card := cards.get_node("Enhancement_%d" % index)
+				check(card.get_node("Title").text == enhancements[index].name and card.get_node("Effect").text == enhancements[index].summary, "workshop matches the enhancement data " + str(doctrine.id))
+		check(game.campaign.tower_doctrine(identity) == ArenaDoctrines.AUTO_DEFAULT[identity], "previewing does not change the saved automatic choice")
 		await snapshot("v013-tower-"+identity)
 	await press("Back")
 	# Keys are real input events: Space retired, E releases the unlocked ultimate.
