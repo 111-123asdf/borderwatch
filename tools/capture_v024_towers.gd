@@ -44,9 +44,6 @@ func setup_battle(hero_id: String, stage: String, loadout: Array = []) -> void:
 	await frames(3)
 	game.start_run(hero_id, stage)
 	await frames(2)
-	if not game.rule_offers.is_empty():
-		game.choose_defense_rule("")
-	await frames(2)
 
 func finish_tower_fast(t: ArenaTower) -> void:
 	if t != null and t.project_level != 0:

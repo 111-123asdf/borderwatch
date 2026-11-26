@@ -53,7 +53,9 @@ func hit(game: Node2D, point: Vector2, damage: float, kind: int, killed: bool, s
 	elif lord:
 		game.effect(point,23 if killed else (20 if heavy else 14),ArenaCombat.colour(kind),"impact_painted",0.22 if killed else 0.16,dir_vec)
 	elif source=="tower":
-		if attack in ["arc","beam","tower_frost","snare"]:
+		if attack == "shell":
+			game.effect(point,14.0,Color("f4c58d"),"edge_contact",0.15,dir_vec)
+		elif attack in ["arc","beam","tower_frost","snare"]:
 			var px_col := Color("5ce2ff") if attack == "arc" else (Color("ffe068") if attack == "beam" else (Color("9ce8ff") if attack == "tower_frost" else Color("f0be74")))
 			game.effect(point, 18.0 if killed else 13.0, px_col, "pixel_contact", 0.18, dir_vec if not dir_vec.is_zero_approx() else Vector2.UP)
 		else:
@@ -74,6 +76,8 @@ func hit(game: Node2D, point: Vector2, damage: float, kind: int, killed: bool, s
 		var crowded: bool=attack in ["small","werewolf_claw","healer_blessing","lord_thorn"]
 		if not crowded or game.numbers.all(func(n):return n.point.distance_squared_to(point)>42.0*42.0 or float(n.get("merge",0.0))<=0.0):
 			_number(game,point,damage,kind,target,condition_result)
+	# A cannon shell already has one explosion sound at its impact point.
+	if source == "tower" and attack == "shell":return
 	var sound: String="kill" if killed else ("heavy_hit" if heavy else "hit")
 	if hero_hit and kind==1:sound="mage_hit"
 	elif hero_hit and game.hero.class_id=="gunner":sound="ranger_hit"

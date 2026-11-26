@@ -113,7 +113,7 @@ static func definition(key: String) -> Dictionary:
 			"towers":{"storm":1,"lens":1,"snare":1,"archer":1,"barracks":1,"mage":1,"cannon":1}
 		}
 	if key=="creek":
-		return {"id":"creek","name":"溪谷驿站","story":"双桥控场拖住兽潮，进裂隙拿满被动回防迎战双头巨魔！",
+		return {"id":"creek","name":"溪谷驿站","story":"两路设防，记得布置能对空的塔。进裂隙强化英雄，回防迎战双头巨魔。",
 			"tagline":"5轮双域 · 双路防空 · 双头巨魔","world_region":"forest_frontier","biome":"creek","map_art":"res://assets/v09/map_creek.png","boss":true,"boss_kind":"two_headed_troll","boss_in_wave":true,"waves":5,"core":Vector2(1510,540),"hero_spawn":Vector2(1390,565),
 			"routes":[[Vector2(-30,190),Vector2(230,190),Vector2(350,350),Vector2(590,350),Vector2(640,185),Vector2(990,185),Vector2(1110,390),Vector2(1040,510),Vector2(1240,540),Vector2(1510,540)],
 				[Vector2(320,930),Vector2(320,750),Vector2(500,640),Vector2(780,640),Vector2(970,700),Vector2(1130,570),Vector2(1390,540),Vector2(1510,540)]],
@@ -123,7 +123,7 @@ static func definition(key: String) -> Dictionary:
 			"blocked":[Rect2(710,0,85,120),Rect2(710,255,85,150),Rect2(755,405,95,125),Rect2(815,530,85,70),Rect2(900,735,95,165),Rect2(1180,35,190,120),Rect2(50,610,105,130)],
 			"water_rects":[Rect2(710,0,85,120),Rect2(710,255,85,150),Rect2(755,405,95,125),Rect2(815,530,85,70),Rect2(900,735,95,165)],
 			"bridges":[Vector2(750,185),Vector2(875,668)],
-			"pool":[["pigsoldier","throat_cutter","scout_vulture"],["tusk_fighter","skunk_bombardier","bear_woodsman"],["bear_vanguard","darksteel_guard","two_headed_troll"]],
+			"pool":[["pigsoldier","throat_cutter","scout_vulture"],["tusk_fighter","skunk_bombardier","bear_woodsman"],["bear_vanguard","darksteel_guard","tusk_fighter"]],
 			"preview_enemies":["throat_cutter","scout_vulture","darksteel_guard","two_headed_troll"],
 			"towers":{"storm":1,"lens":1,"snare":1,"archer":1,"barracks":1,"mage":1,"cannon":1}}
 	return {"id":"forest","name":"边境林地","story":"建控场塔稳住前线，进裂隙[T]疯狂升级拿超武，红警按[R]回防！",
@@ -148,30 +148,53 @@ static func wave(stage: String,number: int) -> Dictionary:
 			"schedule":[["pigsoldier",12,0,0,1.0,2.8],["rottooth_hyena",8,0,0,26.0,3.2],["pigsoldier",8,0,0,52.0,2.4],["tusk_fighter",8,2,0,95.0,2.6],["pigsoldier",12,0,0,96.5,1.8],["rottooth_hyena",8,0,0,104.0,2.0],["tusk_fighter",2,0,0,118.0,4.0]]},
 		{"units":[["pigsoldier",28],["rottooth_hyena",20,1],["tusk_fighter",14,3],["dreadeye_viper",8],["bear_vanguard",8,2]],"lead":0,"tag":"第二轮 · 獠牙狂潮",
 			"schedule":[["pigsoldier",14,0,0,1.0,2.6],["dreadeye_viper",6,0,0,26.0,4.2],["rottooth_hyena",8,0,0,50.0,2.8],["bear_vanguard",6,2,0,95.0,3.8],["tusk_fighter",10,2,0,96.0,2.2],["pigsoldier",14,0,0,98.0,1.5],["rottooth_hyena",12,1,0,108.0,1.5],["tusk_fighter",4,1,0,116.0,2.5],["bear_vanguard",2,0,0,120.0,4.0],["dreadeye_viper",2,0,0,122.0,3.0]]},
-		{"units":[["pigsoldier",32],["tusk_fighter",18,4],["turtle_shaman",9,2],["bear_vanguard",13,4],["darksteel_guard",8,2],["darksteel_boss",1]],"lead":0,"tag":"第三轮 · 暗钢犀牛阵",
-			"schedule":[["pigsoldier",16,0,0,1.0,2.4],["turtle_shaman",4,0,0,28.0,5.2],["tusk_fighter",6,0,0,46.0,3.5],["darksteel_boss",1,0,0,95.5,0.0],["darksteel_guard",6,2,0,96.5,4.2],["bear_vanguard",10,3,0,97.5,2.4],["pigsoldier",16,0,0,98.5,1.3],["tusk_fighter",12,4,0,106.0,1.6],["turtle_shaman",5,2,0,110.0,3.0],["bear_vanguard",3,1,0,118.0,3.2],["darksteel_guard",2,0,0,122.0,3.5]]},
-		{"units":[["rottooth_hyena",28,2],["tusk_fighter",22,5],["dreadeye_viper",12],["turtle_shaman",10,3],["bear_vanguard",18,5],["darksteel_guard",14,4],["darksteel_boss",3]],"lead":0,"tag":"第四轮 · 重装三统领",
-			"schedule":[["rottooth_hyena",14,0,0,1.0,2.6],["dreadeye_viper",8,0,0,24.0,3.8],["tusk_fighter",6,0,0,44.0,3.8],["darksteel_boss",3,0,0,95.0,8.5],["darksteel_guard",10,3,0,96.0,2.4],["bear_vanguard",14,4,0,97.0,1.8],["tusk_fighter",16,5,0,99.0,1.4],["turtle_shaman",10,3,0,104.0,2.2],["rottooth_hyena",14,2,0,110.0,1.2],["bear_vanguard",4,1,0,118.0,2.4],["darksteel_guard",4,1,0,120.0,2.5],["dreadeye_viper",4,0,0,121.0,2.0]]},
-		{"units":[["pigsoldier",36],["rottooth_hyena",20,2],["tusk_fighter",24,6],["turtle_shaman",12,3],["bear_vanguard",20,6],["darksteel_guard",16,5],["darksteel_boss",6]],"lead":0,"tag":"第五轮 · 暗钢总攻狂潮",
-			"schedule":[["pigsoldier",18,0,0,1.0,2.2],["turtle_shaman",4,0,0,25.0,5.0],["tusk_fighter",6,0,0,44.0,3.5],["darksteel_boss",6,0,0,95.0,5.0],["darksteel_guard",12,4,0,96.0,2.2],["bear_vanguard",16,5,0,97.0,1.7],["pigsoldier",18,0,0,98.0,1.1],["tusk_fighter",18,6,0,102.0,1.3],["rottooth_hyena",20,2,0,108.0,1.0],["turtle_shaman",8,3,0,112.0,2.0],["darksteel_guard",4,1,0,120.0,2.2],["bear_vanguard",4,1,0,122.0,2.2]]}]
+		{"units":[["pigsoldier",22],["tusk_fighter",15,4],["turtle_shaman",6,1],["bear_vanguard",12,4],["darksteel_guard",8,2],["darksteel_boss",1]],"lead":0,"tag":"第三轮 · 重甲护送萨满",
+			"schedule":[
+				["pigsoldier",10,0,0,1.0,3.0],["tusk_fighter",5,0,0,44.0,3.4],["turtle_shaman",2,0,0,47.0,5.0],
+				["darksteel_guard",5,1,0,95.0,2.8],["bear_vanguard",7,2,0,96.5,2.2],["turtle_shaman",2,0,0,97.5,3.5],
+				["tusk_fighter",10,4,0,105.5,1.05],["pigsoldier",12,0,0,108.5,0.9],["darksteel_boss",1,0,0,113.0,0.0],
+				["darksteel_guard",3,1,0,115.5,2.6],["bear_vanguard",5,2,0,116.0,2.6],["turtle_shaman",2,1,0,119.0,4.5]]},
+		{"units":[["rottooth_hyena",18,2],["tusk_fighter",15,4],["dreadeye_viper",8],["turtle_shaman",5,2],["bear_vanguard",16,5],["darksteel_guard",12,4],["darksteel_boss",2]],"lead":0,"tag":"第四轮 · 鬣狗掩护双统领",
+			"schedule":[
+				["rottooth_hyena",10,0,0,1.0,2.6],["dreadeye_viper",5,0,0,24.0,4.0],["tusk_fighter",5,0,0,43.0,4.4],
+				["darksteel_boss",1,0,0,95.0,0.0],["darksteel_guard",7,2,0,96.0,2.4],["bear_vanguard",10,3,0,97.5,1.8],
+				["turtle_shaman",3,1,0,99.5,4.0],["tusk_fighter",10,4,0,101.0,1.4],["rottooth_hyena",8,2,0,110.5,0.85],["dreadeye_viper",3,0,0,111.0,2.6],
+				["darksteel_boss",1,0,0,116.5,0.0],["darksteel_guard",5,2,0,117.0,2.3],["bear_vanguard",6,2,0,117.5,2.0],["turtle_shaman",2,1,0,120.0,4.5]]},
+		{"units":[["pigsoldier",22],["rottooth_hyena",14,2],["tusk_fighter",17,4],["turtle_shaman",7,2],["bear_vanguard",18,6],["darksteel_guard",18,5],["darksteel_boss",3]],"lead":0,"tag":"第五轮 · 暗钢双阵总攻",
+			"schedule":[
+				["pigsoldier",11,0,0,1.0,2.8],["tusk_fighter",6,0,0,41.0,3.5],["turtle_shaman",2,0,0,44.0,5.0],
+				["darksteel_boss",1,0,0,95.0,0.0],["darksteel_guard",8,3,0,95.5,2.2],["bear_vanguard",10,3,0,97.0,1.9],
+				["turtle_shaman",3,1,0,99.0,4.2],["pigsoldier",11,0,0,102.0,0.9],["tusk_fighter",11,4,0,103.0,1.3],["rottooth_hyena",14,2,0,110.0,0.85],
+				["darksteel_boss",2,0,0,113.5,5.0],["darksteel_guard",10,2,0,114.5,1.65],["bear_vanguard",8,3,0,115.5,1.85],["turtle_shaman",2,1,0,118.5,5.0]]}]
 	var creek: Array=[
 		{"units":[["pigsoldier",24],["throat_cutter",14],["dreadeye_viper",9],["tusk_fighter",9,2]],"lead":0,"tag":"第一轮 · 双桥潮袭",
 			"schedule":[["pigsoldier",12,0,0,1.0,2.8],["throat_cutter",8,0,1,8.0,3.6],["dreadeye_viper",6,0,0,30.0,4.5],["tusk_fighter",7,2,0,95.0,2.8],["pigsoldier",12,0,1,96.5,1.8],["throat_cutter",6,0,1,106.0,2.4],["dreadeye_viper",3,0,0,114.0,3.5],["tusk_fighter",2,0,1,120.0,3.5]]},
-		{"units":[["rottooth_hyena",24],["scout_vulture",16],["bear_woodsman",9,2],["tusk_fighter",12,2]],"lead":1,"tag":"第二轮 · 群鸦与狂熊",
-			"schedule":[["rottooth_hyena",12,0,0,1.0,2.8],["scout_vulture",8,0,1,8.0,4.0],["bear_woodsman",4,0,0,34.0,5.2],["tusk_fighter",10,2,0,95.0,2.4],["bear_woodsman",5,2,1,97.0,3.8],["rottooth_hyena",12,0,1,100.0,1.8],["scout_vulture",8,0,0,108.0,2.4],["tusk_fighter",2,0,1,120.0,3.0]]},
-		{"units":[["darksteel_boss",2],["tusk_fighter",16,3],["skunk_bombardier",10],["turtle_shaman",8],["scout_vulture",14],["pigsoldier",18]],"lead":0,"tag":"第三轮 · 双犀统领",
-			"schedule":[["pigsoldier",12,0,0,1.0,2.8],["scout_vulture",8,0,1,6.0,4.2],["skunk_bombardier",5,0,0,30.0,5.0],["darksteel_boss",2,0,0,95.5,10.0],["tusk_fighter",12,3,1,96.5,2.0],["turtle_shaman",8,0,0,100.0,3.0],["pigsoldier",6,0,1,106.0,2.2],["scout_vulture",6,0,0,110.0,2.6],["skunk_bombardier",5,0,1,114.0,2.8],["tusk_fighter",4,0,0,118.0,2.4]]},
+		{"units":[["rottooth_hyena",22],["scout_vulture",16],["bear_woodsman",9,2],["tusk_fighter",11,2]],"lead":1,"tag":"第二轮 · 北重甲、南飞兵",
+			"schedule":[
+				["rottooth_hyena",12,0,0,1.0,2.8],["scout_vulture",8,0,1,8.0,4.0],["bear_woodsman",4,0,0,34.0,5.2],
+				["tusk_fighter",11,2,0,95.0,2.4],["bear_woodsman",5,2,0,97.0,3.8],
+				["scout_vulture",8,0,1,105.5,2.4],["rottooth_hyena",10,0,1,110.0,1.35]]},
+		{"units":[["darksteel_boss",2],["tusk_fighter",16,3],["skunk_bombardier",9],["turtle_shaman",6],["scout_vulture",14],["pigsoldier",16]],"lead":0,"tag":"第三轮 · 北路统领，南路投弹",
+			"schedule":[
+				["pigsoldier",12,0,0,1.0,2.8],["scout_vulture",8,0,1,6.0,4.2],["skunk_bombardier",5,0,0,30.0,5.0],
+				["darksteel_boss",2,0,0,95.5,12.0],["tusk_fighter",12,3,1,96.5,2.0],["turtle_shaman",6,0,0,98.0,3.6],
+				["pigsoldier",4,0,1,106.0,1.4],["scout_vulture",6,0,0,110.0,2.6],
+				["skunk_bombardier",4,0,1,112.0,2.8],["tusk_fighter",4,0,0,116.0,2.4]]},
 		{"units":[["bear_vanguard",12,3],["bear_woodsman",11,3],["darksteel_guard",8,2],["throat_cutter",18,2],["scout_vulture",16,2],["pigsoldier",18]],"lead":-1,"tag":"第四轮 · 双线重甲潮",
 			"schedule":[["throat_cutter",10,0,1,1.0,3.0],["scout_vulture",10,0,0,5.0,3.6],["bear_woodsman",5,0,1,32.0,4.8],["darksteel_guard",6,2,0,95.0,3.6],["bear_vanguard",10,3,1,96.5,2.4],["pigsoldier",18,0,0,98.0,1.4],["bear_woodsman",6,3,0,106.0,2.8],["throat_cutter",8,2,1,112.0,2.0],["scout_vulture",6,2,1,116.0,2.4],["darksteel_guard",2,0,1,121.0,3.5],["bear_vanguard",2,0,0,122.0,3.0]]},
 		{"units":[["two_headed_troll",1],["darksteel_boss",2],["bear_vanguard",13,3],["darksteel_guard",9,3],["turtle_shaman",10,2],["dreadeye_viper",14],["scout_vulture",18],["pigsoldier",24]],"lead":-1,"tag":"第五轮 · 巨魔灭世潮",
-			"schedule":[["pigsoldier",14,0,0,1.0,2.5],["scout_vulture",10,0,1,5.0,3.5],["dreadeye_viper",8,0,0,28.0,4.2],["two_headed_troll",1,0,0,95.5,0.0],["darksteel_boss",2,0,1,97.5,11.0],["darksteel_guard",9,3,1,98.0,3.0],["bear_vanguard",13,3,0,99.0,2.2],["pigsoldier",10,0,1,102.0,1.5],["turtle_shaman",10,2,0,106.0,2.4],["dreadeye_viper",6,0,1,112.0,2.4],["scout_vulture",8,0,1,116.0,2.0]]}]
+			"schedule":[
+				["pigsoldier",14,0,0,1.0,2.5],["scout_vulture",10,0,1,5.0,3.5],["dreadeye_viper",8,0,0,28.0,4.2],
+				["bear_vanguard",13,3,0,95.0,0.8],["darksteel_boss",2,0,1,97.5,11.0],["darksteel_guard",9,3,1,98.0,3.0],
+				["pigsoldier",10,0,1,102.0,1.5],["two_headed_troll",1,0,0,105.5,0.0],["turtle_shaman",10,2,0,106.0,2.4],
+				["dreadeye_viper",6,0,1,112.0,2.4],["scout_vulture",8,0,1,116.0,2.0]]}]
 	var lighthouse: Array=[
 		{"units":[["murloc_hunter",28],["water_sprite",14],["tide_rider",14],["tide_warrior",9,2]],"lead":0,"tag":"第一轮 · 潮汐千军",
 			"schedule":[["murloc_hunter",14,0,0,1.0,2.6],["tide_rider",8,0,2,8.0,3.8],["water_sprite",8,0,1,28.0,3.8],["tide_warrior",9,2,0,95.0,2.6],["murloc_hunter",14,0,1,96.5,1.6],["tide_rider",6,0,2,106.0,2.4],["water_sprite",6,0,1,114.0,2.4]]},
 		{"units":[["tide_warrior",14,2],["conch_mage",11],["storm_wyrm",14],["wind_captain",12,2],["murloc_hunter",18]],"lead":1,"tag":"第二轮 · 雷翼涌岸",
 			"schedule":[["murloc_hunter",12,0,0,1.0,2.8],["storm_wyrm",8,0,2,6.0,4.0],["conch_mage",5,0,1,30.0,4.6],["wind_captain",10,2,1,95.0,2.2],["tide_warrior",12,2,0,96.5,2.2],["murloc_hunter",6,0,1,102.0,2.0],["conch_mage",6,0,1,106.0,2.8],["storm_wyrm",6,0,2,112.0,2.5],["tide_warrior",2,0,0,120.0,3.0],["wind_captain",2,0,2,122.0,2.5]]},
 		{"units":[["bloodshell_boss",2],["tempest_elemental",8,2],["water_elder",9],["tide_warrior",14],["storm_wyrm",14],["murloc_hunter",18]],"lead":0,"tag":"第三轮 · 双蟹统领登岸",
-			"schedule":[["murloc_hunter",12,0,0,1.0,2.8],["storm_wyrm",8,0,2,5.0,4.0],["water_elder",4,0,1,30.0,5.0],["bloodshell_boss",2,0,1,95.5,10.0],["tempest_elemental",6,2,0,96.5,3.6],["tide_warrior",12,0,2,98.0,2.0],["murloc_hunter",6,0,0,104.0,2.0],["water_elder",5,0,1,108.0,2.8],["storm_wyrm",6,0,0,114.0,2.4],["tempest_elemental",2,0,2,120.0,3.5],["tide_warrior",2,0,1,122.0,3.0]]},
+			"schedule":[["murloc_hunter",12,0,0,1.0,2.8],["storm_wyrm",8,0,2,5.0,4.0],["water_elder",4,0,1,30.0,5.0],["bloodshell_boss",2,0,1,95.5,14.0],["tempest_elemental",6,2,0,96.5,3.6],["tide_warrior",12,0,2,98.0,2.0],["murloc_hunter",6,0,0,104.0,2.0],["water_elder",5,0,1,108.0,2.8],["storm_wyrm",6,0,0,114.0,2.4],["tempest_elemental",2,0,2,120.0,3.5],["tide_warrior",2,0,1,122.0,3.0]]},
 		{"units":[["bluegale",9,2],["bloodshell_crab",8,2],["tempest_elemental",9,2],["wind_captain",18,2],["storm_wyrm",16],["tide_rider",16]],"lead":-1,"tag":"第四轮 · 怒涛暴雨阵",
 			"schedule":[["wind_captain",10,0,2,1.5,3.0],["storm_wyrm",10,0,0,5.0,3.6],["tempest_elemental",4,0,1,30.0,5.0],["bloodshell_crab",6,2,1,95.0,3.8],["bluegale",7,2,0,96.5,3.0],["tide_rider",16,0,2,98.0,1.6],["wind_captain",8,2,1,106.0,2.2],["tempest_elemental",5,2,2,110.0,3.0],["storm_wyrm",6,0,2,116.0,2.4],["bloodshell_crab",2,0,0,120.0,4.0],["bluegale",2,0,1,122.0,3.5]]},
 		{"units":[["leviathan",1],["bloodshell_boss",1],["tempest_elemental",10,3],["bluegale",9,2],["bloodshell_crab",8,2],["conch_mage",12,2],["storm_wyrm",18],["murloc_hunter",24]],"lead":-1,"tag":"第五轮 · 利维坦渊潮",
@@ -181,8 +204,8 @@ static func wave(stage: String,number: int) -> Dictionary:
 			"schedule":[["void_eyeling",16,0,0,1.0,2.4],["twilight_harasser",8,0,1,8.0,3.8],["void_eyeling",6,0,1,32.0,3.6],["twilight_avenger",10,2,0,95.0,2.4],["void_eyeling",8,0,0,97.0,1.8],["twilight_harasser",6,0,1,108.0,2.4],["twilight_avenger",2,0,0,118.0,3.5]]},
 		{"units":[["spectral_cutter",14],["twilight_avenger",14,2],["venom_spitter",10],["void_gazer",12],["void_eyeling",18]],"lead":1,"tag":"第二轮 · 蚀影大游击",
 			"schedule":[["void_eyeling",12,0,0,1.0,2.6],["void_gazer",8,0,0,6.0,4.0],["venom_spitter",4,0,1,30.0,5.0],["twilight_avenger",12,2,0,95.0,2.2],["spectral_cutter",10,0,1,97.0,2.2],["void_eyeling",6,0,1,102.0,2.0],["venom_spitter",6,0,1,108.0,2.6],["spectral_cutter",4,0,1,114.0,2.4],["void_gazer",4,0,0,118.0,2.6],["twilight_avenger",2,0,0,122.0,3.0]]},
-		{"units":[["twilight_golem",9,2],["avenger_rider",15,2],["soul_reaver",10],["vile_eyenest",8],["void_eyeling",22]],"lead":2,"tag":"第三轮 · 魔傀破阵潮",
-			"schedule":[["void_eyeling",14,0,0,1.0,2.4],["avenger_rider",7,0,1,8.0,3.8],["soul_reaver",4,0,0,30.0,5.2],["twilight_golem",7,2,2,95.0,3.2],["vile_eyenest",6,0,1,96.5,3.4],["void_eyeling",8,0,0,99.0,1.8],["avenger_rider",8,2,0,106.0,2.2],["soul_reaver",6,0,1,112.0,2.8],["twilight_golem",2,0,2,120.0,3.5],["vile_eyenest",2,0,1,122.0,3.5]]},
+		{"units":[["twilight_golem",9,1],["avenger_rider",15,2],["soul_reaver",10],["vile_eyenest",8],["void_eyeling",22]],"lead":2,"tag":"第三轮 · 魔傀破阵潮",
+			"schedule":[["void_eyeling",14,0,0,1.0,2.4],["avenger_rider",7,0,1,8.0,3.8],["soul_reaver",4,0,0,30.0,5.2],["twilight_golem",7,1,2,95.0,3.2],["vile_eyenest",6,0,1,102.5,3.4],["void_eyeling",8,0,0,99.0,1.8],["avenger_rider",8,2,0,106.0,2.2],["soul_reaver",6,0,1,112.0,2.8],["twilight_golem",2,0,2,120.0,3.5],["vile_eyenest",2,0,1,122.0,3.5]]},
 		{"units":[["bloodsoil_behemoth",8,2],["twilight_golem",10,2],["avenger_rider",18,3],["venom_spitter",12],["void_gazer",14],["void_eyeling",20]],"lead":-1,"tag":"第四轮 · 血壤压境潮",
 			"schedule":[["avenger_rider",9,0,1,1.5,3.2],["void_gazer",8,0,0,5.0,3.8],["venom_spitter",5,0,2,30.0,4.8],["bloodsoil_behemoth",6,2,1,95.0,3.6],["twilight_golem",8,2,2,96.5,3.2],["void_eyeling",20,0,0,98.0,1.3],["avenger_rider",9,3,0,104.0,2.0],["venom_spitter",7,0,1,110.0,2.4],["void_gazer",6,0,2,116.0,2.4],["bloodsoil_behemoth",2,0,1,120.0,4.0],["twilight_golem",2,0,2,122.0,3.5]]},
 		{"units":[["bloodsoil_boss",2],["bloodsoil_behemoth",10,3],["twilight_golem",10,2],["vile_eyenest",9,2],["soul_reaver",12,2],["void_gazer",16],["void_eyeling",24]],"lead":-1,"tag":"第五轮 · 双巨兽终临",
@@ -193,7 +216,7 @@ static func wave(stage: String,number: int) -> Dictionary:
 		{"units":[["avenger_rider",16,2],["spectral_cutter",14],["venom_spitter",12],["soul_reaver",10],["void_eyeling",18]],"lead":1,"tag":"第二轮 · 双翼狂袭",
 			"schedule":[["void_eyeling",12,0,0,1.0,2.6],["avenger_rider",8,0,0,6.0,3.8],["venom_spitter",5,0,1,28.0,4.6],["spectral_cutter",10,0,2,95.0,2.2],["avenger_rider",8,2,2,96.5,2.2],["soul_reaver",8,0,1,99.0,2.6],["void_eyeling",6,0,0,104.0,2.0],["venom_spitter",7,0,0,108.0,2.6],["spectral_cutter",4,0,1,116.0,2.4],["soul_reaver",2,0,1,120.0,3.5]]},
 		{"units":[["bloodsoil_boss",2],["twilight_golem",10,2],["vile_eyenest",9],["avenger_rider",14,2],["void_gazer",14],["void_eyeling",18]],"lead":1,"tag":"第三轮 · 双巨兽镇坛",
-			"schedule":[["void_eyeling",12,0,0,1.0,2.5],["avenger_rider",7,0,2,6.0,3.8],["vile_eyenest",4,0,1,30.0,5.2],["bloodsoil_boss",2,0,1,95.5,10.5],["twilight_golem",8,2,3,96.5,3.2],["void_eyeling",6,0,0,100.0,2.0],["avenger_rider",7,2,0,104.0,2.4],["vile_eyenest",5,0,2,110.0,2.8],["void_gazer",14,0,1,114.0,1.8],["twilight_golem",2,0,3,121.0,3.5]]},
+			"schedule":[["void_eyeling",12,0,0,1.0,2.5],["avenger_rider",7,0,2,6.0,3.8],["vile_eyenest",4,0,1,30.0,5.2],["bloodsoil_boss",2,0,1,95.5,14.5],["twilight_golem",8,2,3,96.5,3.2],["void_eyeling",6,0,0,100.0,2.0],["avenger_rider",7,2,0,104.0,2.4],["vile_eyenest",5,0,2,110.0,2.8],["void_gazer",14,0,1,114.0,1.8],["twilight_golem",2,0,3,121.0,3.5]]},
 		{"units":[["bloodsoil_behemoth",10,2],["twilight_golem",12,3],["avenger_rider",18,3],["vile_eyenest",10,2],["soul_reaver",12],["void_eyeling",24]],"lead":-1,"tag":"第四轮 · 星裂总攻潮",
 			"schedule":[["void_eyeling",16,0,0,1.0,2.2],["avenger_rider",8,0,2,6.0,3.6],["soul_reaver",5,0,1,28.0,4.6],["bloodsoil_behemoth",8,2,1,95.0,3.2],["twilight_golem",9,3,3,96.5,2.8],["void_eyeling",8,0,0,99.0,1.6],["vile_eyenest",8,2,0,104.0,2.6],["avenger_rider",10,3,2,108.0,2.0],["soul_reaver",7,0,1,114.0,2.4],["bloodsoil_behemoth",2,0,1,120.0,3.5],["twilight_golem",3,0,3,121.0,3.0],["vile_eyenest",2,0,0,122.0,3.0]]},
 		{"units":[["baj_nimen",1],["bloodsoil_boss",1],["bloodsoil_behemoth",10,3],["twilight_golem",10,2],["vile_eyenest",10,2],["soul_reaver",12,2],["void_gazer",18],["void_eyeling",28]],"lead":-1,"tag":"第五轮 · 憎恶灭世潮",
@@ -234,6 +257,31 @@ static func wave_profile(stage: String,number: int,pattern: Dictionary={}) -> Di
 		if float(boss.armour)>=HEAVY_ARMOUR:heavy+=health
 		if float(boss.resistance)>=HIGH_RESIST:high_res+=health
 	return {"count":count,"hp":total,"non_boss":non_boss,"heavy":heavy/maxf(total,1.0),"high_res":high_res/maxf(total,1.0),"elites":elites,"has_flying":has_flying,"has_boss":has_boss,"has_mini_boss":has_mini_boss,"tag":str(pattern.get("tag",""))}
+static func preview_profile(packets: Array, wave: int) -> Dictionary:
+	var kinds: Array[String] = []
+	var total_hp := 0.0
+	var armoured_hp := 0.0
+	var resistant_hp := 0.0
+	var elite_count := 0
+	var flying := false
+	for packet: Dictionary in packets:
+		var kind: String = packet.kind
+		var data := ArenaDefinitions.enemy(kind)
+		var hp := ArenaEnemy.defense_spawn_health(kind,data,wave,bool(packet.elite),bool(packet.get("swarm_fodder",false)))
+		total_hp += hp
+		if float(data.armour) >= HEAVY_ARMOUR:
+			armoured_hp += hp
+		if float(data.resistance) >= HIGH_RESIST:
+			resistant_hp += hp
+		elite_count += int(packet.elite)
+		flying = flying or ArenaDefinitions.is_flying_kind(kind)
+		if kind not in kinds:
+			kinds.append(kind)
+	return {
+		"kinds": kinds, "count": packets.size(), "elites": elite_count, "has_flying": flying,
+		"heavy": armoured_hp/maxf(total_hp,1.0), "high_res": resistant_hp/maxf(total_hp,1.0)
+	}
+
 static func elite_kinds(stage: String,number: int) -> Array[String]:
 	var result: Array[String]=[]
 	for group in wave(stage,number).units:
@@ -249,3 +297,70 @@ static func curve(points: Array) -> Curve2D:
 		var tangent: Vector2=(next-previous).normalized()*minf(previous.distance_to(points[index]),next.distance_to(points[index]))*0.23
 		result.add_point(points[index],-tangent,tangent)
 	return result
+
+static func plan_wave(pattern: Dictionary, level: Dictionary, round_number: int, closed_route: int, run_seed: Variant, siege_start: float) -> Array:
+	var packets: Array = []
+	var route_count: int = level.routes.size()
+	if pattern.has("schedule"):
+		for group in pattern.schedule:
+			var kind: String = group[0]
+			var count := int(group[1])
+			var fodder := count >= 10 and kind in ["pigsoldier", "rottooth_hyena", "murloc_hunter", "tide_rider", "water_sprite", "void_eyeling", "fox"]
+			for unit in range(count):
+				var route := _open_route(int(group[3]), unit, route_count, closed_route)
+				var at := float(group[4]) + unit * float(group[5])
+				packets.append({"kind": kind, "route": route, "elite": unit >= count - int(group[2]), "at": at, "swarm_fodder": fodder})
+	else:
+		_append_standard_packets(pattern, level, round_number, closed_route, packets)
+	if run_seed != null and route_count > 0:
+		_append_reinforcements(level, round_number, closed_route, int(run_seed), siege_start, packets)
+	for serial in packets.size():
+		packets[serial].serial = serial
+	packets.sort_custom(packet_precedes)
+	return packets
+
+static func packet_precedes(a: Dictionary, b: Dictionary) -> bool:
+	return a.serial < b.serial if a.at == b.at else a.at < b.at
+
+static func _open_route(route: int, order: int, route_count: int, closed_route: int) -> int:
+	route = clampi(route, 0, maxi(0, route_count - 1))
+	if route == closed_route:
+		# These maps close their last route. Distribute its packets among the open routes.
+		return order % closed_route
+	return route
+
+static func _append_standard_packets(pattern: Dictionary, level: Dictionary, round_number: int, closed_route: int, packets: Array) -> void:
+	var pool: Array = pattern.get("route_pool", [])
+	var route_count: int = level.routes.size()
+	var index := 0
+	for group in pattern.units:
+		var count := int(group[1])
+		var elites := int(group[2]) if group.size() > 2 else 0
+		for unit in range(count):
+			var route := 0
+			if not pool.is_empty():
+				route = int(pool[index % pool.size()])
+			elif route_count > 1:
+				route = index % 2 if pattern.lead < 0 else (int(pattern.lead) if index % 4 < 3 else 1 - int(pattern.lead))
+			route = _open_route(route, index, route_count, closed_route)
+			var at := index * (0.68 if round_number < 4 else 0.5)
+			if level.id == "creek" and route == 1 and round_number == 1:
+				at += 4.5
+			packets.append({"kind": group[0], "route": route, "elite": unit >= count - elites, "at": at})
+			index += 1
+	if bool(level.boss) and not bool(level.get("boss_in_wave", false)) and round_number == int(level.waves):
+		packets.append({"kind": str(level.get("boss_kind", "moth")), "route": 0, "elite": false, "at": 88.5})
+
+static func _append_reinforcements(level: Dictionary, round_number: int, closed_route: int, run_seed: int, siege_start: float, packets: Array) -> void:
+	var pools: Array = level.get("pool", [])
+	if pools.is_empty():
+		return
+	var pool: Array = pools[mini(round_number - 1, pools.size() - 1)]
+	if pool.is_empty():
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = int(hash(str(run_seed) + "|" + str(level.id) + "|" + str(round_number)))
+	for order in range(rng.randi_range(2, 4)):
+		var kind: String = pool[rng.randi_range(0, pool.size() - 1)]
+		var route := _open_route(rng.randi_range(0, level.routes.size() - 1), order, level.routes.size(), closed_route)
+		packets.append({"kind": kind, "route": route, "elite": false, "at": siege_start + rng.randf_range(4.0, 22.0), "swarm_fodder": true})

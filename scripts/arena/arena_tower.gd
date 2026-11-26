@@ -1,6 +1,5 @@
 class_name ArenaTower
 extends Node2D
-const MAX_LEVEL:=3
 var game: Node2D
 var kind: String="archer"
 var site_id:=0
@@ -9,8 +8,8 @@ var data: Dictionary={}
 var destroyed:=false
 var doctrine_id: String=""
 var doctrine_data: Dictionary={}
-var awaiting_doctrine:=false
-var branch_ranks: Array[int]=[0,0]
+var unlocked_enhancements := 0
+var enhancement_mods: Dictionary = {}
 const AttackTiming := preload("res://scripts/arena/arena_attack_timing.gd")
 var attack_clock:=0.0
 var fire_clock:=0.0
@@ -20,9 +19,8 @@ var seal_telegraph:=0.0
 var seal_clock:=0.0
 var _pending_seal_dur:=0.0
 var timing: AttackTiming = AttackTiming.new()
-const AUTO_XP_THRESHOLDS := [0.0, 48.0, 118.0]
-const AUTO_DEFAULT_DOCTRINE := {"archer":"sentinel","mage":"frost","cannon":"frag","barracks":"shield","storm":"fork","lens":"focus","snare":"net"}
-var auto_xp := 0.0
+const SALE_REFUND_RATIO := 0.6
+const MAX_LEVEL := 3
 var barrier_clock := 3.0
 var barrier_active_clock := 0.0
 
@@ -74,7 +72,7 @@ func can_hit_flying() -> bool:
 	return kind in ["archer","mage","storm","lens"]
 func _sync_tower_draw() -> void:
 	var sel: int = 1 if game.selected_site==site_id else 0
-	var sig: int = sel+(2 if awaiting_doctrine else 0)+(branch_ranks[0]<<2)+(branch_ranks[1]<<5)+(1<<8 if doctrine_id!="" else 0)+(1<<9 if _is_healer_buffed() else 0)+(1<<10 if jam_clock>0.0 else 0)+(1<<11 if seal_clock>0.0 else 0)+(1<<12 if seal_telegraph>0.0 else 0)
+	var sig: int = sel+(unlocked_enhancements<<1)+(1<<7 if doctrine_id!="" else 0)+(1<<8 if _is_healer_buffed() else 0)+(1<<9 if jam_clock>0.0 else 0)+(1<<10 if seal_clock>0.0 else 0)+(1<<11 if seal_telegraph>0.0 else 0)
 	if sig!=_draw_sig:
 		_draw_sig=sig;queue_redraw()
 var rally_point:=Vector2.ZERO
@@ -541,25 +539,35 @@ func site_trait() -> String:
 static func trait_label(trait_id: String) -> String:
 	return {"highground":"高台","choke":"隘口","conduit":"脉座"}.get(trait_id,"")
 static func trait_summary(trait_id: String) -> String:
-	return {"highground":"射程 +18%","choke":"兵营生命 +18% · 补员快 20%","conduit":"攻速 +14% · 穿透 +12%"}.get(trait_id,"")
+	return {"highground":"射程 +18%","choke":"士兵生命 +18% · 补员速度 +25%","conduit":"攻速 +14% · 穿透 +12 个百分点"}.get(trait_id,"")
 func soldier_respawn_scale() -> float:
-	return 1.25 if (kind=="barracks" and site_trait()=="choke") else 1.0
+	return (1.25 if site_trait()=="choke" and not game.tower_lab else 1.0) + doc_mod("respawn_speed")
 func upgrade_price() -> int:
+	if level == MAX_LEVEL:
+		if unlocked_enhancements < enhancements().size():
+			return ArenaDoctrines.ENHANCEMENT_PRICES[unlocked_enhancements]
+		return 0
 	if game.tower_lab: return roundi(float(data.cost)*(1.6 if level==1 else 2.4))
 	return int(data.cost)*(level+1)/2+35
+static func field_range(data: Dictionary, tier: int) -> float:
+	return float(data.reach)+(tier-1)*16.0
+static func field_power(data: Dictionary, tier: int) -> float:
+	return float(data.damage)*(1.0+0.18*(tier-1))*0.25
+static func field_cycle(data: Dictionary, tier: int) -> float:
+	return float(data.interval)/(1.0+0.14*(tier-1))
 func attack_range() -> float:
 	var trait_range:=1.18 if site_trait()=="highground" else 1.0
 	if game.tower_lab: return trial_stat("reach")*trait_range
-	return (float(data.reach)+(level-1)*16)*doc_mod("range_mult",1.0)*trait_range
+	return field_range(data,level)*doc_mod("range_mult",1.0)*trait_range
 func reload_time() -> float:
 	var trait_speed: float=0.14 if site_trait()=="conduit" else 0.0
 	if game.tower_lab: return trial_stat("cycle")/(1.0+trait_speed)
 	var healer_speed: float=game.hero.healer_tower_speed_bonus(position) if game.hero!=null and game.hero.has_method("healer_tower_speed_bonus") else 0.0
 	var passive_speed: float=game.passive_engine.tower_speed_bonus() if (game!=null and game.passive_engine!=null) else 0.0
 	var relic_speed: float=game.relic_engine.tower_speed_bonus() if (game!=null and game.relic_engine!=null) else 0.0
-	var overdrive_speed: float=0.35 if (game!=null and game.core_overdrive_clock>0.0) else 0.0
+	var overdrive_speed: float=ArenaGame.FORGE_OVERDRIVE_SPEED if (game!=null and game.core_overdrive_clock>0.0) else 0.0
 	var jam_factor: float = 1.0 / maxf(0.45, 1.0 - jam_slow) if jam_clock > 0.0 else 1.0
-	return float(data.interval)/(1.0+0.14*(level-1))*doc_mod("interval_mult",1.0)/(1.0+trait_speed+healer_speed+passive_speed+relic_speed+overdrive_speed)*jam_factor
+	return field_cycle(data,level)*doc_mod("interval_mult",1.0)/(1.0+trait_speed+healer_speed+passive_speed+relic_speed+overdrive_speed)*jam_factor
 func trial_stat(key: String) -> float: return ArenaTowerTrial.stat(kind,key,level)
 func trial_arrow_range() -> float: return maxf(ArenaTowerTrial.ARCHER_FLIGHT,attack_range())
 func trial_frost_inner() -> float: return attack_range()*ArenaTowerTrial.FROST_INNER_RATIO
@@ -567,35 +575,9 @@ func trial_shell_core() -> float: return splash_radius()*ArenaTowerTrial.SHELL_C
 func shot_power() -> float: return base_power()
 func base_power() -> float:
 	if game.tower_lab: return trial_stat("power")
-	var p_mult: float = game.passive_engine.tower_power_mult() if (game != null and game.passive_engine != null) else 1.0
+	var p_mult: float = game.passive_engine.tower_power_mult(position) if (game != null and game.passive_engine != null) else 1.0
 	var r_mult: float = game.relic_engine.tower_power_mult() if (game != null and game.relic_engine != null) else 1.0
-	return float(data.damage) * (1.0 + 0.18 * (level - 1)) * 0.25 * p_mult * r_mult
-func auto_xp_progress() -> float:
-	if level >= 3: return 1.0
-	var prev := float(AUTO_XP_THRESHOLDS[level - 1])
-	var next := float(AUTO_XP_THRESHOLDS[level])
-	return clampf((auto_xp - prev) / maxf(1.0, next - prev), 0.0, 1.0)
-func gain_auto_xp(amount: float) -> void:
-	if destroyed or project_level != 0 or game == null or game.tower_lab or level >= 3:
-		return
-	auto_xp += amount
-	var evolved := false
-	while level < 3 and auto_xp >= float(AUTO_XP_THRESHOLDS[level]):
-		level += 1
-		evolved = true
-		if level == 3 and doctrine_id.is_empty():
-			var auto_doc := str(AUTO_DEFAULT_DOCTRINE.get(kind, ""))
-			if not auto_doc.is_empty():
-				_apply_doctrine(auto_doc)
-		else:
-			refresh_art()
-			if kind == "barracks": sync_troops()
-	if evolved:
-		game.effect(position, 62.0, Color("7ef2ff"), "upgrade", 0.55)
-		game.numbers.append({"point": position + Vector2(0, -52), "text": "%s Lv.%d!" % [str(data.name), level], "colour": Color("ffe678"), "life": 0.9, "duration": 0.9})
-		game.audio.play("tower", -12, 1.18)
-		if is_instance_valid(game.hud) and game.selected_site == site_id:
-			game.hud.refresh_context()
+	return field_power(data,level)*p_mult*r_mult
 func splash_radius() -> float:
 	if game.tower_lab and kind=="cannon": return trial_stat("splash")
 	var radius:=trial_stat("splash") if game.defense_rules and kind=="cannon" else float(64+(level-1)*12)
@@ -605,37 +587,27 @@ func doc_mod(key: String,fallback := 0.0) -> float:
 	var trait_bonus: float=0.18 if (key=="soldier_health" and kind=="barracks" and site_trait()=="choke") else 0.0
 	if doctrine_data.is_empty():return fallback+trait_bonus
 	var effects: Dictionary=doctrine_data.get("effects",{})
-	var base: float=float(effects[key]) if effects.has(key) else fallback
-	var b_list: Array=ArenaDoctrines.branches(doctrine_id,kind)
-	for index in range(mini(branch_ranks.size(),b_list.size())):
-		var rank: int=branch_ranks[index]
-		if rank<=0:continue
-		var delta: Dictionary=b_list[index].get("delta",{})
-		if delta.has(key):base+=float(delta[key])*float(rank)
+	var base := float(effects.get(key, fallback)) + float(enhancement_mods.get(key, 0.0))
 	if key=="interval_mult":return maxf(0.25,base)
 	if key=="frost_stacks":return maxf(1.0,base) if effects.has(key) or base>0.0 else base
 	return base+trait_bonus
-func branch_rank(index: int) -> int:
-	return branch_ranks[index] if index>=0 and index<branch_ranks.size() else 0
-func total_steps() -> int:
-	return level+(1 if doctrine_id!="" else 0)+branch_ranks[0]+branch_ranks[1]
-func branch_price(index: int) -> int:
-	return ArenaDoctrines.branch_price(branch_rank(index))
-func upgrade_branch(index: int) -> bool:
-	if destroyed or is_sealed() or not game.can_change_towers() or doctrine_id=="" or awaiting_doctrine:return false
-	if index<0 or index>=branch_ranks.size():return false
-	var rank:=branch_ranks[index]
-	var branches:=ArenaDoctrines.branches(doctrine_id,kind)
-	if rank>=3 or index>=branches.size():return false
-	var price:=branch_price(index)
-	if game.gold<price:return false
-	game.gold-=price
-	invested_gold+=price
-	branch_ranks[index]=rank+1
-	if kind=="barracks":sync_troops()
-	game.effect(position,46,Color("f5cd6a") if index==0 else Color("7fd8ff"),"upgrade",0.45)
+func enhancements() -> Array:
+	return ArenaDoctrines.enhancements(doctrine_id)
+func _complete_enhancement() -> void:
+	var entry: Dictionary = enhancements()[unlocked_enhancements]
+	var delta: Dictionary = entry.delta
+	for key in delta:
+		enhancement_mods[key] = float(enhancement_mods.get(key, 0.0)) + float(delta[key])
+	unlocked_enhancements += 1
+	if kind == "barracks":
+		sync_troops()
 	queue_redraw()
-	return true
+	game.effect(position,62.0,Color("7ef2ff"),"upgrade",0.55)
+	game.numbers.append({"point":position + Vector2(0,-52),"text":str(entry.name),"colour":Color("ffe678"),"life":0.9,"duration":0.9})
+	game.audio.play("tower",-12,1.18)
+	if is_instance_valid(game.hud) and game.selected_site == site_id:
+		game.hud.refresh_context()
+
 func forced_target() -> String: return str(doctrine_data.get("effects",{}).get("target",""))
 func penetration() -> float:
 	var trait_pen: float=0.12 if site_trait()=="conduit" else 0.0
@@ -647,33 +619,38 @@ func doctrine_multiplier(enemy: Node2D) -> float:
 	if doc_mod("bonus_elite")>0.0 and (enemy.elite or enemy.is_boss() or (enemy.has_method("is_mini_boss") and enemy.is_mini_boss())):result*=1.0+doc_mod("bonus_elite")
 	return result
 func upgrade(doctrine := "") -> bool:
-	if level>=3 or destroyed or is_sealed() or not game.can_change_towers():return false
+	if destroyed or project_level != 0 or is_sealed() or not game.can_change_towers() or game.get_tree().paused:
+		return false
+	if level == MAX_LEVEL and not doctrine.is_empty():
+		return false
 	var price := upgrade_price()
-	if project_level!=0 or game.gold<price: return false
-	if game.timed_tower_work():
-		start_project(level+1,price)
-		project_doctrine=doctrine
-		game.gold-=project_gold
+	if price == 0 or game.gold < price:
+		return false
+	var next_stage := level+1 if level < MAX_LEVEL else MAX_LEVEL+unlocked_enhancements+1
+	start_project(next_stage, price)
+	project_doctrine = doctrine
+	game.gold -= price
+	queue_redraw()
+	if not game.timed_tower_work():
+		finish_project()
+	elif is_instance_valid(game.hud) and game.selected_site == site_id:
 		game.hud.refresh_context()
-		return true
-	game.gold-=price
-	invested_gold+=price
-	level+=1;refresh_art()
-	_complete_upgrade(doctrine)
 	return true
 
+func _prepare_doctrine(doctrine: String) -> void:
+	if level != 3 or not doctrine_id.is_empty() or game.tower_lab:
+		return
+	if not doctrine.is_empty() and _apply_doctrine(doctrine):
+		return
+	_apply_doctrine(game.run_tower_doctrines.get(kind, ArenaDoctrines.AUTO_DEFAULT[kind]))
+
 func _complete_upgrade(doctrine: String) -> void:
-	if level==3 and doctrine_id=="":
-		var options: Array=ArenaDoctrines.for_tower(kind)
-		if not options.is_empty():
-			if doctrine!="" and _apply_doctrine(doctrine):awaiting_doctrine=false
-			elif not game.tower_lab:
-				_apply_doctrine(str(AUTO_DEFAULT_DOCTRINE.get(kind, options[0].id)))
-			else:awaiting_doctrine=true;game.pending_doctrine_site=site_id
+	_prepare_doctrine(doctrine)
 	for soldier in troops:
 		if is_instance_valid(soldier):soldier.refresh_stats()
 	game.effect(position,65,Color("f4d28b"),"upgrade",0.55);game.audio.play("tower")
-	if is_instance_valid(game.hud):game.hud.refresh_context()
+	if is_instance_valid(game.hud) and game.selected_site == site_id:
+		game.hud.refresh_context()
 
 func start_construction(cost: int) -> void:
 	start_project(1,cost)
@@ -686,6 +663,8 @@ func start_project(next_level: int,cost: int) -> void:
 func cancel_project() -> bool:
 	if destroyed or is_sealed() or project_level==0 or not game.can_manage_defense(): return false
 	var was_building:=project_level==1
+	if not was_building and not game.tower_lab:
+		return false
 	game.gold+=project_gold
 	project_level=0
 	project_clock=0.0
@@ -697,13 +676,18 @@ func cancel_project() -> bool:
 
 func finish_project() -> void:
 	if project_level==0: return
-	var was_building:=project_level==1
+	var completed_stage := project_level
+	var was_building := completed_stage == 1
 	var doctrine := project_doctrine
-	level=project_level
 	invested_gold+=project_gold
 	project_level=0
+	project_clock=0.0
 	project_gold=0
 	project_doctrine=""
+	if completed_stage > MAX_LEVEL:
+		_complete_enhancement()
+		return
+	level = completed_stage
 	modulate.a=1.0
 	if is_instance_valid(body): body.visible=true
 	if not was_building or use_v024_art: refresh_art()
@@ -714,12 +698,6 @@ func finish_project() -> void:
 	game.effect(position,46,Color("e1c68e"),"upgrade",0.42)
 	game.audio.play("tower",-6)
 	if game.selected_site==site_id: game.hud.refresh_context()
-func choose_doctrine(id: String) -> bool:
-	if not awaiting_doctrine or destroyed or is_sealed() or not game.can_manage_defense():return false
-	if not _apply_doctrine(id):return false
-	awaiting_doctrine=false;game.pending_doctrine_site=-1
-	game.effect(position,72,Color("9fd8f0"),"upgrade",0.7)
-	return true
 func _apply_doctrine(id: String) -> bool:
 	var entry: Dictionary=ArenaDoctrines.by_id(id)
 	if entry.is_empty() or str(entry.tower)!=kind or doctrine_id!="":return false
@@ -754,11 +732,7 @@ func sell() -> bool:
 	return true
 
 func sale_value() -> int:
-	if game.tower_lab: return floori(float(invested_gold)*0.6)
-	var spent_branches:=0
-	for rank in branch_ranks:
-		for step_i in range(rank):spent_branches+=ArenaDoctrines.branch_price(step_i)
-	return int(float(data.cost)*0.6+float(level-1)*data.cost*0.25+float(spent_branches)*0.6)
+	return floori(float(invested_gold) * SALE_REFUND_RATIO)
 
 func retire() -> void:
 	destroyed=true
@@ -846,12 +820,10 @@ func _physics_process(delta: float) -> void:
 	if not game.running or game.game_over or destroyed:return
 	if project_level!=0:
 		project_clock=maxf(0.0,project_clock-delta)
+		queue_redraw()
 		if project_clock<=0.0: finish_project()
 		if project_level==1:
-			queue_redraw()
 			return
-	if not game.tower_lab and level < 3 and game.phase == "spawn":
-		gain_auto_xp(delta * 1.65)
 	attack_clock=maxf(0,attack_clock-delta);fire_clock=maxf(0,fire_clock-delta)
 	jam_clock=maxf(0.0,jam_clock-delta)
 	if jam_clock<=0.0:jam_slow=0.0
@@ -878,20 +850,16 @@ func _physics_process(delta: float) -> void:
 		return
 	if kind=="barracks":
 		if not game.tower_lab:
-			if site_trait()=="choke":
-				for soldier in troops:
-					if is_instance_valid(soldier) and soldier.dead and soldier.respawn_clock>0.0:
-						soldier.respawn_clock=maxf(0.0,soldier.respawn_clock-delta*0.25)
+			var barrier_radius := doc_mod("barrier_radius",68.0)
 			barrier_active_clock=maxf(0.0,barrier_active_clock-delta)
 			barrier_clock-=delta
 			if barrier_clock<=0.0:
 				barrier_clock=9.0
-				barrier_active_clock=4.5
-				gain_auto_xp(3.5)
-				game.effect(rally_point,66.0,Color("6cf2ff"),"upgrade",0.45)
+				barrier_active_clock=doc_mod("barrier_duration",4.5)
+				game.effect(rally_point,barrier_radius,Color("6cf2ff"),"upgrade",0.45)
 			if barrier_active_clock>0.0:
 				for enemy in game.domain_enemies("defense"):
-					if is_instance_valid(enemy) and not enemy.dead and not enemy.is_flying() and enemy.position.distance_to(rally_point)<=68.0:
+					if is_instance_valid(enemy) and not enemy.dead and not enemy.is_flying() and enemy.position.distance_squared_to(rally_point)<=barrier_radius*barrier_radius:
 						enemy.chill(0.42,0.5)
 		if game.tower_lab and game.selected_site==site_id: queue_redraw()
 		else: _sync_tower_draw()
@@ -912,7 +880,6 @@ func _physics_process(delta: float) -> void:
 	if not game.tower_lab and kind=="mage":
 		if attack_clock<=0.0 and fire_trial_pulse(shot_power()):
 			attack_clock=reload_time()
-			gain_auto_xp(3.5)
 		_sync_tower_draw()
 		return
 	if timing.is_preparing():
@@ -964,13 +931,13 @@ func _fire_at(enemy: Node2D, bonus:=false) -> void:
 		visual_target=muzzle().direction_to(enemy.center())
 	if not ArenaBattleArt.TOWER_REGIONS.has(kind): _pose_mechanism()
 	_trigger_v024_punch()
-	gain_auto_xp(3.5)
 	if game != null and game.event_bus != null:
 		game.event_bus.emit_event("tower_fire", {"tower": self, "target": enemy})
 	var aura: float=game.hero.command_aura(position) if game.hero!=null and game.hero.has_method("command_aura") and game.hero.domain=="defense" else 0.0
 	var power: float=shot_power()
 	power*=1.0+aura
-	power*=doctrine_multiplier(enemy)
+	if not (game.tower_lab and kind == "mage" and doctrine_id != "breaker"):
+		power *= doctrine_multiplier(enemy)
 	var aim:=timing.target_point if game.defense_rules and kind=="cannon" and not bonus and timing.phase==AttackTiming.Phase.RELEASE else Vector2.INF
 	match kind:
 		"cannon": fire_cannon(enemy,power,aim)
@@ -997,6 +964,8 @@ func trigger_bonus_salvo() -> bool:
 		if aim.is_empty(): return false
 		fire_trial(aim.point)
 		return true
+	if kind=="mage":
+		return fire_trial_pulse()
 	var enemy: Node2D = game.tower_target(self)
 	if enemy==null:
 		return false
@@ -1105,6 +1074,7 @@ func fire_chain(first: ArenaEnemy,power: float) -> void:
 	var origin:=muzzle()
 	var struck: Array[ArenaEnemy]=[]
 	var reach:=doc_mod("chain_reach",120.0)
+	var retention := doc_mod("chain_retention",0.72)
 	var arc_kind := "tower_arc" if doctrine_id.is_empty() else "tower_arc_" + doctrine_id
 	var hops := int(doc_mod("chain_count", 4)) if not game.tower_lab else int(doc_mod("chain_count", 3))
 	for hop in hops:
@@ -1113,11 +1083,10 @@ func fire_chain(first: ArenaEnemy,power: float) -> void:
 		struck.append(current)
 		game.effect(origin,origin.distance_to(end),data.colour,arc_kind,0.24,origin.direction_to(end),{"hop":hop,"doctrine":doctrine_id})
 		game.effect(end,18.0 + (4.0 if doctrine_id=="surge" else 0.0),data.colour,"storm_hit",0.20,origin.direction_to(end),{"doctrine":doctrine_id})
-		current.last_tower=self
-		var stag := 0.18 if not game.tower_lab else 0.0
+		var stag := doc_mod("chain_stagger", 0.18) if not game.tower_lab else 0.0
 		current.take_hit(power,ArenaCombat.Type.MAGIC,"tower",stag,0,penetration(),"arc",Vector2.ZERO,Vector2.INF,{"auto_tower":true})
 		origin=end
-		power*=0.72
+		power*=retention
 		current=null
 		var nearest:=reach*reach
 		for other: ArenaEnemy in game.domain_enemies("defense"):
@@ -1128,19 +1097,20 @@ func fire_chain(first: ArenaEnemy,power: float) -> void:
 				nearest=distance
 
 func fire_lens(enemy: ArenaEnemy,power: float) -> void:
-	focus_layers=mini(focus_layers+1,4) if enemy==focus_target else 0
+	var new_target := enemy != focus_target
+	focus_layers=0 if new_target else mini(focus_layers+1,int(doc_mod("focus_limit",4.0)))
 	focus_target=enemy
 	var origin:=muzzle()
 	var end:=enemy.center()
 	var beam_kind := "tower_beam" if doctrine_id.is_empty() else "tower_beam_" + doctrine_id
 	game.effect(origin,origin.distance_to(end),data.colour,beam_kind,0.24,origin.direction_to(end),{"layers":focus_layers,"doctrine":doctrine_id})
 	game.effect(end,14.0+float(focus_layers)*4.0,data.colour,"lens_hit",0.20,origin.direction_to(end),{"layers":focus_layers})
-	enemy.last_tower=self
-	enemy.take_hit(power*(1.0+focus_layers*doc_mod("focus_step",0.35)),ArenaCombat.Type.MAGIC,"tower",0,0,penetration(),"beam",Vector2.ZERO,Vector2.INF,{"auto_tower":true})
+	var hit_mult := doc_mod("first_light", 1.0) if new_target else 1.0+focus_layers*doc_mod("focus_step",0.35)
+	enemy.take_hit(power*hit_mult,ArenaCombat.Type.MAGIC,"tower",0,0,penetration(),"beam",Vector2.ZERO,Vector2.INF,{"auto_tower":true})
 	if not game.tower_lab and is_instance_valid(enemy) and not enemy.dead:
 		enemy.expose(2.5)
-		enemy.apply_mark(2.5, 0.25)
-		enemy.chill(0.25, 1.5)
+		enemy.apply_mark(doc_mod("lens_mark_time",2.5),doc_mod("lens_mark",0.25))
+		enemy.chill(doc_mod("lens_slow", 0.25), doc_mod("lens_slow_time", 1.5))
 
 func snare_radius() -> float:
 	return (64.0+8.0*(level-1))*doc_mod("splash_mult",1.0)
@@ -1161,37 +1131,46 @@ func try_snare() -> bool:
 	fire_clock=0.16
 	_snare_snap_clock=0.38
 	_trigger_v024_punch()
-	gain_auto_xp(3.5)
 	if game != null and game.event_bus != null and not nearby.is_empty():
 		game.event_bus.emit_event("tower_fire", {"tower": self, "target": nearby[0]})
 	var power: float=shot_power()*(1.0+(game.hero.command_aura(position) if game.hero.domain=="defense" else 0.0))
 	for enemy in nearby:
 		if not game.trial_tower_can_hit(enemy) or enemy.is_flying(): continue
-		enemy.last_tower=self
 		enemy.take_hit(power*doctrine_multiplier(enemy),ArenaCombat.Type.PHYSICAL,"tower",0,0,penetration(),"snare")
 		if not enemy.dead:
 			if enemy.is_boss(): enemy.accept_tower_control(0.30)
-			else: enemy.chill(0.32 if enemy.elite else 0.50,2.4)
+			else: enemy.chill(doc_mod("net_slow",0.32 if enemy.elite else 0.50),doc_mod("net_duration",2.4))
 	game.effect(rally_point,radius,data.colour,"snare_snap",0.42,position.direction_to(rally_point),{"origin":muzzle(),"doctrine":doctrine_id})
 	game.audio.play("tower",-18)
 	return true
 
 func fire_trial_pulse(power: float=-1.0) -> bool:
 	var targets: Array[ArenaEnemy]=game.trial_tower_targets(self)
+	var focused := focus_order_id()
+	if focused != 0:
+		targets = targets.filter(func(enemy): return enemy.get_instance_id() == focused)
 	if targets.is_empty(): return false
+	if doctrine_id == "breaker":
+		var target := targets[0]
+		for enemy in targets:
+			if float(enemy.data.resistance) > float(target.data.resistance):
+				target = enemy
+		targets.assign([target])
 	if power<0.0: power=shot_power()
 	if not game.tower_lab and game.event_bus != null:
 		game.event_bus.emit_event("tower_fire", {"tower": self, "target": targets[0]})
 	var origin:=firing_position()
 	var inner:=trial_frost_inner()
-	var focused:=focus_order_id()
 	for enemy in targets:
-		if focused!=0 and focused!=enemy.get_instance_id(): continue
 		if not game.trial_tower_can_hit(enemy): continue
-		var at_center:=origin.distance_squared_to(enemy.position)<=inner*inner
-		enemy.last_tower=self
-		enemy.take_hit(power*(1.0 if at_center else ArenaTowerTrial.FROST_OUTER_POWER),ArenaCombat.Type.MAGIC,"tower",0.0,0.0,penetration(),"tower_frost",Vector2.ZERO,Vector2.INF,{"auto_tower":true})
-		if not enemy.dead and doctrine_id!="arcfire":
+		var at_center := origin.distance_squared_to(enemy.position) <= inner * inner
+		var falloff := 1.0 if at_center or doctrine_id == "breaker" else minf(1.0,doc_mod("outer_power",ArenaTowerTrial.FROST_OUTER_POWER))
+		enemy.take_hit(power * falloff * doctrine_multiplier(enemy), ArenaCombat.Type.MAGIC, "tower",
+			0.0, 0.0, penetration(), "tower_frost", Vector2.ZERO, Vector2.INF, {"auto_tower": true})
+		if enemy.dead and doctrine_id == "arcfire":
+			game.area_damage(enemy.position, doc_mod("explode_radius"), power * doc_mod("explode_mult", 1.0),
+				ArenaCombat.Type.MAGIC, "tower", 0.0, 0.0, 0.0, 0.0, "attack", true, {"domain": "defense"})
+		if not enemy.dead and doctrine_id not in ["arcfire", "breaker"]:
 			if doctrine_id=="frost" and not enemy.is_boss(): enemy.chill(doc_mod("slow_amount"),doc_mod("slow_time"))
 			enemy.tower_frost(doc_mod("freeze_time",trial_stat("freeze")),2 if at_center else 1,int(doc_mod("frost_stacks",ArenaTowerTrial.FROST_LIMIT)))
 		game.tower_trial_stats.pulse_hits+=1
@@ -1199,6 +1178,8 @@ func fire_trial_pulse(power: float=-1.0) -> bool:
 	game.tower_trial_stats.pulses+=1
 	if doctrine_id=="arcfire":
 		game.effect(origin,attack_range(),Color("ffa767"),"tower_arcfire",0.44,Vector2.RIGHT,{"inner":inner,"doctrine":doctrine_id})
+	elif doctrine_id == "breaker":
+		game.effect(targets[0].position, 25.0, Color("9a89ff"), "magic_impact_painted", 0.35)
 	else:
 		game.effect(origin,attack_range(),Color("b6e5ef"),"tower_frost",0.52,Vector2.RIGHT,{"inner":inner,"doctrine":doctrine_id})
 		game.effect(origin,inner,Color("d4f4ff"),"tower_frost_inner",0.52,Vector2.RIGHT,{"doctrine":doctrine_id})
@@ -1216,12 +1197,11 @@ func fire_shots(enemy: Node2D,power: float,locked_aim:=Vector2.INF) -> void:
 		"slow_amount":doc_mod("slow_amount"),"slow_time":doc_mod("slow_time"),
 		"freeze_stacks":int(doc_mod("frost_stacks")),"freeze_time":doc_mod("freeze_time")}
 	if kind=="archer" and not game.tower_lab:
-		options.mark=3.5
-		options.mark_bonus=0.28
-		options.pierce=1
+		options.mark=doc_mod("mark_time",3.5)
+		options.mark_bonus=doc_mod("mark_bonus",0.28)
+		options.pierce=int(doc_mod("arrow_pierce",2.0 if doctrine_id=="piercer" else 1.0))
 		if doctrine_id=="piercer":
 			options.speed=920.0
-			options.pierce=2
 			options.arc_height=clampf(dist_to_enemy*0.08,10.0,26.0)
 		else:
 			options.speed=720.0
@@ -1231,7 +1211,7 @@ func fire_shots(enemy: Node2D,power: float,locked_aim:=Vector2.INF) -> void:
 		options.arc_height=clampf(dist_to_enemy*0.07,8.0,22.0)
 	var shots:=1
 	if doc_mod("triple_chance")>0.0 and game.rng.randf()<doc_mod("triple_chance"):
-		shots=4 if doctrine_id=="repeater" and branch_rank(0)>=3 else 3
+		shots=3
 	if kind=="mage":
 		var muz_col := Color("ff9238") if doctrine_id=="arcfire" else (Color("d488ff") if doctrine_id=="breaker" else Color("9ce8ff"))
 		game.effect(origin,16,muz_col,"magic_impact_painted",0.14,visual_target)
@@ -1262,9 +1242,10 @@ func fire_cannon(enemy: Node2D,power: float,locked_aim:=Vector2.INF) -> void:
 	ArenaBattleArt.emit_world_dust(muz+Vector2(6,-4),visual_target*26.0+Vector2(0,-24.0),20.0,Color("6e645c"))
 	var options: Dictionary={"origin":muz,"cannon":true,"cannon_tier":level,"doctrine_id":doctrine_id,"feedback":"shell",
 		"pen":penetration(),"knockback":doc_mod("knockback"),"condition_hit":{"auto_tower":not bombard_point.is_finite()},
-		"burn_dps":doc_mod("burn_dps"),"burn_time":doc_mod("burn_time"),"burn_radius":doc_mod("burn_radius")}
+		"burn_dps":doc_mod("burn_dps"),"burn_time":doc_mod("burn_time",3.0),"burn_radius":doc_mod("burn_radius",64.0)}
 	if game.defense_rules:
-		options.merge({"core_radius":trial_shell_core(),"tower_trial_shell":18.0 if not game.tower_lab else trial_stat("push"),"stun":0.55 if not game.tower_lab else trial_stat("stun"),"tower":self,"knockback":22.0 if not game.tower_lab else doc_mod("knockback"),"focus_id":0})
+		options["shell_edge_power"] = doc_mod("shell_edge_power", 0.5)
+		options.merge({"core_radius":trial_shell_core(),"tower_trial_shell":18.0 if not game.tower_lab else trial_stat("push"),"stun":doc_mod("shell_stun",0.55) if not game.tower_lab else trial_stat("stun"),"tower":self,"focus_id":0})
 	game.delayed_attack(aim_pos,splash_radius(),power,0,"tower",0.38,options)
 func muzzle() -> Vector2:
 	if use_v024_art:
@@ -1320,10 +1301,6 @@ func _draw() -> void:
 		var up_frac := clampf(1.0 - project_clock / ArenaTowerTrial.BUILD_TIME, 0.0, 1.0)
 		draw_rect(Rect2(-22.0, 12.0, 44.0, 5.0), Color("14111b"))
 		draw_rect(Rect2(-20.0, 13.5, 40.0 * up_frac, 2.0), Color("7fd8ff"))
-	elif not game.tower_lab and level < 3:
-		var xp_frac := auto_xp_progress()
-		draw_rect(Rect2(-20.0, 13.0, 40.0, 4.0), Color("0d131d", 0.85))
-		draw_rect(Rect2(-19.0, 14.0, 38.0 * xp_frac, 2.0), Color("7ef0ff"))
 	if _is_healer_buffed():
 		for p_i in range(3):
 			var p_age := fmod(visual_clock * 0.75 + float(p_i) * 0.33, 1.0)
@@ -1369,19 +1346,12 @@ func _draw() -> void:
 				var point:=rally_slot(soldier.slot)-position
 				var ink:=Color("efd49a") if soldier.can_block() else Color("efd49a66")
 				draw_arc(point,5.0,0.0,TAU,14,ink,1.5,true)
-	if awaiting_doctrine:
-		# A small upgrade cue leaves the foundation visible instead of a floating halo.
-		draw_polyline(PackedVector2Array([Vector2(-5,22),Vector2(0,17),Vector2(5,22)]),Color("e8c278"),2,true)
 	if doctrine_id!="":
-		for side in range(2):
-			var rank: int=branch_ranks[side]
-			for pip in range(3):
-				var offset_x: float=(-25.0+pip*8.0) if side==0 else (9.0+pip*8.0)
-				var curve_y: float=[26.0,28.5,29.5][pip] if side==0 else [29.5,28.5,26.0][pip]
-				var dot:=Vector2(offset_x,curve_y)
-				var tint:=Color("f5cd6a") if side==0 else Color("7fd8ff")
-				draw_circle(dot,3.4,Color(0.11,0.13,0.16,0.72 if pip<rank else 0.36))
-				draw_circle(dot,2.2,tint if pip<rank else Color(0.32,0.38,0.44,0.34))
+		var count := enhancements().size()
+		for index in range(count):
+			var dot := Vector2((float(index)-(float(count)-1.0)*0.5)*10.0,25.0)
+			draw_circle(dot,3.2,Color("171923"))
+			draw_circle(dot,2.1,Color("f5cd6a") if index<unlocked_enhancements else Color("5e6878"))
 
 func _draw_v024_base_accent() -> void:
 	draw_set_transform(Vector2(0.0,2.0),0.0,Vector2(1.0,0.54))

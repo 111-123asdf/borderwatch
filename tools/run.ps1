@@ -6,7 +6,7 @@ $enginePath = Resolve-GodotBinary $projectRoot
 $savedAppData = $env:APPDATA
 $savedLocalAppData = $env:LOCALAPPDATA
 try {
-    if ($TowerLab -and -not $Editor) {
+    if (($Playtest -or $TowerLab) -and -not ($Editor -or $FeelLab)) {
         try {
             $userDirectory = Join-Path $env:APPDATA 'Borderwatch'
             New-Item -ItemType Directory -Force -Path $userDirectory | Out-Null
@@ -14,7 +14,8 @@ try {
             $probe = [IO.File]::Open($probePath, 'CreateNew', 'Write', 'None', 4096, 'DeleteOnClose')
             $probe.Dispose()
         } catch {
-            $localProfile = Join-Path $projectRoot '_local/tower-lab'
+            $profileFolder = if ($TowerLab) { 'tower-lab' } else { 'playtest' }
+            $localProfile = Join-Path (Join-Path $projectRoot '_local') $profileFolder
             $env:APPDATA = Join-Path $localProfile 'Roaming'
             $env:LOCALAPPDATA = Join-Path $localProfile 'Local'
             New-Item -ItemType Directory -Force -Path (Join-Path $env:APPDATA 'Borderwatch'), $env:LOCALAPPDATA | Out-Null

@@ -14,7 +14,12 @@ class _RiftFloorCanvas:
 		domain_node._draw_modular_dungeon(self)
 
 const RIFT_ORIGIN := Vector2(4000.0, 0.0)
-const PORTAL_COOLDOWN := 10.0
+const PORTAL_COOLDOWN := 14.0
+const FORMATIONS := {
+	"wilds": ["tusk_fighter","rottooth_hyena","dreadeye_viper"],
+	"abyss": ["tide_warrior","tide_rider","conch_mage"],
+	"void": ["twilight_avenger","avenger_rider","venom_spitter"]
+}
 
 const BIOME_CONFIGS := {
 	"wilds": {
@@ -67,6 +72,7 @@ var room_order: Array[String] = []
 var world_rect: Rect2 = Rect2(RIFT_ORIGIN, Vector2(5600.0, 4200.0))
 var grid_bounds: Rect2i = Rect2i(0, 0, 5, 5)
 var active_combat_room: String = ""
+var _combat_resume_position := Vector2.INF
 
 var defense_portal_pos: Vector2 = Vector2(1320.0, 520.0)
 var return_portal_pos: Vector2 = RIFT_ORIGIN + Vector2(2000.0, 2000.0)
@@ -74,12 +80,16 @@ var descent_gate_active: bool = false
 var descent_gate_pos: Vector2 = Vector2.ZERO
 var descent_gate_room: String = ""
 var hero_speed_pad_clock: float = 0.0
-var near_descent_gate: bool = false
 
 var portal_cooldown: float = 0.0
 var rift_dwell_time: float = 0.0
 var total_rift_time: float = 0.0
 var _telegraphs: Array[Dictionary] = []
+var _reserve_groups: Array[Dictionary] = []
+var _reserve_clock := 0.0
+var _room_group_idx := 0
+var _room_front := Vector2.UP
+var _room_flank_sign := 1.0
 var _magnet_timers: Array[Dictionary] = []
 
 # Warp animation & iris transition state (zero accidental teleportation)
@@ -146,7 +156,6 @@ func configure(owner_game: Node2D, p_stage_id: String) -> void:
 	rift_dwell_time = 0.0
 	total_rift_time = 0.0
 	hero_speed_pad_clock = 0.0
-	near_descent_gate = false
 	_telegraphs.clear()
 	_magnet_timers.clear()
 	_portal_fx.clear()
@@ -188,11 +197,13 @@ func _build_topology() -> void:
 	world_rect = gen.world_rect
 	grid_bounds = gen.grid_bounds
 	active_combat_room = ""
+	_combat_resume_position = Vector2.INF
 	descent_gate_active = false
 	descent_gate_room = str(gen.get("boss_room_id", ""))
 	descent_gate_pos = Vector2(rooms[descent_gate_room].center) + Vector2(0.0, -145.0) if rooms.has(descent_gate_room) else Vector2.ZERO
 	return_portal_pos = Vector2(rooms["hub"].center)
 	_telegraphs.clear()
+	_reserve_groups.clear()
 	_magnet_timers.clear()
 
 
@@ -430,8 +441,12 @@ func rift_explore_haste() -> float:
 	if not is_instance_valid(game.hero):
 		return pad_bonus
 	var rid := current_room_id(game.hero.position)
+	var travel: float = game.passive_engine.rift_travel_bonus()
 	if rooms.has(rid) and str(rooms[rid].state) == "cleared":
-		return 0.45 + pad_bonus
+		return 0.45 + pad_bonus + travel
+	for corridor: Dictionary in corridors:
+		if Rect2(corridor.rect).has_point(game.hero.position) and _is_corridor_passable(corridor):
+			return pad_bonus + travel
 	return pad_bonus
 
 
@@ -491,6 +506,84 @@ func _push_out_of_obstacles(world_pt: Vector2, rid: String, pad := 14.0) -> Vect
 	return pt
 
 
+func _cover_contact(from: Vector2, to: Vector2, rect: Rect2) -> Vector2:
+	if rect.has_point(from):
+		return from
+	var nearest := Vector2.INF
+	var length := INF
+	var corners := [rect.position, Vector2(rect.end.x,rect.position.y), rect.end, Vector2(rect.position.x,rect.end.y)]
+	for side in range(4):
+		var hit: Variant = Geometry2D.segment_intersects_segment(from,to,corners[side],corners[(side+1)%4])
+		if hit is Vector2:
+			var distance := from.distance_squared_to(hit)
+			if distance < length:
+				nearest = hit
+				length = distance
+	return nearest
+
+
+func projectile_cover(from: Vector2, to: Vector2) -> Vector2:
+	if not rooms.has(active_combat_room):
+		return Vector2.INF
+	var closest := Vector2.INF
+	var distance := INF
+	for obstacle: Rect2 in rooms[active_combat_room].obstacles:
+		var point := _cover_contact(from,to,obstacle)
+		if point.is_finite() and from.distance_squared_to(point) < distance:
+			closest = point
+			distance = from.distance_squared_to(point)
+	return closest
+
+
+func rift_mob_waypoint(from: Vector2, to: Vector2, rid: String) -> Vector2:
+	if not rooms.has(rid):
+		return to
+	var room: Dictionary = rooms[rid]
+	var blocker := Rect2()
+	var closest := INF
+	for obstacle: Rect2 in room.obstacles:
+		var hit := _cover_contact(from,to,obstacle.grow(12.0))
+		if hit.is_finite() and from.distance_squared_to(hit) < closest:
+			closest = from.distance_squared_to(hit)
+			blocker = obstacle
+	if not blocker.has_area():
+		return to
+	var outer := blocker.grow(27.0)
+	var best := to
+	var cost := INF
+	for corner: Vector2 in [outer.position,Vector2(outer.end.x,outer.position.y),outer.end,Vector2(outer.position.x,outer.end.y)]:
+		if not Rect2(room.inner_rect).grow(-14.0).has_point(corner) or from.distance_squared_to(corner) < 90.0:
+			continue
+		var blocked := false
+		for obstacle: Rect2 in room.obstacles:
+			if _cover_contact(from,corner,obstacle.grow(10.0)).is_finite():
+				blocked = true
+				break
+		if blocked:
+			continue
+		var length := from.distance_to(corner)+corner.distance_to(to)
+		if length < cost:
+			cost = length
+			best = corner
+	return best
+
+
+func navigation_path(from: Vector2, target: Vector2) -> PackedVector2Array:
+	var destination := clamp_rift_position(target)
+	var rid := active_combat_room if not active_combat_room.is_empty() else current_room_id(from)
+	var route := PackedVector2Array()
+	var point := from
+	for _turn in 8:
+		var next := rift_mob_waypoint(point,destination,rid)
+		if next in route or point.distance_squared_to(next) < 1.0:
+			break
+		route.append(next)
+		if next == destination:
+			break
+		point = next
+	return route
+
+
 func clamp_rift_position(world_pt: Vector2) -> Vector2:
 	var best_pt := world_pt
 	if not active_combat_room.is_empty() and rooms.has(active_combat_room):
@@ -539,7 +632,7 @@ func can_enter_rift() -> bool:
 		return false
 	if game.active_domain == "rift" or portal_cooldown > 0.0 or warp_phase != "":
 		return false
-	return is_instance_valid(game.hero) and not game.hero.knocked_out
+	return not game.get_tree().paused and is_instance_valid(game.hero) and not game.hero.knocked_out
 
 
 func enter_rift(instant := false) -> bool:
@@ -547,73 +640,75 @@ func enter_rift(instant := false) -> bool:
 		return false
 	if instant or Engine.time_scale > 2.0:
 		_relocate_to_rift()
-		return true
-	var hero: ArenaHero = game.hero
-	hero.cancel_action()
-	hero.path.clear()
-	hero.protection = maxf(hero.protection, 1.0)
-	warp_phase = "out"
-	warp_target = "rift"
-	warp_clock = 0.22
-	_spawn_portal_fx(hero.position, true)
-	game.audio.play("phase", -8.0, 1.18)
+	else:
+		_start_warp("rift", game.hero.position, 1.0, 1.18)
 	return true
 
-
 func recall_to_defense(instant := false) -> bool:
-	if game == null or game.game_over or game.active_domain != "rift":
+	if game == null or not game.running or game.game_over or game.active_domain != "rift" or not warp_phase.is_empty():
 		return false
-	if warp_phase != "" and not instant and Engine.time_scale <= 2.0:
-		return false
-	var hero: ArenaHero = game.hero
-	if not is_instance_valid(hero):
+	if not is_instance_valid(game.hero) or game.get_tree().paused:
 		return false
 	if instant or Engine.time_scale > 2.0:
 		_relocate_to_defense()
-		return true
-	hero.cancel_action()
-	hero.path.clear()
-	hero.protection = maxf(hero.protection, 1.2)
-	warp_phase = "out"
-	warp_target = "defense"
-	warp_clock = 0.22
-	_spawn_portal_fx(hero.position, true)
-	game.audio.play("phase", -8.0, 0.96)
+	else:
+		_start_warp("defense", game.hero.position, 1.2, 0.96)
 	return true
 
-
 func can_descend_now() -> bool:
-	if not descent_gate_active or game == null or game.game_over or game.active_domain != "rift":
+	if not descent_gate_active or game == null or not game.running or game.game_over or game.active_domain != "rift":
 		return false
-	if not active_combat_room.is_empty() or warp_phase != "":
+	if not active_combat_room.is_empty() or not warp_phase.is_empty() or game.get_tree().paused:
 		return false
-	return near_descent_gate
-
+	var hero: ArenaHero = game.hero
+	return is_instance_valid(hero) and not hero.knocked_out and hero.position.distance_to(descent_gate_pos) <= 78.0
 
 func descend_next_floor(instant := false) -> bool:
-	if not descent_gate_active or game == null or game.game_over or game.active_domain != "rift":
-		return false
-	if not active_combat_room.is_empty():
+	if not can_descend_now():
 		return false
 	if instant or Engine.time_scale > 2.0:
 		_perform_floor_descent()
-		return true
-	if warp_phase != "":
-		return false
-	var hero: ArenaHero = game.hero
-	if is_instance_valid(hero):
-		hero.cancel_action()
-		hero.path.clear()
-		hero.protection = maxf(hero.protection, 1.0)
-		_spawn_portal_fx(descent_gate_pos, true)
-	warp_phase = "out"
-	warp_target = "descend"
-	warp_clock = 0.22
-	game.audio.play("phase", -7.0, 1.32)
+	else:
+		_start_warp("descend", descent_gate_pos, 1.0, 1.32)
 	return true
 
+func _clear_portal_orders(hero: ArenaHero) -> void:
+	hero.cancel_action()
+	hero.path.clear()
+	hero.velocity = Vector2.ZERO
+	hero.queued_attack_point = Vector2.INF
+	game.targeting_slot = -1
+	game.rally_site = -1
+	game.mouse_shoot_held = false
+	game.suppress_primary = Input.is_action_pressed("shoot")
+	if is_instance_valid(game.hud):
+		game.hud.close_context()
+
+func _start_warp(destination: String, effect_position: Vector2, protection: float, pitch: float) -> void:
+	var hero: ArenaHero = game.hero
+	_clear_portal_orders(hero)
+	hero.protection = maxf(hero.protection, protection)
+	warp_phase = "out"
+	warp_target = destination
+	warp_clock = 0.22
+	_spawn_portal_fx(effect_position, true)
+	game.audio.play("phase", -7.0 if destination == "descend" else -8.0, pitch)
+
+func _relocate_party(hero: ArenaHero, destination: String, landing: Vector2, protection: float) -> void:
+	_clear_portal_orders(hero)
+	game.blocking.release(hero)
+	hero.domain = destination
+	hero.position = landing
+	hero.protection = maxf(hero.protection, protection)
+	for beast in hero.companions:
+		if is_instance_valid(beast):
+			game.blocking.release(beast)
+			beast.path.clear()
+			beast.position = landing + Vector2(-28.0 if beast.slot == 0 else 28.0, 10.0)
+	game.active_domain = destination
 
 func _perform_floor_descent() -> void:
+	game.clear_rift_attacks()
 	# Clean leftover Rift enemies & pickups from current floor
 	for e in game.domain_enemies("rift"):
 		if is_instance_valid(e):
@@ -628,21 +723,13 @@ func _perform_floor_descent() -> void:
 
 	floors_cleared += 1
 	floor_index += 1
-	near_descent_gate = false
 	_build_topology()
 	_rebuild_visual_layers()
 
 	var hero: ArenaHero = game.hero
 	if is_instance_valid(hero):
-		hero.cancel_action()
-		hero.path.clear()
-		hero.position = Vector2(rooms["hub"].center)
-		hero.protection = maxf(hero.protection, 1.0)
+		_relocate_party(hero, "rift", Vector2(rooms["hub"].center), 1.0)
 		hero._heal_self(hero.max_health * 0.25, true)
-		for beast in hero.companions:
-			if is_instance_valid(beast):
-				beast.path.clear()
-				beast.position = hero.position + Vector2(-28.0 if beast.slot == 0 else 28.0, 10.0)
 	game.camera.sync_domain()
 	_spawn_portal_fx(Vector2(rooms["hub"].center), false)
 	game.numbers.append({
@@ -654,62 +741,43 @@ func _perform_floor_descent() -> void:
 		"critical": true
 	})
 	game.audio.play("phase", -7.0, 1.35)
-	if game.event_bus != null:
-		game.event_bus.emit_event("rift_floor_descended", {"floor": floor_index})
 
 
 func _relocate_to_rift() -> void:
 	var hero: ArenaHero = game.hero
 	if not is_instance_valid(hero):
 		return
-	game.blocking.release(hero)
-	hero.cancel_action()
-	hero.path.clear()
-	hero.domain = "rift"
-	hero.position = Vector2(rooms["hub"].center)
-	hero.protection = maxf(hero.protection, 0.85)
-	for beast in hero.companions:
-		if is_instance_valid(beast):
-			game.blocking.release(beast)
-			beast.path.clear()
-			beast.position = hero.position + Vector2(-28.0 if beast.slot == 0 else 28.0, 10.0)
-	game.active_domain = "rift"
+	var departure := hero.position
+	var landing := Vector2(rooms["hub"].center)
+	if rooms.has(active_combat_room) and _combat_resume_position.is_finite():
+		landing = _combat_resume_position
+	_combat_resume_position = Vector2.INF
+	_relocate_party(hero, "rift", landing, 0.85)
+	game.event_bus.emit_event("domain_enter", {"departure": departure})
 	rift_dwell_time = 0.0
-	if is_instance_valid(game.hud):
-		game.hud.close_context()
 	game.camera.sync_domain()
 	_spawn_portal_fx(hero.position, false)
 	game.effect(hero.position, 68.0, Color("7ef0ff"), "void_warp", 0.36)
 	game.audio.play("phase", -8.0, 1.24)
-	if game.event_bus != null:
-		game.event_bus.emit_event("domain_changed", {"domain": "rift"})
 
 
 func _relocate_to_defense() -> void:
 	var hero: ArenaHero = game.hero
 	if not is_instance_valid(hero):
 		return
-	_abort_active_combat_room_on_recall()
+	if rooms.has(active_combat_room):
+		_combat_resume_position = hero.position
+	game.clear_rift_attacks()
 	var landing := _pick_recall_landing()
-	hero.cancel_action()
-	hero.path.clear()
-	hero.domain = "defense"
-	hero.position = landing
-	hero.protection = maxf(hero.protection, 1.50)
+	_relocate_party(hero, "defense", landing, 1.50)
 	hero.war_cry = maxf(hero.war_cry, 2.5)
-	for beast in hero.companions:
-		if is_instance_valid(beast):
-			beast.path.clear()
-			beast.position = landing + Vector2(-28.0 if beast.slot == 0 else 28.0, 10.0)
-	game.active_domain = "defense"
 	portal_cooldown = PORTAL_COOLDOWN
 	core_hit_alert = 0.0
-	near_descent_gate = false
 	game.camera.sync_domain()
 	_spawn_portal_fx(landing, false)
 
 	# Heroic Recall Landing Shockwave
-	var shock_dmg: float = hero.attack_damage() * 1.75
+	var shock_dmg: float = hero.attack_damage() * 2.0
 	game.area_damage(landing, 175.0, shock_dmg, 1, "hero", 0.55, 1.6, 0.25, 42.0, "recall_shock", true, {"domain": "defense"})
 	game.effect(landing, 150.0, Color("7cf2ff"), "slam", 0.45)
 	game.numbers.append({
@@ -723,23 +791,7 @@ func _relocate_to_defense() -> void:
 	game.audio.play("heavy_hit", -7.0, 1.12)
 	game.audio.play("phase", -9.0, 0.94)
 	if game.event_bus != null:
-		game.event_bus.emit_event("domain_changed", {"domain": "defense"})
 		game.event_bus.emit_event("domain_recall", {"landing": landing})
-
-
-func _abort_active_combat_room_on_recall() -> void:
-	if active_combat_room.is_empty() or not rooms.has(active_combat_room):
-		return
-	var rid := active_combat_room
-	active_combat_room = ""
-	var rm: Dictionary = rooms[rid]
-	rm.state = "discovered"
-	rm.wave_idx = 0
-	rm.wave_pause_clock = 0.0
-	_telegraphs.clear()
-	for e in game.domain_enemies("rift"):
-		if is_instance_valid(e) and not e.dead and str(e.get("rift_room_id")) == rid:
-			game.remove_enemy(e)
 
 
 func _spawn_portal_fx(world_pt: Vector2, opening: bool) -> void:
@@ -891,9 +943,11 @@ func _tick_hazards_and_pads(delta: float) -> void:
 				hz.armed = false
 				var hpos := Vector2(hz.pos)
 				var hrad := float(hz.radius)
-				game.area_damage(hpos, hrad, 68.0 + float(floor_index - 1) * 28.0, 1, "hero", 0.35, 1.5, 0.2, 0.0, "hazard_blast", true, {"domain": "rift", "passive_proc": true})
+				var damage: float = (68.0+float(floor_index-1)*28.0)*game.passive_engine.hazard_damage_multiplier()
+				game.area_damage(hpos, hrad, damage, 1, "hero", 0.35, 1.5, 0.2, 0.0, "hazard_blast", true, {"domain": "rift", "passive_proc": true})
 				if hero.position.distance_to(hpos) <= hrad and hero.protection <= 0.0:
-					hero.take_hit(20.0, 1, false, (hero.position - hpos).normalized())
+					var danger := 15.0 if game.passive_engine.is_evo("hazardcraft") else 20.0
+					hero.take_hit(danger, 1, false, (hero.position - hpos).normalized(),false)
 				game.effect(hpos, hrad, Color("c474ff"), "blast", 0.32)
 				game.audio.play("explode", -14.0, 1.18)
 
@@ -925,8 +979,9 @@ func _detonate_barrel(barrel: Dictionary, rid: String) -> void:
 	var pos := Vector2(barrel.pos)
 	var r_mult: float = float(game.relic_engine.barrel_damage_mult()) if (game != null and game.relic_engine != null) else 1.0
 	var blast_dmg: float = (180.0 + float(floor_index - 1) * 55.0) * r_mult
-	game.area_damage(pos, 160.0, blast_dmg, 1, "hero", 0.60, 0.0, 0.30, 0.0, "crystal_barrel", true, {"domain": "rift", "passive_proc": true})
-	game.effect(pos, 148.0, Color("6cf4ff"), "blast", 0.42)
+	var radius: float = 160.0 * game.passive_engine.barrel_range_multiplier()
+	game.area_damage(pos, radius, blast_dmg, 1, "hero", 0.60, 0.0, 0.30, 0.0, "crystal_barrel", true, {"domain": "rift", "passive_proc": true})
+	game.effect(pos, radius*0.925, Color("6cf4ff"), "blast", 0.42)
 	game.effect(pos, 118.0, Color("d474ff"), "void_warp", 0.36)
 	game.numbers.append({
 		"point": pos + Vector2(0.0, -30.0),
@@ -982,7 +1037,14 @@ func _tick_rooms_and_waves(delta: float) -> void:
 		var cur: Dictionary = rooms[active_combat_room]
 		var alive := _room_alive_count(active_combat_room)
 		var pending_tel := _room_telegraph_count(active_combat_room)
-		if alive == 0 and pending_tel == 0:
+		if not _reserve_groups.is_empty():
+			_reserve_clock = maxf(0.0,_reserve_clock-delta)
+			var group := _reserve_groups[0]
+			var limit := 20 if cur.mutator == "swarm_tide" else 14
+			if bool(group.after_clear):limit = group.units.size()
+			if pending_tel == 0 and alive+group.units.size() <= limit and (_reserve_clock <= 0.0 or alive == 0):
+				_send_next_group(active_combat_room)
+		elif alive == 0 and pending_tel == 0:
 			if int(cur.wave_idx) < int(cur.total_waves):
 				if float(cur.wave_pause_clock) <= 0.0:
 					cur.wave_pause_clock = 0.65
@@ -1005,7 +1067,6 @@ func _tick_rooms_and_waves(delta: float) -> void:
 				_event_prompt_cd = 1.6
 				game.open_rift_event(rid)
 
-	near_descent_gate = descent_gate_active and active_combat_room.is_empty() and hero.position.distance_to(descent_gate_pos) <= 78.0
 
 
 func _room_alive_count(rid: String) -> int:
@@ -1033,6 +1094,10 @@ func _start_room_combat(rid: String) -> void:
 	rm.state = "locked_combat"
 	rm.wave_idx = 1
 	rm.wave_pause_clock = 0.0
+	var approach: Vector2 = Vector2(rm.center) - game.hero.position
+	_room_front = Vector2(signf(approach.x),0.0) if absf(approach.x) > absf(approach.y) else Vector2(0.0,signf(approach.y))
+	if _room_front.is_zero_approx():_room_front = Vector2.UP
+	_room_flank_sign = -1.0 if floor_rng.randf() < 0.5 else 1.0
 	_spawn_room_wave(rid, 1)
 	if is_instance_valid(game.hero):
 		var mut_tag := ""
@@ -1041,7 +1106,7 @@ func _start_room_combat(rid: String) -> void:
 			mut_tag = " [" + str(m_cfg.name) + "]"
 		game.numbers.append({
 			"point": Vector2(rm.center) + Vector2(0.0, -148.0),
-			"text": "封门狂潮 · %s%s!" % [str(rm.title), mut_tag],
+			"text": "%s%s" % [str(rm.title), mut_tag],
 			"colour": Color("ff6c7a") if str(rm.kind) in ["boss", "miniboss"] else Color("ff9e68"),
 			"life": 1.25,
 			"duration": 1.25,
@@ -1051,65 +1116,86 @@ func _start_room_combat(rid: String) -> void:
 
 
 func _spawn_room_wave(rid: String, wave_num: int) -> void:
-	var rm: Dictionary = rooms[rid]
-	var c := Vector2(rm.center)
-	var ir: Rect2 = rm.inner_rect
-	var kind := str(rm.kind)
-	var mob_pool: Array = layout.mobs
-	var elite_pool: Array = layout.elites
-	var mut_id := str(rm.get("mutator", "none"))
-	var mut_cfg: Dictionary = ArenaRiftPCG.MUTATORS.get(mut_id, ArenaRiftPCG.MUTATORS["none"])
-	var c_mult := float(mut_cfg.get("count_mult", 1.0))
-	var e_bonus := int(mut_cfg.get("elite_bonus", 0))
-	var is_gold_rush := mut_id == "gold_rush"
+	var room: Dictionary = rooms[rid]
+	var kind: String = room.kind
+	var mutator: Dictionary = ArenaRiftPCG.MUTATORS[room.mutator]
+	var roster: Array[Dictionary] = []
+	var count: int
+	var elites: int
+	if kind == "boss":
+		count = 18 if floor_index == 1 else 22
+		elites = 2
+	elif kind == "miniboss":
+		count = 14 + (floor_index-1)*3
+		elites = 1
+	else:
+		var base := 16 if kind == "chest" else ((15 if wave_num == 1 else 17) if kind == "combat" else (16 if wave_num == 1 else 19))
+		base += mini(4,(floor_index-1)*2)
+		count = clampi(roundi(base*float(mutator.count_mult)),12,26)
+		elites = (1 if kind == "chest" or wave_num >= 2 else 0) + int(mutator.elite_bonus)
+		if kind == "elite":
+			elites = maxi(2,elites+1)
 
-	var rx_max := maxf(120.0, ir.size.x * 0.42)
-	var ry_max := maxf(95.0, ir.size.y * 0.40)
+	var formation: Array = FORMATIONS[theme_key]
+	for index in count:
+		var elite := index < elites
+		var pool: Array = layout.elites if elite and kind in ["combat","elite","chest"] else layout.mobs
+		var mob: String = pool[floor_rng.randi_range(0,pool.size()-1)]
+		if not elite and (index == elites or index == elites+2):
+			mob = formation[0]
+		elif not elite and index >= 8 and index % 3 == 1:
+			mob = formation[1]
+		if not elite and index == maxi(5,elites+1):
+			mob = formation[2]
+		elif mob == formation[2]:
+			mob = formation[1]
+		var bounty: bool = (elite and kind in ["chest","elite"]) or (room.mutator == "gold_rush" and index % 4 == 0)
+		roster.append({"kind": mob, "bounty": bounty, "elite": elite})
 
 	if kind == "boss":
-		var escort_cnt := 18 if floor_index == 1 else 22
-		for i in range(escort_cnt):
-			var ang := float(i) * (TAU / float(escort_cnt)) + float(wave_num) * 0.33
-			var pt := c + Vector2(cos(ang) * rx_max * 0.88, sin(ang) * ry_max * 0.88)
-			var mk := str(mob_pool[floor_rng.randi_range(0, mob_pool.size() - 1)])
-			_queue_room_telegraph(rid, mk, pt, 0.34 + float(i % 4) * 0.06, is_gold_rush and i % 6 == 0, i < 2)
-		if wave_num == 1:
-			_queue_room_telegraph(rid, str(layout.boss), c + Vector2(0.0, -95.0), 0.56, true, true)
-			if floor_index >= 2:
-				_queue_room_telegraph(rid, str(layout.get("alt_boss", layout.boss)), c + Vector2(0.0, 95.0), 0.64, true, true)
-		else:
-			# Floor 2+ second wave reinforces with extra elite + mini-boss
-			_queue_room_telegraph(rid, str(layout.miniboss), c + Vector2(0.0, -85.0), 0.52, true, true)
-		return
-
-	if kind == "miniboss":
-		var mb_guards := 14 + (floor_index - 1) * 3
-		for i in range(mb_guards):
-			var ang := float(i) * (TAU / float(mb_guards)) + float(wave_num) * 0.42
-			var pt := c + Vector2(cos(ang) * rx_max * 0.86, sin(ang) * ry_max * 0.84)
-			var mk := str(mob_pool[floor_rng.randi_range(0, mob_pool.size() - 1)])
-			_queue_room_telegraph(rid, mk, pt, 0.32 + float(i % 4) * 0.05, is_gold_rush and i % 5 == 0, i == 0)
+		var leader: String = layout.boss if wave_num == 1 else layout.alt_boss
+		roster.insert(0,{"kind": leader, "bounty": true, "elite": true})
 		if wave_num == 2:
-			_queue_room_telegraph(rid, str(layout.miniboss), c + Vector2(0.0, -76.0), 0.55, true, true)
-		return
+			game.numbers.append({
+				"point": Vector2(room.center)+Vector2(0,-120), "text": "第二战 · "+str(ArenaDefinitions.enemy(leader).name),
+				"colour": Color("ffad88"), "life": 1.2, "duration": 1.2, "critical": true
+			})
+	elif kind == "miniboss" and wave_num == 2:
+		roster.insert(0,{"kind": layout.miniboss, "bounty": true, "elite": true})
 
-	# Standard / Chest / Elite ×2.5 Musou Horde Density (26..48 mobs total across waves!)
-	var base_cnt := 16 if kind == "chest" else ((15 if wave_num == 1 else 17) if kind == "combat" else (16 if wave_num == 1 else 19))
-	base_cnt += mini(4, (floor_index - 1) * 2)
-	var count := clampi(int(round(float(base_cnt) * c_mult)), 12, 26)
-	var elite_cnt := (1 if kind == "chest" or wave_num >= 2 else 0) + e_bonus
-	if kind == "elite":
-		elite_cnt = maxi(2, elite_cnt + 1)
+	var group_size := 11 if room.mutator == "swarm_tide" else 8
+	var bands: Array = []
+	for offset in range(0,roster.size(),group_size):
+		bands.append({"units": roster.slice(offset,offset+group_size), "after_clear": false})
+	# Deeper floors keep the original third leader. Its entrance follows the second boss.
+	if kind == "boss" and wave_num == 2:
+		bands.append({"units": [{"kind": layout.miniboss, "bounty": true, "elite": true}], "after_clear": true})
+	_reserve_groups.assign(bands)
+	_room_group_idx = 0
+	_send_next_group(rid)
 
-	for i in range(count):
-		var ang := float(i) * (TAU / float(count)) + float(wave_num) * 0.38
-		var rx := rx_max * floor_rng.randf_range(0.60, 0.96)
-		var ry := ry_max * floor_rng.randf_range(0.58, 0.94)
-		var pt := clamp_mob_to_room(c + Vector2(cos(ang) * rx, sin(ang) * ry), rid)
-		var is_el := i < elite_cnt
-		var m_kind := str(elite_pool[floor_rng.randi_range(0, elite_pool.size() - 1)]) if is_el else str(mob_pool[floor_rng.randi_range(0, mob_pool.size() - 1)])
-		var is_bounty := (is_el and kind in ["chest", "elite"]) or (is_gold_rush and i % 4 == 0)
-		_queue_room_telegraph(rid, m_kind, pt, 0.28 + float(i % 4) * 0.05, is_bounty, is_el)
+
+func _send_next_group(rid: String) -> void:
+	var room: Dictionary = rooms[rid]
+	var group: Dictionary = _reserve_groups.pop_front()
+	var units: Array = group.units
+	var center: Vector2 = room.center
+	var size: Vector2 = Rect2(room.inner_rect).size
+	var direction := _room_front
+	var flank := _room_front.orthogonal() * _room_flank_sign
+	if _room_group_idx % 3 == 1:direction = flank
+	elif _room_group_idx % 3 == 2:direction = -flank
+	var tangent := direction.orthogonal()
+	var base := center + direction * (size*direction.abs()).length()*0.35
+	var span := (size*tangent.abs()).length()*0.58
+	for index in units.size():
+		var unit: Dictionary = units[index]
+		var ratio := float(index+1)/float(units.size()+1)-0.5
+		var point := base + tangent * (span*ratio)
+		var stagger := float(index % 3)*0.09
+		_queue_room_telegraph(rid,unit.kind,point,0.70+stagger,unit.bounty,unit.elite)
+	_room_group_idx += 1
+	_reserve_clock = 1.65
 
 
 func _queue_room_telegraph(rid: String, mob_kind: String, world_pos: Vector2, delay: float, bounty: bool, is_el: bool) -> void:
@@ -1142,6 +1228,7 @@ func _spawn_room_mob(rid: String, kind: String, world_pos: Vector2, bounty: bool
 
 func _clear_room(rid: String) -> void:
 	var rm: Dictionary = rooms[rid]
+	if rm.state == "cleared":return
 	rm.state = "cleared"
 	if active_combat_room == rid:
 		active_combat_room = ""
@@ -1153,6 +1240,8 @@ func _clear_room(rid: String) -> void:
 		rm.reward_active = true
 	if str(rm.kind) == "boss":
 		descent_gate_active = true
+	if int(rm.total_waves) > 0:
+		game.event_bus.emit_event("rift_room_cleared", {"room_id": rid})
 	_magnet_timers.append({"rect": Rect2(rm.inner_rect).grow(110.0), "delay": 0.38})
 
 	if is_instance_valid(game.hero):
@@ -1169,16 +1258,14 @@ func _clear_room(rid: String) -> void:
 	game.audio.play("phase", -8.0, 1.32)
 	if game.passive_engine != null and game.passive_engine.pending_ups > 0 and is_instance_valid(game.hud) and game.hud.has_method("pulse_passive_badge"):
 		game.hud.pulse_passive_badge()
-	if game.event_bus != null:
-		game.event_bus.emit_event("room_cleared", {"room_id": rid, "cleared": cleared_count(), "floor": floor_index})
 
 
 func _spawn_xp_fountain(pos: Vector2, violet_cnt: int, gold_cores: int, xp_each: int, gold_each: int) -> void:
 	var g_mult: float = float(game.relic_engine.gold_xp_mult()) if (game != null and game.relic_engine != null) else 1.0
 	for _i in range(violet_cnt):
-		game.spawn_pickup(pos, "rift", "violet", int(round(float(xp_each) * g_mult)), int(round(float(gold_each) * g_mult)))
+		game.spawn_pickup(pos, "rift", "violet", xp_each, int(round(float(gold_each) * g_mult)))
 	for _g in range(gold_cores):
-		game.spawn_pickup(pos, "rift", "gold_core", int(round(68.0 * g_mult)), int(round(14.0 * g_mult)))
+		game.spawn_pickup(pos, "rift", "gold_core", 68, int(round(4.0 * g_mult)))
 
 
 func _claim_room_reward(rid: String) -> void:
@@ -1191,9 +1278,9 @@ func _claim_room_reward(rid: String) -> void:
 	var g_mult: float = float(game.relic_engine.gold_xp_mult()) if (game != null and game.relic_engine != null) else 1.0
 
 	if rkind == "chest":
-		var gain_g := int(round(75.0 * g_mult))
-		game.gold += gain_g
-		_spawn_xp_fountain(rpos, 6, 2, 34, 4)
+		var gain_g := int(round(50.0 * g_mult))
+		game.gain_gold(gain_g, "rift_room")
+		_spawn_xp_fountain(rpos, 6, 2, 34, 1)
 		var relic_note := ""
 		if game.relic_engine != null and (floor_index >= 2 or floor_rng.randf() < 0.55):
 			var rel: Dictionary = game.relic_engine.grant_random_relic(floor_rng)
@@ -1201,32 +1288,30 @@ func _claim_room_reward(rid: String) -> void:
 				relic_note = " · 得遗物[" + str(rel.name) + "]!"
 		game.numbers.append({"point": rpos + Vector2(0, -34), "text": "秘宝箱 +%d金 · 晶石喷泉%s" % [gain_g, relic_note], "colour": Color("ffe678"), "life": 1.30, "duration": 1.30, "critical": true})
 	elif rkind == "miniboss_relic":
-		var gain_mg := int(round(115.0 * g_mult))
-		game.gold += gain_mg
-		game.add_core_shield(70.0)
-		_spawn_xp_fountain(rpos, 8, 2, 38, 6)
+		var gain_mg := int(round(75.0 * g_mult))
+		game.gain_gold(gain_mg, "rift_room")
+		var shield_m: float = game.add_core_shield(70.0)
+		_spawn_xp_fountain(rpos, 8, 2, 38, 2)
 		var rel_m: Dictionary = game.relic_engine.grant_random_relic(floor_rng) if game.relic_engine != null else {}
-		var msg_m := "统领秘藏 +%d金/+70盾" % gain_mg
-		if not rel_m.is_empty():
-			msg_m += " · 遗物[" + str(rel_m.name) + "]!"
-		else:
-			game.gold += 80
-			game.add_core_shield(60.0)
-			msg_m += " · 满遗物转+80金!"
+		if rel_m.is_empty():
+			game.gain_gold(25, "rift_room")
+			gain_mg += 25
+			shield_m += game.add_core_shield(60.0)
+		var msg_m := "统领秘藏 +%d 金 · +%d 盾" % [gain_mg,roundi(shield_m)]
+		msg_m += " · 遗物[%s]" % rel_m.name if not rel_m.is_empty() else " · 遗物已满"
 		game.numbers.append({"point": rpos + Vector2(0, -36), "text": msg_m, "colour": Color("ffe678"), "life": 1.35, "duration": 1.35, "critical": true})
 	elif rkind == "boss_chest":
-		var gain_bg := int(round(190.0 * g_mult))
-		game.gold += gain_bg
-		game.add_core_shield(120.0)
-		_spawn_xp_fountain(rpos, 10, 3, 44, 8)
+		var gain_bg := int(round(110.0 * g_mult))
+		game.gain_gold(gain_bg, "rift_room")
+		var shield_b: float = game.add_core_shield(120.0)
+		_spawn_xp_fountain(rpos, 10, 3, 44, 3)
 		var rel_b: Dictionary = game.relic_engine.grant_random_relic(floor_rng) if game.relic_engine != null else {}
-		var msg_b := "神殿传奇箱 +%d金/+120盾" % gain_bg
-		if not rel_b.is_empty():
-			msg_b += " · 遗物[" + str(rel_b.name) + "]!"
-		else:
-			game.gold += 120
-			game.add_core_shield(80.0)
-			msg_b += " · 满遗物溢流+120金/+80盾!"
+		if rel_b.is_empty():
+			game.gain_gold(40, "rift_room")
+			gain_bg += 40
+			shield_b += game.add_core_shield(80.0)
+		var msg_b := "神殿传奇箱 +%d 金 · +%d 盾" % [gain_bg,roundi(shield_b)]
+		msg_b += " · 遗物[%s]" % rel_b.name if not rel_b.is_empty() else " · 遗物已满"
 		game.numbers.append({"point": rpos + Vector2(0, -38), "text": msg_b, "colour": Color("ffe678"), "life": 1.45, "duration": 1.45, "critical": true})
 
 	_magnet_timers.append({"rect": Rect2(rm.inner_rect).grow(120.0), "delay": 0.25})
@@ -1296,6 +1381,14 @@ func _draw() -> void:
 				var perp := dir.orthogonal()
 				var tip := p0 + dir * 16.0
 				draw_polyline(PackedVector2Array([tip - dir * 14.0 + perp * 11.0, tip, tip - dir * 14.0 - perp * 11.0]), Color(0.45, 0.94, 1.0, 0.88 * pulse), 3.2, false)
+				if is_instance_valid(game.hero) and game.hero.position.distance_squared_to(mid) < 370.0*370.0:
+					var tag: String = {"boss":"首领","miniboss":"统领","chest":"宝箱","event":"奇遇","elite":"精英"}.get(unexplored_target.kind,"战斗")
+					var mutator: Dictionary = ArenaRiftPCG.MUTATORS[unexplored_target.mutator]
+					if not str(mutator.name).is_empty():tag += " · "+str(mutator.name)
+					var font := ThemeDB.fallback_font
+					var offset := Vector2(font.get_string_size(tag,HORIZONTAL_ALIGNMENT_LEFT,-1,17).x*0.5,21.0)
+					draw_string_outline(font,mid-offset,tag,HORIZONTAL_ALIGNMENT_LEFT,-1,17,4,Color("071321"))
+					draw_string(font,mid-offset,tag,HORIZONTAL_ALIGNMENT_LEFT,-1,17,Color("ddf0de"))
 
 	# 2. Room props: Pillars, Explosive Barrels, Hazards, Chests, Event Shrines, Descent Gate, Door Barriers
 	for rid: String in room_order:

@@ -2,6 +2,7 @@ shader_type canvas_item;
 
 uniform float progress : hint_range(0.0, 1.0) = 0.0;
 uniform vec2 focal_uv = vec2(0.5, 0.5);
+uniform bool reduced_motion = false;
 uniform vec4 veil_color : source_color = vec4(0.03, 0.04, 0.09, 1.0);
 uniform vec4 rim_color : source_color = vec4(0.46, 0.88, 1.0, 1.0);
 uniform vec4 rim_inner : source_color = vec4(0.76, 0.46, 1.0, 1.0);
@@ -9,6 +10,8 @@ uniform vec4 rim_inner : source_color = vec4(0.76, 0.46, 1.0, 1.0);
 void fragment() {
 	if (progress <= 0.005) {
 		COLOR = vec4(0.0);
+	} else if (reduced_motion) {
+		COLOR = vec4(veil_color.rgb, progress);
 	} else {
 		vec2 p = UV - focal_uv;
 		p.x *= 1.7778;

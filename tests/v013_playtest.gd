@@ -15,7 +15,7 @@ func _initialize() -> void:
 	for identity in ArenaDefinitions.HERO_IDS:
 		check(preview.level(identity)==1,"preview hero starts unupgraded "+identity)
 		for rank in range(2,6):check(preview.upgrade(identity) and preview.level(identity)==rank,"freely upgrade "+identity+str(rank))
-	check(preview.gems()==9999-18*ArenaDefinitions.HERO_IDS.size(),"all actual upgrade prices are preserved")
+	check(preview.gems()==9999-16*ArenaDefinitions.HERO_IDS.size(),"each hero costs sixteen gems to max out")
 	check(FileAccess.get_file_as_bytes(ArenaCampaign.SAVE_PATH)==original,"preview never overwrites normal save")
 	preview=ArenaCampaign.playtest();check(preview.gems()==9999 and preview.level("healer")==5,"reload replenishes currency and retains chosen upgrades")
 	check(FileAccess.get_file_as_bytes(ArenaCampaign.SAVE_PATH)==original,"preview reload never reads/writes normal profile")

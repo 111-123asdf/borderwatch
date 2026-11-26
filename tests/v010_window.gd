@@ -1,12 +1,15 @@
 extends "res://tests/v06_window.gd"
-# New UI/profile visual fixtures. Gems are injected only to verify upgrade controls.
+# Drive the configuration UI against an isolated on-disk profile.
 func run() -> void:
 	create_timer(120.0).timeout.connect(func():push_error("V010 WINDOW TIMEOUT");quit(1))
 	if "--small" in OS.get_cmdline_user_args():suffix="small"
-	game=load("res://scenes/arena.tscn").instantiate();game.campaign=ArenaCampaign.new("",false);game.campaign.data.gems=20
+	var profile_path := "user://v010-window-%s-%s.cfg" % [OS.get_process_id(),Time.get_ticks_usec()]
+	game=load("res://scenes/arena.tscn").instantiate()
+	game.campaign=ArenaCampaign.new(profile_path)
+	game.campaign.data.gems=20
 	root.add_child(game);current_scene=game;await frames();await snapshot("v010-title")
 	check(game.hud.menu.find_children("*","Button",true,false).size()==3,"title has only start, settings and exit")
-	await press("StartCampaign");await snapshot("v010-world")
+	await key(KEY_ENTER);await snapshot("v010-world")
 	check(game.hud.frontend.page_id=="world" and game.hud.root.find_child("WorldLoadout",true,false)!=null,"world map is the configuration hub with compact loadout tray")
 	check(game.hud.root.find_child("Level_forest",true,false)!=null and game.hud.root.find_child("Level_creek",true,false)!=null,"both actual stages have map nodes")
 	await press("HeroHall");await press("Hall_gunner")
@@ -14,7 +17,11 @@ func run() -> void:
 	await press("UpgradeHero");check(game.campaign.level("gunner")==2 and game.campaign.gems()==18,"hero upgrade keeps original cost and unlock")
 	await press("EquipHero");check(game.campaign.selected_hero()=="gunner","equip button changes the single deployment slot")
 	await snapshot("v010-hero");await press("Back");await press("TowerHall")
-	for id in ["cannon","archer","barracks"]:await press("Tower_"+id);await press("EquipTower")
+	await press("Tower_storm");await press("EquipTower");await press("Replace_cannon")
+	var saved := ArenaCampaign.new(profile_path)
+	check(saved.level("gunner")==2 and saved.gems()==18 and saved.selected_hero()=="gunner","hero upgrade and selection survive a save reload")
+	check(saved.tower_loadout()==["archer","mage","storm","barracks"],"the workshop replacement survives a save reload")
+	for id in ["storm","archer","barracks"]:await press("Tower_"+id);await press("EquipTower")
 	check(game.campaign.tower_loadout()==["mage"],"tower page saves removal of equipped towers")
 	var equip:=game.hud.root.find_child("EquipTower",true,false) as Button
 	await press("Tower_mage");equip=game.hud.root.find_child("EquipTower",true,false)
@@ -27,7 +34,13 @@ func run() -> void:
 	await snapshot("v010-loadout-gate");await key(KEY_ESCAPE);await press("TowerHall");await press("Tower_archer");await press("EquipTower")
 	await press("Back");await press("Level_forest");await snapshot("v010-stage")
 	await key(KEY_ESCAPE);check(not is_instance_valid(game.hud.frontend.stage_panel),"escape closes the stage sheet")
-	await press("Level_creek");await click(Vector2(600,700));check(not is_instance_valid(game.hud.frontend.stage_panel),"outside click closes the stage sheet")
+	await press("Level_creek");await press("StageHero")
+	check(game.hud.frontend.page_id=="heroes" and game.hud.frontend.hero_id=="gunner","stage hero shortcut opens the deployed hero")
+	await key(KEY_ESCAPE)
+	check(game.hud.frontend.stage=="creek" and is_instance_valid(game.hud.frontend.stage_panel),"returning from heroes restores the creek sheet")
+	await press("StageTowers");await press("Back")
+	check(game.hud.frontend.stage=="creek" and is_instance_valid(game.hud.frontend.stage_panel),"returning from workshop restores the creek sheet")
+	await click(Vector2(600,700));check(not is_instance_valid(game.hud.frontend.stage_panel),"outside click closes the stage sheet")
 	await press("Settings");await snapshot("v010-settings");await key(KEY_ESCAPE)
 	check(not game.hud.has_modal() and game.hud.frontend.page_id=="world","settings cancel restores its source page")
 	await press("Level_forest");await press("Deploy")
@@ -37,4 +50,5 @@ func run() -> void:
 	await press("Build_archer");check(game.gold==230,"new flow retains normal opening resources")
 	game.hud.close_context();await snapshot("v010-battle")
 	game.running=false;game.audio.shutdown();await frames();OS.delay_msec(150);game.queue_free();await frames()
+	if FileAccess.file_exists(profile_path):DirAccess.remove_absolute(ProjectSettings.globalize_path(profile_path))
 	print("V010 WINDOW CHECKS: %d, FAILURES: %d"%[checks,failures]);quit(0 if failures==0 else 1)

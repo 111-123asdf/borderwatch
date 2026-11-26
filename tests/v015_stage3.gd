@@ -104,10 +104,10 @@ func run() -> void:
 	var base_l1_hp:=ArenaTowerTrial.stat("barracks","health",1)
 	check(barracks!=null and barracks.site_trait()=="choke" and barracks.troops.size()==3,"choke barracks starts with 3 soldiers")
 	check(absf(barracks.troops[0].max_health-base_l1_hp*1.18)<0.2,"choke trait grants +18% soldier health")
-	check(barracks.soldier_respawn_scale()==1.25,"choke trait grants 1.25x respawn scale (20% faster)")
+	check(barracks.soldier_respawn_scale()==1.25,"choke trait grants 1.25x respawn speed")
 	barracks.troops[0].dead=true;barracks.troops[0].respawn_clock=10.0
-	barracks._physics_process(1.0)
-	check(absf(barracks.troops[0].respawn_clock-9.75)<0.01,"choke barracks ticks down soldier respawn 25% faster")
+	barracks.troops[0]._physics_process(1.0)
+	check(absf(barracks.troops[0].respawn_clock-8.75)<0.01,"choke barracks ticks down soldier respawn 25% faster")
 	barracks.troops[0].dead=false;barracks.troops[0].respawn_clock=0.0
 
 	check(game.build_tower(0,"archer"),"build highground archer on site 0")

@@ -9,15 +9,25 @@
 
 | 层级 | 核心脚本 / 着色器 | 职责与 v0.32 关键特性 |
 | :--- | :--- | :--- |
-| **战役与状态中枢** | `scripts/arena/arena_game.gd` | 双域协同主控（`siege_alert_at = 85.0`、`siege_start_at = 95.0`）；永久随时召波 `request_next_wave_anytime()`（`[F]` / 按钮支持休整开波、前哨快进至总攻赏金、堆波 `+45g`）；局内/轮次确定性前哨扰动；`72` 掉落物智能合并与 `110` 特效上限保护；裂隙奇遇事件仲裁（`open_rift_event()` / `choose_rift_event()`）。 |
-| **程序化地牢生成** | `scripts/arena/arena_rift_pcg.gd` | `ArenaRiftPCG` 确定性随机种子生成引擎：`5×5` 网格（`GRID_COLS = 5`, `GRID_ROWS = 5`, `TILE_SIZE = 64.0`），按关卡生成 `9..12` 间不规则足迹房间（`hub` / `standard` / `wide_hall` / `tall_arena` / `vault` / `boss_sanctum`），严格连通邻接开门（零假门）、`6` 种房间词缀（`MUTATORS`）、`6` 套柱体/晶桶/加速带/陷阱模板（`TEMPLATES`）与动态 `world_rect` / `grid_bounds`。 |
-| **裂隙域与多层下潜** | `scripts/arena/arena_rift_domain.gd`<br>`scripts/shaders/rift_tile_floor.gdshader`<br>`scripts/arena/arena_battle_camera.gd` | `_RiftFloorCanvas` 模块化 `64×64` 砖墙/地砖/走廊平铺与 2D 哈希值噪声着色器；AABB 柱体碰撞；可引爆连锁晶桶（`prop_barrel_crystal`）与 `damage_barrels_in_radius()`；血祭/锻造/星辉三类交互事件祭坛；首领清空后开启深渊下潜传送门 `descend_next_floor()`（2 层起双首领并倍率增益）；`26..48` 怪/房割草波次与动态 `rift_world_rect()` 摄像机钳制。 |
-| **跨界圣物与被动引擎** | `scripts/arena/arena_relic_engine.gd`<br>`scripts/arena/arena_passive_engine.gd` | **圣物引擎**（`MAX_RELICS = 6`）：`8` 件跨界圣物（`ember_ordnance`、`chrono_prism`、`orbital_beacon`、`aegis_reactor`、`chain_detonator`、`titan_breaker`、`vampiric_chalice`、`gilded_compass`）与 EventBus 跨界响应。<br>**被动引擎**：`14` 项高表现主动特效被动，`MAX_TOTAL_PICKS = 10` / `MAX_RUN_LEVEL = 11` 纯经验解耦（`xp_needed(lv) = 72 + 52*(lv-1) + 18*(lv-1)^1.45`），满级后经验溢流自动转化为金币与基地圣盾。 |
+| **战局状态中枢** | `scripts/arena/arena_game.gd` | 管理双域共用的对局状态、出兵和结算。英雄在防御域且可操作时，可用 `[F]` 或按钮提前开波、提前召出攻城潮或叠开下一波。裂隙事件和被动选择期间禁止手动召波。 |
+| **程序化地牢生成** | `scripts/arena/arena_rift_pcg.gd` | 按种子在 `5×5` 网格生成 `9..12` 间房。整层筛选验证早期岔路、可绕行回路、距入口 `4..6` 道门的独立首领终点，以及可选宝箱、奇遇与精英支路。房间与走廊按实际连接开门，沿用 `6` 种词缀和 `6` 套地形模板。 |
+| **裂隙域与多层下潜** | `scripts/arena/arena_rift_domain.gd`<br>`scripts/shaders/rift_tile_floor.gdshader`<br>`scripts/arena/arena_battle_camera.gd` | 模块化地砖、柱体碰撞、连锁晶桶与三类奇遇。房间按近战、远程和支援组合分批出怪，柱体阻挡直射弹道。第 2 层起的两名首领分阶段出场，全部击败后开启下潜。回防暂停出怪队列及其计时。 |
+| **跨界圣物与被动引擎** | `scripts/arena/arena_relic_engine.gd`<br>`scripts/arena/arena_passive_engine.gd` | `8` 件跨界圣物通过 EventBus 响应战斗，每局最多持有 `6` 件。`29` 种被动沿用经验升级与加权三选一，每次升级选一次，最多 `16` 次（局内 `17` 级）。`xp_needed(lv) = 60 + 58*(lv-1) + 18*(lv-1)^1.45`，满级后经验溢流自动转化为金币与基地圣盾。战役地图的被动图鉴可以查看全部效果和超武。 |
 | **实体与主域塔防** | `scripts/arena/arena_hero.gd`<br>`scripts/arena/arena_tower.gd`<br>`scripts/arena/arena_enemy.gd`<br>`scripts/arena/arena_projectile.gd` | 5 位可控英雄的差异化普攻/技能与裂隙清场机制；塔防主域防御向/联动向自动塔群；杂兵差异化血量系数（主域 `is_swarm_fodder = 0.72x`、裂隙 `0.52x` + 层数缩放）兼顾割草爽感与数值防线压力。 |
-| **关卡目录与长波调优** | `scripts/arena/arena_level_catalog.gd`<br>`scripts/arena/arena_saltport.gd` | 全部 6 关（`forest`、`creek`、`saltport`、`lighthouse`、`ruins`、`sanctum`）统一为 `95s` 总攻开启、`95..128s` 轮次长度（`28..36s` 总攻波长）、`55..135` 只/轮高密度兽潮与多首领波次表。 |
-| **平视显示与防误触 UI** | `scripts/arena/arena_hud.gd`<br>`scripts/arena/arena_menu_art.gd` | 动态 `5×5` 投影 `_RiftMinimap`（`1370, 72` / `218×204`，整合轮次显示并彻底消除裂隙右上角与 `护盾(B)` / `CallNextWave` 重叠）；永久 `[F] CallNextWave` 按钮、`OwnedRelicsStrip`（`1010, 782`）、`DescentReadyBadge`；奇遇事件与被动三选一 `0.45s`/`0.55s` 防误触保护。 |
+| **关卡目录与波次编排** | `scripts/arena/arena_level_catalog.gd`<br>`scripts/arena/arena_saltport.gd` | 六关使用独立波表，常规攻城从第 95 秒开始。森林第 3–5 波以重甲、萨满和快速敌人的组合推进。溪谷第 2 波北路出重装、南路出秃鹫，第 3 波攻城由北路统领和南路投弹手同时施压，末波巨魔在熊先锋出完后登场。 |
+| **平视显示与防误触 UI** | `scripts/arena/arena_hud.gd`<br>`scripts/arena/arena_menu_art.gd` | `5×5` 裂隙小地图整合轮次显示。HUD 展示手动召波、已持有圣物和下潜提示。奇遇事件与被动三选一分别有 `0.45s` 和 `0.55s` 的防误触保护。 |
 
 ---
+
+## 对局主流程
+
+战役存档由 ArenaCampaign 管理。进入关卡后，ArenaGame 负责整备、出兵、敌人移除和胜负结算。ArenaLevelCatalog 根据波表、开放路线和种子生成队列。关卡的封路状态由战局传入，预览、自然开波和手动叠波用同一套队列规划。末波结算等主域敌军和待出队列都清空。若指定首领已经漏过且从未被击杀，最终按防守失败结算。
+
+ArenaRiftDomain 负责裂隙房间和英雄跨域。传送、回防与下潜共用位置切换及输入清理，下潜同时核对门是否开启、英雄是否在门边。ArenaGame 统一移除战死、漏过和主动清理的敌人，只有战死会进入击杀奖励流程。被动和圣物通过战斗事件消费这些结果。回防暂停战斗房间，再进裂隙时从离开的位置继续。防御域持续推进，裂隙内的临时攻击在回防时结束。
+
+防御域的五波生命倍率为 1.00 / 1.16 / 1.48 / 1.84 / 2.18。溪谷末波的双头巨魔基础生命为 3950，移速为 26。塔工坊可以预览每座塔的三种专精和各自的两到三项强化，并设置该塔的自动专精。对局中用金币解锁塔位和建塔。金币足够时，已建成的塔自动扣费并开始升级，三级完工时应用预设专精。之后依次自动花费 55、85、115 金币施工强化，完工后生效。
+
+防御域击杀金币按五波的 36%、27%、20%、13%、10% 计算，杂兵折算和圣物倍率叠加后取整，最低 1 金。开局有 300 金，出售防御塔按实际投入的六成退款。裂隙普通怪提供经验，金币主要来自精英、房间和奇遇。满级被动每 110 XP 转换 4 金和 18 盾。提前开波与提前召攻城的即时赏金上限分别为 24 金、50 金，叠波基础赏金为 40 金。永久升级依次消耗 2、3、4、7 钻，两次首通可升满一名英雄。
 
 ## 2. 美术资产与构建工具流
 

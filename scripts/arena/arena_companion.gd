@@ -32,7 +32,7 @@ func _ready() -> void:
 func max_health() -> float:
 	var base := 160.0 if slot == 0 else 105.0
 	var prank: int = int(hero.passive_rank) if hero != null else 0
-	return base * (1.0 + 0.10 * float(prank))
+	return base * (1.0 + ArenaDefinitions.WOLF_HEALTH_BONUS_PER_RANK * float(prank))
 
 func center() -> Vector2:
 	return position + Vector2(0, -24)

@@ -6,6 +6,7 @@ var data: Dictionary={}
 var health:=420.0
 var max_health:=420.0
 var cooldowns: Array[float]=[0.0,0.0]
+var cooldown_totals: Array[float]=[0.0,0.0]
 var attack_cooldown:=0.0
 var domain: String="defense"
 var combat_delay:=0.0
@@ -51,6 +52,7 @@ const PERFECT_DODGE_WINDOW := 0.22
 const COUNTER_DURATION := 4.0
 const COUNTER_MULT := 1.60
 var dodge_cooldown := 0.0
+var dodge_cooldown_total := 0.0
 var dodge_left := 0.0
 var dodge_direction := Vector2.RIGHT
 var perfect_dodge_window := 0.0
@@ -118,7 +120,7 @@ func configure(key: String) -> void:
 			beast.hero=self;beast.slot=slot;beast.position=position+Vector2(-24 if slot==0 else 24,8)
 			game.actors.add_child(beast);companions.append(beast)
 
-func skill_unlocked(slot: int) -> bool: return slot in [0,1] and meta_level>=(2 if slot==0 else 4)
+func skill_unlocked(slot: int) -> bool: return slot in [0,1] and meta_level>=ArenaDefinitions.SKILL_UNLOCK_LEVELS[slot]
 func center() -> Vector2: return position+Vector2(0,-30)
 func can_hit_flying() -> bool: return class_id in ["druid","healer","gunner"]
 func block_capacity() -> int:
@@ -193,8 +195,6 @@ func _emit_healer_radiant_nova(radius := 195.0, mult := 1.15) -> void:
 		if is_instance_valid(e) and not e.dead and e.position.distance_to(position) <= radius:
 			e.ignite(14.0, 2.2)
 	game.effect(position, radius * 0.88, Color("ff9ed2"), "upgrade", 0.36)
-
-func war_cry_radius() -> float: return 240.0
 
 func command_aura(point: Vector2) -> float:
 	if knocked_out: return 0.0
@@ -328,10 +328,11 @@ func trigger_perfect_dodge(attacker: Node2D, threat_dir: Vector2) -> void:
 	game.audio.play("phase", -16, 1.48)
 	queue_redraw()
 
+func can_dodge() -> bool:
+	return not knocked_out and game != null and game.running and not game.game_over and dodge_cooldown <= 0.0 and dodge_left <= 0.0 and rolling <= 0.0 and debuff_stun_clock <= 0.0
+
 func try_dodge(preferred_dir := Vector2.ZERO) -> bool:
-	if knocked_out or game == null or game.game_over or not game.running:
-		return false
-	if dodge_cooldown > 0.0 or dodge_left > 0.0 or rolling > 0.0 or debuff_stun_clock > 0.0:
+	if not can_dodge():
 		return false
 	var pre_pos := position
 	if action == "attack" or (action != "" and action_released):
@@ -348,6 +349,7 @@ func try_dodge(preferred_dir := Vector2.ZERO) -> bool:
 	if game.relic_engine != null:
 		cd_scale *= game.relic_engine.hero_cd_scale()
 	dodge_cooldown = DODGE_CD * cd_scale
+	dodge_cooldown_total = dodge_cooldown
 	protection = maxf(protection, DODGE_IFRAME)
 	perfect_dodge_window = PERFECT_DODGE_WINDOW
 	perfect_dodge_triggered = false
@@ -387,12 +389,17 @@ func cooldown_scale() -> float:
 	var p_scale: float = game.passive_engine.skill_cd_scale() if (game != null and game.passive_engine != null) else 1.0
 	var r_scale: float = game.relic_engine.hero_cd_scale() if (game != null and game.relic_engine != null) else 1.0
 	return (1.0 - minf(0.30, meta_cooldown)) * p_scale * r_scale
-func command_move(target: Vector2) -> void:
-	if knocked_out or debuff_stun_clock > 0.0: return
+func command_move(target: Vector2) -> bool:
+	if knocked_out or debuff_stun_clock > 0.0: return false
 	if domain == "rift":
-		path = PackedVector2Array([game.rift_domain.clamp_rift_position(target)] if game.rift_domain != null else [target])
-		return
-	path=game.navigation_path(position,target)
+		var route: PackedVector2Array = game.rift_domain.navigation_path(position,target) if game.rift_domain != null else PackedVector2Array([target])
+		if route.is_empty():return false
+		path = route
+		return true
+	var new_path: PackedVector2Array = game.navigation_path(position,target)
+	if new_path.is_empty():return false
+	path = new_path
+	return true
 func cancel_action() -> void:
 	action="";action_enemy=null;action_clock=0;action_released=false;visual.feedback.stop_left=0.0
 func _clamp_hero_pos() -> void:
@@ -418,7 +425,8 @@ func _resolve_in_place_revive_pos(curr: Vector2) -> Vector2:
 
 func _physics_process(delta: float) -> void:
 	if not game.running or game.game_over: return
-	if game.input_blocked(): queued_attack_point=Vector2.INF
+	var pointer_blocked: bool = game.input_blocked()
+	if pointer_blocked: queued_attack_point=Vector2.INF
 	for slot in range(2): cooldowns[slot]=maxf(0,cooldowns[slot]-delta)
 	attack_cooldown=maxf(0,attack_cooldown-delta);combat_delay=maxf(0,combat_delay-delta)
 	foot_clock=maxf(0.0,foot_clock-delta)
@@ -558,16 +566,15 @@ func _physics_process(delta: float) -> void:
 		action_target=action_enemy.center()
 		if action_enemy.position.distance_to(position)>4.0:
 			facing=(action_enemy.position-position).normalized()
-	var can_primary: bool=not game.input_blocked() and not game.suppress_primary
+	var can_primary: bool=not pointer_blocked and not game.suppress_primary
 	var hold_shoot: bool=can_primary and (game.mouse_shoot_held or Input.is_action_pressed("shoot"))
 	var player_whiff: bool=can_primary and (game.mouse_shoot_held or queued_attack_point!=Vector2.INF)
-	var auto_ready: bool=not game.feel_lab and not game.tower_lab and not game.input_blocked()
-	_auto_target_preview = select_attack_target(game.mouse_world()) if not game.input_blocked() else null
+	var auto_ready: bool=not game.feel_lab and not game.tower_lab and not game.portal_transition_active() and not game.hud.has_modal()
+	var aim_pt: Vector2 = queued_attack_point if queued_attack_point.is_finite() else (Vector2.INF if pointer_blocked else game.mouse_world())
+	var enemy: Node2D = select_attack_target(aim_pt) if can_primary or auto_ready else null
+	_auto_target_preview = enemy
 	if (hold_shoot or player_whiff or auto_ready) and attack_cooldown<=0 and action=="":
-		var aim_pt: Vector2=queued_attack_point if queued_attack_point!=Vector2.INF else game.mouse_world()
 		queued_attack_point=Vector2.INF
-		var enemy: Node2D=select_attack_target(aim_pt)
-		_auto_target_preview = enemy
 		if enemy!=null:
 			begin_attack(enemy,aim_pt)
 		elif player_whiff:
@@ -625,26 +632,37 @@ func begin_attack(enemy: Node2D, aim_point := Vector2.INF) -> bool:
 	if class_id in ["druid","healer"] and game.feel.enabled: game.audio.play("mage_gather",-20)
 	visual.show_state("attack",facing,action_duration);visual.frame=0;return true
 
-func cast(slot: int, point: Vector2) -> bool:
-	if slot<0 or slot>1 or knocked_out or debuff_stun_clock>0.0 or game.game_over or not game.running or cooldowns[slot]>0: return false
-	if not skill_unlocked(slot): return false
-	if action in ["small","ultimate"] and not action_released: return false
-	cancel_action()
-	var relative:=point-position
-	if relative.length()>430: point=position+relative.normalized()*430
+const SKILL_TARGET_RANGE := 430.0
+const DRUID_ORDER_RADIUS := 96.0
+
+func lord_slash_range() -> float:
+	return 138.0 * (game.passive_engine.melee_range_scale() if game.passive_engine != null else 1.0)
+
+func skill_target(point: Vector2) -> Vector2:
 	var min_b := Vector2(0, 90)
 	var max_b := Vector2(game.world_size())
 	if domain == "rift":
 		var rr: Rect2 = game.rift_domain.rift_world_rect() if game.rift_domain != null else Rect2(ArenaRiftDomain.RIFT_ORIGIN, Vector2(5600.0, 4200.0))
 		min_b = rr.position + Vector2(40, 88)
 		max_b = rr.end - Vector2(40, 30)
-	action_target=point.clamp(min_b,max_b);facing=(point-position).normalized() if relative.length()>5 else facing
+	return (position + (point-position).limit_length(SKILL_TARGET_RANGE)).clamp(min_b,max_b)
+
+func can_cast(slot: int) -> bool:
+	return skill_unlocked(slot) and not knocked_out and debuff_stun_clock <= 0.0 and game.running and not game.game_over and cooldowns[slot] <= 0.0 and (action not in ["small","ultimate"] or action_released)
+
+func cast(slot: int, point: Vector2) -> bool:
+	if not can_cast(slot):
+		return false
+	cancel_action()
+	action_target = skill_target(point)
+	if action_target.distance_to(position)>5.0:facing=position.direction_to(action_target)
 	action="small" if slot==0 else "ultimate";action_clock=0;action_released=false
 	action_duration=(0.30 if class_id=="gunner" else 0.44) if slot==0 else 0.62
 	var base_cd := float(data.small_cd if slot==0 else data.ultimate_cd)
 	if class_id=="gunner" and slot==0 and gunner_overdrive_clock>0.0:
-		base_cd = 2.0
+		base_cd = ArenaDefinitions.GUNNER_OVERDRIVE_SLIDE_CD
 	cooldowns[slot]=base_cd*cooldown_scale()
+	cooldown_totals[slot] = cooldowns[slot]
 	combat_delay=5.0
 	if class_id=="gunner" and slot==0:
 		roll_direction=Input.get_vector("move_left","move_right","move_up","move_down")
@@ -655,8 +673,6 @@ func cast(slot: int, point: Vector2) -> bool:
 			game.effect(position+Vector2(0,-14),76,Color("68c6ff") if gunner_overdrive_clock>0 else Color("a8d2f0"),"gunner_slide",0.36,roll_direction)
 			game.audio.play("ranger_roll",-11)
 		_check_immediate_perfect_dodge(position)
-	if game.event_bus != null:
-		game.event_bus.emit_event("hero_cast", {"slot": slot, "point": action_target, "domain": domain})
 	visual.show_state(action,facing,action_duration);visual.frame=0;return true
 func _animation_frame() -> void:
 	if game.feel.enabled and visual.animation.begins_with("walk") and visual.frame in [0,4] and foot_clock<=0:
@@ -683,7 +699,7 @@ func release_action() -> void:
 	var ex_bounce: int = pe.extra_bounce() if pe != null else 0
 	if action=="attack":
 		shots+=1
-		var basic_hit: Dictionary = {"rule_basic": true, "domain": domain}
+		var basic_hit: Dictionary = {"rule_basic": true, "domain": domain, "per_attack": {}}
 		var is_counter := counter_ready_clock > 0.0
 		var is_crit: bool = is_counter or (pe != null and game.rng.randf() < pe.hero_crit_chance())
 		var counter_stagger := 0.0
@@ -691,6 +707,7 @@ func release_action() -> void:
 			counter_ready_clock = 0.0
 			hit *= COUNTER_MULT
 			basic_hit["crit"] = true
+			basic_hit["counter"] = true
 			counter_stagger = 0.40
 		elif is_crit:
 			hit *= pe.hero_crit_mult() if pe != null else 1.55
@@ -763,7 +780,7 @@ func release_action() -> void:
 				var shot_stagger := 0.30 if is_counter else 0.0
 				if empower_shot > 0:
 					empower_shot = 0
-					var crit_mult := 2.0 + 0.15 * float(passive_rank)
+					var crit_mult := ArenaDefinitions.gunner_empower_multiplier(passive_rank)
 					var emp_dmg := hit * crit_mult
 					var twin := gunner_overdrive_clock > 0.0
 					var count := 2 if twin else 1
@@ -771,7 +788,7 @@ func release_action() -> void:
 					for s_i in range(count):
 						var off := perp * ((float(s_i) - 0.5) * 14.0) if twin else Vector2.ZERO
 						game.fire_projectile(origin + off, aim_dest + off, emp_dmg, 0, "hero", {
-							"target": null, "speed": 960.0, "pierce": 4 + ex_pierce, "bounce": ex_bounce, "splash": 68.0,
+							"target": null, "speed": 960.0, "pierce": ArenaDefinitions.GUNNER_EMPOWER_PIERCE + ex_pierce, "bounce": ex_bounce, "splash": 68.0,
 							"pen": 0.25, "stagger_on_hit": shot_stagger, "domain": domain,
 							"appearance": "arrow", "presentation": "gunner_crit", "feedback": "pierce_arrow", "condition_hit": basic_hit
 						})
@@ -815,26 +832,26 @@ func release_action() -> void:
 	elif action=="small":
 		match class_id:
 			"lord":
-				var q_dmg := hit * 2.2
-				game.cone_damage(position, facing, 138.0 * (pe.melee_range_scale() if pe != null else 1.0), q_dmg, 0, "hero", 0.65, "small", {"domain": domain})
+				var q_dmg := hit * 2.45
+				game.cone_damage(position, facing, lord_slash_range(), q_dmg, 0, "hero", 0.85, "small", {"domain": domain})
 				game.effect(position + facing * 32, 122.0, Color("d84052"), "slash", 0.34, facing)
 				game.audio.play("heavy_hit", -7)
 			"druid":
-				var target: Node2D = game.nearest_enemy(action_target, 64.0, true, domain)
+				var target: Node2D = game.nearest_enemy(action_target, DRUID_ORDER_RADIUS, true, domain)
 				for beast in companions:
 					beast.command(action_target, target)
-					beast.heal_percent(0.30)
+					beast.heal_percent(ArenaDefinitions.WOLF_ORDER_HEAL)
 				game.effect(action_target, 56.0, Color("86e890"), "upgrade", 0.48)
 				game.audio.play("mage_gather", -12, 1.15)
 			"healer":
 				_emit_healer_radiant_nova(205.0, 1.35)
 				_heal_self(max_health * 0.14, true)
-				healer_blessing_clock = 5.0
+				healer_blessing_clock = 6.5
 				healer_blessing_pos = position
 				game.effect(position, 44.0, Color("f6a8c6"), "upgrade", 0.38)
 				game.audio.play("mage_cast", -8)
 			"werewolf":
-				werewolf_bloodlust_clock = 5.0
+				werewolf_bloodlust_clock = 6.0
 				game.effect(position, 42.0, Color("7ee2ff"), "upgrade", 0.36)
 				game.audio.play("phase", -10, 1.2)
 			"gunner":
@@ -874,11 +891,13 @@ func release_action() -> void:
 				game.effect(position, 42.0, Color("66d2ff"), "upgrade", 0.38)
 				game.audio.play("phase", -7, 1.32)
 
-func take_hit(amount: float, damage_type: int, melee := false, direction := Vector2.ZERO) -> float:
+func take_hit(amount: float, damage_type: int, melee := false, direction := Vector2.ZERO, direct_attack := true) -> float:
 	if knocked_out or protection>0 or game.game_over: return 0.0
 	var adjusted: float=amount
+	if direct_attack and game.passive_engine != null:
+		adjusted = game.passive_engine.guard_damage(adjusted)
 	if melee and game.blocking.load_for(self)>0 and class_id=="lord":
-		var lord_red: float = float([0.20, 0.22, 0.25][passive_rank])
+		var lord_red: float = ArenaDefinitions.LORD_BLOCK_REDUCTION[passive_rank]
 		adjusted *= 1.0 - lord_red
 	if class_id=="lord" and lord_shield_clock>0.0:
 		adjusted *= 0.65

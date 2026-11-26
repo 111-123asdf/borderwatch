@@ -1,5 +1,10 @@
 class_name ArenaEnemy
 extends Node2D
+
+const DEFENSE_HP_MULTIPLIERS := [1.0, 1.16, 1.48, 1.84, 2.18]
+const HEAL_WINDUP := 1.0
+const ALLY_SHIELD_WINDUP := 0.9
+const ALLY_SHIELD_CAP := 200.0
 var game: Node2D
 var domain: String="defense"
 var is_rift_mob:=false
@@ -17,9 +22,6 @@ var data: Dictionary={}
 var dead:=false
 var elite:=false
 var is_swarm_fodder:=false
-var rule_main := false
-var rule_front := false
-var rule_pushed := false
 var is_guard:=false
 var tower_weakness_clock:=0.0
 var tower_frost_layers:=0
@@ -41,7 +43,6 @@ var slow_amount:=0.45
 var frost_stacks:=0
 var marked:=0.0
 var mark_bonus:=0.0
-var last_tower: Node2D
 var exposure:=0.0
 var melee_clock:=0.0
 var melee_windup:=0.0
@@ -64,7 +65,6 @@ var boss_phase:=0
 var barrier_shield:=0.0
 var slam_clock:=4.5
 var salt_slam_left:=0.0
-var salt_move_clock:=0.0
 # v0.23 Beast Legion capability state
 var ability_clock:=2.4
 var ability_windup:=0.0
@@ -87,7 +87,6 @@ var leap_from:=Vector2.ZERO
 var leap_to:=Vector2.ZERO
 var seal_cast_clock:=8.5
 var summon_clock:=5.5
-var rift_warp_done:=false
 var _miniboss_split_done:=false
 var visual: ArenaCreature
 var radius:=19.0
@@ -103,6 +102,11 @@ func start_ambush_leap(from_pt: Vector2, to_pt: Vector2, dur := 0.48) -> void:
 	position = from_pt
 	facing = (to_pt - from_pt).normalized() if to_pt.distance_to(from_pt) > 2.0 else Vector2.RIGHT
 
+static func defense_spawn_health(kind_id: String, enemy_data: Dictionary, wave: int, elite_spawn: bool, swarm_fodder: bool) -> float:
+	var wave_mult: float = DEFENSE_HP_MULTIPLIERS[clampi(wave-1,0,DEFENSE_HP_MULTIPLIERS.size()-1)]
+	var elite_mult := 1.55 if elite_spawn and not ArenaDefinitions.is_mini_boss_kind(kind_id) else 1.0
+	return float(enemy_data.health)*wave_mult*(0.72 if swarm_fodder else 1.0)*elite_mult
+
 func _ready() -> void:
 	data=ArenaDefinitions.enemy(kind)
 	var scale_hp: float=1.0
@@ -110,10 +114,11 @@ func _ready() -> void:
 		var f_idx: int = int(game.rift_domain.floor_index) if (game != null and game.rift_domain != null) else 1
 		var base_r_mult := 1.35 if is_boss() else (1.15 if is_mini_boss() else (1.85 if is_bounty_elite else 0.52))
 		scale_hp = base_r_mult * (1.0 + 0.14 * maxi(0, f_idx - 1) + 0.08 * maxi(0, game.cycle - 1))
-	elif not is_guard:
-		var fodder_mult := 0.72 if is_swarm_fodder else 1.0
-		scale_hp = (1.0 + 0.26 * maxi(0, game.cycle - 1)) * fodder_mult
-	max_health=float(data.health)*scale_hp*(1.55 if (elite and not is_bounty_elite and not is_mini_boss()) else 1.0);health=max_health
+	if is_rift_mob or is_guard:
+		max_health = float(data.health)*scale_hp*(1.55 if (elite and not is_bounty_elite and not is_mini_boss()) else 1.0)
+	else:
+		max_health = defense_spawn_health(kind,data,game.cycle,elite and not is_bounty_elite,is_swarm_fodder)
+	health = max_health
 	visual=ArenaCreature.new();add_child(visual)
 	var look: String="brute" if kind=="captain" else ("twilight_golem" if kind=="breacher" else str(data.get("visual_kind",kind)))
 	var heights := {
@@ -344,7 +349,8 @@ func _physics_process(delta: float) -> void:
 		health-=tick;game.damage_stats["hero"]=float(game.damage_stats.get("hero",0))+tick
 		burn_clock=maxf(0,burn_clock-delta)
 		if health<=0:
-			dead=true;game.enemy_defeated(self);return
+			game.enemy_defeated(self,"hero")
+			return
 	stun=maxf(0,stun-delta);slow=maxf(0,slow-delta);marked=maxf(0,marked-delta);exposure=maxf(0,exposure-delta);melee_clock=maxf(0,melee_clock-delta);melee_recovery=maxf(0.0,melee_recovery-delta);ranged_clock=maxf(0,ranged_clock-delta);hurt_time=maxf(0,hurt_time-delta)
 	chase_recovery=maxf(0.0,chase_recovery-delta)
 	ability_clock=maxf(0.0,ability_clock-delta)
@@ -461,40 +467,89 @@ func _physics_process(delta: float) -> void:
 
 func _tick_rift_pursuit(delta: float, movement_paused: bool) -> void:
 	if not is_instance_valid(game.hero) or game.hero.knocked_out or game.hero.domain != "rift":
-		visual.show_pose("idle", facing)
+		visual.show_pose("idle",facing)
 		return
-	var target_pt: Vector2 = game.hero.position
-	var dist: float = position.distance_to(target_pt)
-	if dist <= 40.0:
-		melee(game.hero)
+	if movement_paused:
 		return
-	if not movement_paused:
-		var sep := Vector2.ZERO
-		for other in game.domain_enemies("rift"):
-			if other == self or not is_instance_valid(other) or other.dead:
-				continue
-			var gap: Vector2 = position - other.position
-			var d2: float = gap.length_squared()
-			if d2 > 0.01 and d2 < 900.0:
-				sep += gap.normalized() * (1.0 - sqrt(d2) / 30.0)
-		var dir: Vector2 = (target_pt - position).normalized()
-		var move_dir: Vector2 = (dir + sep * 0.65).normalized()
-		var spd: float = float(data.speed) * (1.05 if not is_bounty_elite else 0.92) * speed_scale() * movement_factor()
-		var next: Vector2 = position + move_dir * spd * delta
-		if game.rift_domain != null:
-			next = game.rift_domain.clamp_mob_to_room(next, rift_room_id)
-		if next.distance_squared_to(position) > 0.01:
-			facing = position.direction_to(next)
-			position = next
-			movement_speed = spd
-			visual.show_pose("walk", facing)
-			visual.match_stride(spd)
-	if not game.hero.knocked_out and ranged_clock <= 0.0 and dist <= 290.0 and kind in ["dreadeye_viper", "conch_mage", "water_elder", "twilight_harasser", "venom_spitter", "void_gazer"]:
-		aim = game.hero.center() + game.hero.velocity * 0.08
+	var hero: ArenaHero = game.hero
+	var rift: ArenaRiftDomain = game.rift_domain
+	var dist := position.distance_to(hero.position)
+	var ranged := kind in ["dreadeye_viper","conch_mage","water_elder","twilight_harasser","venom_spitter","void_gazer"]
+	if _start_support_skill():
+		return
+	if (is_boss() or is_mini_boss()) and dist <= 245.0 and ability_clock <= 0.0:
+		var striking_ground := kind == "darksteel_boss" or kind == "two_headed_troll"
+		var point := position+position.direction_to(hero.position)*70.0 if striking_ground else hero.center()
+		ability_kind = "rift_heavy"
+		ability_windup = 1.0
+		ability_clock = 6.0
+		visual.show_pose("skill",position.direction_to(hero.position))
+		visual.play()
+		var warning := "boss_slam" if striking_ground else ("arcane_slam" if rift.theme_key == "void" else "storm_strike")
+		game.delayed_attack(point,90.0,float(data.damage)*damage_scale()*1.18,int(data.type),"enemy",1.0,{
+			"telegraph":warning,"domain":"rift","fx_kind":"slam","fx_color":Color("f98e68")
+		})
+		return
+	var sight := not ranged or not is_instance_valid(rift) or not rift.projectile_cover(center(),hero.center()).is_finite() or kind == "venom_spitter"
+	if ranged and sight and dist <= 305.0 and ranged_clock <= 0.0:
+		aim = hero.center()+hero.velocity*0.08
 		windup = 0.55
 		ranged_clock = 3.6
-		visual.show_pose("attack", (aim - position).normalized())
+		visual.show_pose("attack",position.direction_to(aim))
 		visual.frame = 0
+		return
+	if not ranged and dist <= 40.0:
+		if not rift.projectile_cover(position,hero.position).is_finite():
+			melee(hero)
+			return
+	if ranged and sight and dist >= 145.0 and dist <= 250.0:
+		visual.show_pose("idle",position.direction_to(hero.position))
+		return
+
+	var goal := hero.position
+	if ranged and sight and dist < 145.0:
+		goal = position + hero.position.direction_to(position)*75.0
+	goal = rift.rift_mob_waypoint(position,goal,rift_room_id)
+	var separation := Vector2.ZERO
+	for other in game.domain_enemies("rift"):
+		if other == self or not is_instance_valid(other) or other.dead:
+			continue
+		var gap: Vector2 = position-other.position
+		var d2 := gap.length_squared()
+		if d2 > 0.01 and d2 < 900.0:
+			separation += gap.normalized()*(1.0-sqrt(d2)/30.0)
+	var direction := (position.direction_to(goal)+separation*0.45).normalized()
+	var speed := float(data.speed)*(0.92 if is_bounty_elite else 1.05)*speed_scale()*movement_factor()
+	var next := rift.clamp_mob_to_room(position+direction*speed*delta,rift_room_id)
+	if next.distance_squared_to(position) > 0.01:
+		facing = position.direction_to(next)
+		position = next
+		movement_speed = speed
+		visual.show_pose("walk",facing)
+		visual.match_stride(speed)
+
+
+func _start_support_skill() -> bool:
+	if ability_clock > 0.0:
+		return false
+	if kind in ["turtle_shaman","water_elder"] and _has_injured_ally(155.0):
+		ability_kind = "heal"
+		ability_windup = HEAL_WINDUP
+		ability_clock = 9.5
+		visual.show_pose("attack",facing)
+		visual.play("attack")
+		visual.frame = 0
+		return true
+	if kind in ["conch_mage","soul_reaver"] and _has_injured_ally(170.0):
+		ability_kind = "ally_shield"
+		ability_windup = ALLY_SHIELD_WINDUP
+		ability_clock = 5.0
+		visual.show_pose("skill",facing)
+		visual.play()
+		visual.frame = 0
+		return true
+	return false
+
 
 func advance_road(distance: float) -> Curve2D:
 	progress+=distance
@@ -502,11 +557,7 @@ func advance_road(distance: float) -> Curve2D:
 	if progress>=road.get_baked_length()-22.0 and game.try_exit_ward_teleport(self,road):
 		return road
 	if progress<road.get_baked_length(): return road
-	var leak_dmg := int(game.core_max) if is_boss() else ArenaDefinitions.leak_damage(kind, elite)
-	if not is_boss() and is_swarm_fodder:
-		leak_dmg = maxi(6, int(round(float(leak_dmg) * 0.75)))
-	game.core_hit(leak_dmg)
-	game.remove_enemy(self)
+	game.enemy_escaped(self)
 	return null
 
 func _tick_special_behaviors(delta: float) -> void:
@@ -539,15 +590,8 @@ func _tick_special_behaviors(delta: float) -> void:
 			aim=bomb_target;windup=0.55;ranged_clock=4.6
 			visual.show_pose("attack",(aim-position).normalized());visual.frame=0;return
 
-	if kind in ["turtle_shaman","water_elder"] and not busy and ability_clock<=0.0:
-		if _has_injured_ally(155.0):
-			ability_kind="heal";ability_windup=0.60;ability_clock=9.5
-			visual.show_pose("attack",facing);visual.play("attack");visual.frame=0;return
-
-	if kind in ["conch_mage","soul_reaver"] and not busy and ability_clock<=0.0:
-		if _has_injured_ally(170.0):
-			ability_kind="ally_shield";ability_windup=0.55;ability_clock=5.0
-			visual.show_pose("skill",facing);visual.play("skill");visual.frame=0;return
+	if not busy and _start_support_skill():
+		return
 
 	if kind=="tempest_elemental" and not busy and ability_clock<=0.0:
 		var has_target: bool = is_instance_valid(blocker) or (not game.hero.knocked_out and position.distance_to(game.hero.position)<=175.0)
@@ -555,15 +599,15 @@ func _tick_special_behaviors(delta: float) -> void:
 			var t_pt: Vector2 = game.hero.position if (not game.hero.knocked_out and position.distance_to(game.hero.position)<=175.0) else blocker.position
 			ability_kind="storm_strike";ability_windup=0.75;ability_clock=4.6
 			game.delayed_attack(t_pt,86.0,float(data.damage)*damage_scale()*1.3,1,"enemy",0.75,{"telegraph":"storm_strike","hits_soldiers":true,"debuff":{"kind":"slow","duration":1.8,"strength":0.35},"fx_kind":"lightning","fx_color":Color("58ecff")})
-			visual.show_pose("skill",facing);visual.play("skill");visual.frame=0;return
+			visual.show_pose("skill",facing);visual.play();visual.frame=0;return
 
 	if kind=="bluegale" and not busy and ability_clock<=0.0:
 		ability_kind="storm_haste";ability_windup=0.55;ability_clock=5.2
-		visual.show_pose("skill",facing);visual.play("skill");visual.frame=0;return
+		visual.show_pose("skill",facing);visual.play();visual.frame=0;return
 
 	if kind=="vile_eyenest" and not busy and summon_clock<=0.0:
 		ability_kind="hatch_eyeling";ability_windup=0.65;summon_clock=6.0
-		visual.show_pose("skill",facing);visual.play("skill");visual.frame=0;return
+		visual.show_pose("skill",facing);visual.play();visual.frame=0;return
 
 	if kind in ["bear_vanguard","bloodshell_crab","bloodshell_boss","twilight_golem","bloodsoil_behemoth","bloodsoil_boss"] and not busy and ability_clock<=0.0:
 		var has_target: bool = is_instance_valid(blocker) or (not game.hero.knocked_out and position.distance_to(game.hero.position)<=135.0)
@@ -666,7 +710,7 @@ func _pick_skunk_target() -> Vector2:
 
 func _has_injured_ally(rad: float) -> bool:
 	var r2 := rad * rad
-	for other in game.enemies:
+	for other in game.domain_enemies(domain):
 		if not is_instance_valid(other) or other.dead or other.is_guard:
 			continue
 		if position.distance_squared_to(other.position) <= r2 and (other.health < other.max_health * 0.96 or other.slow > 0.0):
@@ -677,25 +721,36 @@ func _finish_ability() -> void:
 	var kind_done := ability_kind
 	ability_kind=""
 	if kind_done=="heal":
+		var allies: Array[ArenaEnemy] = []
+		for other: ArenaEnemy in game.domain_enemies(domain):
+			if not other.is_guard and position.distance_squared_to(other.position) <= 155.0 * 155.0:
+				if other.health < other.max_health or other.slow > 0.0:
+					allies.append(other)
+		allies.sort_custom(func(a, b): return a.health / a.max_health < b.health / b.max_health)
 		var healed_any := false
-		for other in game.enemies:
-			if not is_instance_valid(other) or other.dead or other.is_guard:
+		var healed_regular := 0
+		var healed_boss := false
+		for other in allies:
+			var boss := other.is_boss() or other.is_mini_boss()
+			if (boss and healed_boss) or (not boss and healed_regular >= 4):
 				continue
-			if position.distance_to(other.position) <= 155.0:
-				var mult := 0.08 if (other.is_boss() or other.is_mini_boss()) else 0.16
-				var before: float = other.health
-				other.health = minf(other.max_health, other.health + other.max_health * mult)
-				other.slow = 0.0
-				var diff: float = other.health - before
-				if diff >= 1.0:
-					healed_any = true
-					game.numbers.append({"point":other.center()+Vector2(0,-14),"text":"+"+str(int(round(diff))),"colour":Color("74f290"),"life":0.55,"duration":0.55})
+			if boss:
+				healed_boss = true
+			else:
+				healed_regular += 1
+			var before := other.health
+			other.health = minf(other.max_health, before + other.max_health * (0.04 if boss else 0.18))
+			other.slow = 0.0
+			var diff := other.health - before
+			if diff >= 1.0:
+				healed_any = true
+				game.numbers.append({"point":other.center()+Vector2(0,-14),"text":"+"+str(int(round(diff))),"colour":Color("74f290"),"life":0.55,"duration":0.55})
 		game.effect(position,150.0,Color("56e888"),"upgrade",0.55)
 		if healed_any:game.audio.play("mage_cast",-14)
 	elif kind_done=="ally_shield":
 		var best_ally: ArenaEnemy = null
 		var best_hp := 2.0
-		for other in game.enemies:
+		for other in game.domain_enemies(domain):
 			if other == self or not is_instance_valid(other) or other.dead or other.is_guard:
 				continue
 			if position.distance_to(other.position) <= 170.0 and other.health / maxf(1.0, other.max_health) < best_hp:
@@ -703,7 +758,8 @@ func _finish_ability() -> void:
 				best_ally = other
 		if is_instance_valid(best_ally):
 			var shield_amt := 75.0 if kind == "conch_mage" else 85.0
-			best_ally.barrier_shield = minf(260.0, best_ally.barrier_shield + shield_amt)
+			if best_ally.barrier_shield < ALLY_SHIELD_CAP:
+				best_ally.barrier_shield = minf(ALLY_SHIELD_CAP, best_ally.barrier_shield + shield_amt)
 			best_ally.health = minf(best_ally.max_health, best_ally.health + best_ally.max_health * 0.10)
 			game.effect(best_ally.center(), 42.0, Color("7ce8ff") if kind == "conch_mage" else Color("c476ff"), "upgrade", 0.4)
 		if kind == "soul_reaver":
@@ -721,8 +777,10 @@ func _finish_ability() -> void:
 		game.effect(center(), 46.0, Color("c46cff"), "summon", 0.45)
 	elif kind_done=="rhino_charge":
 		charge_left=0.48 if is_mini_boss() else 0.42
-		visual.show_pose("skill",facing);visual.play("skill");visual.frame=2
+		visual.show_pose("skill",facing);visual.play();visual.frame=2
 		game.audio.play("heavy_hit",-14)
+	elif kind_done=="rift_heavy":
+		melee_recovery = 0.62
 
 func _rhino_charge_impact() -> void:
 	var impact_pt := position + facing * 24.0
@@ -779,7 +837,7 @@ func _check_leviathan_phase() -> void:
 	var lphase := 2 if health < max_health * 0.33 else (1 if health < max_health * 0.66 else 0)
 	while boss_phase < lphase:
 		boss_phase += 1
-		visual.show_pose("skill", facing); visual.play("skill"); visual.frame = 0
+		visual.show_pose("skill", facing); visual.play(); visual.frame = 0
 		if game.feel.enabled:
 			game.feel.trauma = minf(1.0, game.feel.trauma + 0.34)
 		if boss_phase == 1:
@@ -799,7 +857,7 @@ func _check_baj_nimen_phase() -> void:
 	var bphase := 2 if health < max_health * 0.33 else (1 if health < max_health * 0.66 else 0)
 	while boss_phase < bphase:
 		boss_phase += 1
-		visual.show_pose("skill", facing); visual.play("skill"); visual.frame = 0
+		visual.show_pose("skill", facing); visual.play(); visual.frame = 0
 		if game.feel.enabled:
 			game.feel.trauma = minf(1.0, game.feel.trauma + 0.36)
 		if boss_phase == 1:
@@ -834,7 +892,7 @@ func _check_troll_phase() -> void:
 	while boss_phase<tphase:
 		boss_phase+=1
 		roar_anim_left=0.90
-		visual.show_pose("skill",facing);visual.play("skill");visual.frame=0
+		visual.show_pose("skill",facing);visual.play();visual.frame=0
 		game.audio.play("heavy_hit",-6)
 		if game.feel.enabled:
 			game.feel.trauma = minf(1.0, game.feel.trauma + 0.36)
@@ -1012,16 +1070,25 @@ func release_ranged() -> void:
 			game.fire_projectile(center(),aim,float(data.damage)*damage_scale()*(1.25 if elite else 1.0),int(data.type),"enemy",{"speed":460.0 if kind=="spearman" else 185.0,"appearance":"spear" if kind=="spearman" else "magic","domain":domain})
 
 func take_hit(amount: float,damage_type: int,source: String,stagger := 0.0,chill_time := 0.0,pen_bonus := 0.0,attack: String="attack", incoming := Vector2.ZERO, contact := Vector2.INF, condition_hit: Dictionary={}) -> float:
-	if dead:return 0
+	# Lethal hits may dispatch passive effects before death rewards are settled.
+	if dead or health <= 0.0:
+		return 0.0
+	var passives: ArenaPassiveEngine = game.passive_engine
+	var direct := source == "hero" and ArenaPassiveEngine.is_direct_hero_hit(attack,condition_hit)
+	var counter_extra := 0.0
 	var pen:=pen_bonus
-	var vulnerability: float=([0.10,0.11,0.12][game.hero.passive_rank] if game.hero.class_id=="healer" else 0.10) if exposure>0 else 0.0
+	if direct:
+		pen += passives.hero_strike_penetration(self,damage_type)
+		counter_extra = passives.counter_bonus(condition_hit)
+		amount = (amount + counter_extra) * passives.hero_strike_multiplier(self)
+	var vulnerability: float=(ArenaDefinitions.HEALER_EXPOSURE_BONUS[game.hero.passive_rank] if game.hero.class_id=="healer" else 0.10) if exposure>0 else 0.0
 	var condition_result: Dictionary={}
 	if source=="hero" and bool(condition_hit.get("crit",false)):
 		condition_result["crit"]=true
 	var damage:=ArenaCombat.resolve(amount,damage_type,float(data.armour),float(data.resistance),vulnerability,pen)
 	if marked>0:damage*=1.0+mark_bonus
-	if source=="hero" and game != null and game.passive_engine != null:
-		damage *= game.passive_engine.controlled_enemy_damage_mult(self)
+	if source == "tower":
+		damage *= passives.tower_target_multiplier(self)
 	if source in ["hero", "tower"] and game != null and game.relic_engine != null:
 		damage *= game.relic_engine.boss_elite_damage_mult(self)
 		if source == "tower" and game.relic_engine.tower_burn_dps() > 0.0:
@@ -1029,8 +1096,11 @@ func take_hit(amount: float,damage_type: int,source: String,stagger := 0.0,chill
 	if lighthouse_exposed>0.0:damage*=1.20
 	var exploits_weakness:=source=="hero" and tower_weakness_clock>0.0 and damage>0.0
 	if exploits_weakness: damage*=1.0+ArenaTowerTrial.WEAKNESS_BONUS
-	var absorbed:=minf(barrier_shield,damage);barrier_shield-=absorbed
-	var hp_damage:=minf(health,damage-absorbed)
+	var shield_mult := passives.shield_strike_multiplier() if direct else 1.0
+	var absorbed := minf(barrier_shield,damage*shield_mult)
+	barrier_shield -= absorbed
+	var shield_broken := absorbed > 0.0 and barrier_shield <= 0.0
+	var hp_damage := minf(health,maxf(0.0,damage-absorbed/shield_mult))
 	var total_dealt:=absorbed+hp_damage
 	health-=hp_damage;hurt_time=0.12
 	if exploits_weakness and total_dealt>0.0:
@@ -1038,10 +1108,12 @@ func take_hit(amount: float,damage_type: int,source: String,stagger := 0.0,chill
 		game.tower_trial_stats.weakness_used+=1
 		game.effect(center(),15.0,Color("f1cd8b"),"hit",0.22)
 		queue_redraw()
-	_check_leviathan_phase()
-	_check_baj_nimen_phase()
-	_check_miniboss_phase()
-	_check_troll_phase()
+	# Rift leaders run the room encounter and must not call defense-route reinforcements.
+	if not is_rift_mob:
+		_check_leviathan_phase()
+		_check_baj_nimen_phase()
+		_check_miniboss_phase()
+		_check_troll_phase()
 	if kind=="soul_reaver" and not dash_used and health>0.0 and health<max_health*0.55 and barrier_shield<=0.0:
 		dash_used=true
 		barrier_shield=120.0
@@ -1068,15 +1140,18 @@ func take_hit(amount: float,damage_type: int,source: String,stagger := 0.0,chill
 	game.damage_stats[source]=float(game.damage_stats.get(source,0))+total_dealt
 	var impact_point := center() if contact == Vector2.INF else contact
 	game.feedback(impact_point,total_dealt,damage_type,health<=0,source,self,attack,incoming,absorbed > 0 and hp_damage <= 0,condition_result)
-	if source=="hero" and not bool(condition_hit.get("passive_proc",false)) and game != null and game.event_bus != null:
-		game.event_bus.emit_event("hero_hit", {"enemy": self, "damage": total_dealt, "crit": bool(condition_hit.get("crit", false))})
-	if health<=0:
-		dead=true
-		game.enemy_defeated(self)
+	if source=="hero" and total_dealt > 0.0 and not bool(condition_hit.get("passive_proc",false)) and game.event_bus != null:
+		game.event_bus.emit_event("hero_hit", {
+			"enemy":self, "damage":total_dealt, "crit":bool(condition_hit.get("crit",false)),
+			"direct":direct, "shield_broken":shield_broken, "riposte_first":counter_extra>0.0, "condition":condition_hit
+		})
+	if health <= 0.0:
+		game.enemy_defeated(self,source,direct,bool(condition_hit.get("void_followup",false)))
 	return total_dealt
 
 func apply_mark(time: float,bonus: float) -> void:
 	if dead:return
+	if marked<=0.0:mark_bonus=0.0
 	marked=maxf(marked,time);mark_bonus=maxf(mark_bonus,bonus)
 func chill(amount: float,time: float) -> void:
 	if dead:return
@@ -1090,8 +1165,25 @@ func frost_hit(amount: float,time: float,stacks: int,freeze: float) -> void:
 			stun=maxf(stun,freeze * (0.35 if is_mini_boss() else 1.0))
 		game.effect(center(),24,Color("bfe6ff"),"hit",0.32)
 func push_back(amount: float) -> void:
-	if is_unstoppable() or is_guard or is_flying():return
+	if dead or is_unstoppable() or is_guard or is_flying():return
+	if is_rift_mob:
+		shove_from(game.hero.position,amount)
+		return
 	progress=maxf(0,progress-amount);position=game.enemy_road(self).sample_baked(progress,true)
+func shove_from(origin: Vector2,amount: float) -> void:
+	if is_rift_mob:
+		var direction := origin.direction_to(position)
+		position = game.rift_domain.clamp_mob_to_room(position+direction*amount,rift_room_id)
+	else:
+		push_back(amount)
+func interrupt_support() -> bool:
+	if dead or ability_windup <= 0.0 or ability_kind not in ["heal","ally_shield"]:
+		return false
+	ability_windup = 0.0
+	ability_kind = ""
+	stun = maxf(stun,0.25)
+	game.effect(center(),22.0,Color("9cddfa"),"edge_contact",0.21)
+	return true
 func ignite(dps: float,duration: float) -> void:
 	if dead:return
 	burn_dps=maxf(burn_dps,dps);burn_clock=maxf(burn_clock,duration)
@@ -1180,7 +1272,7 @@ func _draw() -> void:
 		draw_line(pt - Vector2(0, gs), pt + Vector2(0, gs), Color("b8ff8e"), 2.0, false)
 		draw_rect(Rect2(pt - Vector2(1.5, 1.5), Vector2(3, 3)), Color.WHITE)
 	if ability_windup>0.0 and ability_kind=="heal":
-		var h_p := 1.0 - clampf(ability_windup/0.60,0.0,1.0)
+		var h_p := 1.0 - clampf(ability_windup / HEAL_WINDUP,0.0,1.0)
 		for i in range(6):
 			var ha := float(i) * (TAU / 6.0) + h_p * 2.4
 			var hpos := Vector2(cos(ha) * 18.0, -10.0 - h_p * 30.0 - float(i % 2) * 8.0).snapped(Vector2(2, 2))

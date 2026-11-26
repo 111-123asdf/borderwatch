@@ -44,7 +44,6 @@ var painted: Texture2D
 var fx_sheets: Dictionary = {}
 var kenney_tex: Dictionary = {}
 var fx_meta: Dictionary = {}
-var ambient_braziers: Array = []
 
 var _pixel_layer: Node2D
 var _glow_layer: Node2D
@@ -107,10 +106,6 @@ func _load_v016_assets() -> void:
 
 func has_v016_fx(key: String) -> bool:
 	return fx_sheets.has(key) and fx_sheets[key] != null
-
-
-func set_braziers(points: Array) -> void:
-	ambient_braziers = points.duplicate()
 
 
 func _build_radial_glow_texture() -> Texture2D:
@@ -318,8 +313,6 @@ func _draw_sheet_frame(target: Node2D, key: String, kind: String, point: Vector2
 
 
 func _ambient_brazier_points() -> Array:
-	if not ambient_braziers.is_empty():
-		return ambient_braziers
 	if game == null:
 		return []
 	if str(game.get("level_id")) in ["saltport", "lighthouse", "ruins", "sanctum"]:
@@ -394,6 +387,8 @@ func _draw_legacy_and_painted_effects() -> void:
 			_draw_perfect_dodge(point, Vector2(item.direction), r, p, item.colour, reduced)
 			continue
 		match item.kind:
+			"order_confirm","order_rejected":
+				_draw_order_marker(point,r,p,item.colour,item.kind=="order_rejected",reduced)
 			"pixel_contact", "shield_contact":
 				_draw_pixel_contact(item,p)
 			"shaft_contact", "edge_contact", "ward_contact":
@@ -619,17 +614,40 @@ func _draw_glow_layer() -> void:
 			_glow_layer.draw_texture_rect(_glow_tex, Rect2(bp - Vector2.ONE * br, Vector2.ONE * br * 2.0), false, Color(1.0, 0.86, 0.38, 0.46 * glow_mul))
 
 
+func _draw_order_marker(point: Vector2, radius: float, progress: float, tint: Color, rejected: bool, reduced: bool) -> void:
+	var alpha := 1.0 - progress
+	var size := radius if reduced else radius * lerpf(1.15,0.70,progress)
+	if rejected:
+		var cross := Vector2.ONE * size * 0.55
+		draw_line(point-cross,point+cross,Color(tint,alpha),2.5,true)
+		draw_line(point-Vector2(-cross.x,cross.y),point+Vector2(-cross.x,cross.y),Color(tint,alpha),2.5,true)
+	else:
+		draw_arc(point,size,0,TAU,24,Color("081626",alpha*0.85),4.0,true)
+		draw_arc(point,size,0,TAU,24,Color(tint,alpha),2.0,true)
+		draw_circle(point,2.4,Color(tint,alpha))
+
 func _draw_delayed_indicators() -> void:
 	var reduced := _is_reduced_motion()
 	for item in game.delayed:
+		var default_domain: String = game.active_domain if item.source == "hero" else "defense"
+		if str(item.options.get("domain",default_domain)) != game.active_domain:
+			continue
 		var dur := maxf(0.01, float(item.duration))
 		var p: float = clampf(1.0 - float(item.life) / dur, 0.0, 1.0)
-		var colour := Color(0.95, 0.58, 0.34) if item.source == "enemy" else ArenaCombat.colour(item.type)
 
 		if item.source == "enemy":
+			var point: Vector2 = item.point
+			var radius: float = item.radius
+			draw_circle(point,radius,Color("ec6946",0.07+0.09*p))
+			draw_arc(point,radius,0,TAU,48,Color("211018",0.85),4.5,true)
+			draw_arc(point,radius,0,TAU,48,Color("ffa571",0.70),2.0,true)
+			if not reduced and p > 0.02:
+				draw_arc(point,radius,-PI/2,-PI/2+TAU*p,48,Color("ffe4ab",0.95),3.0,true)
 			_draw_enemy_telegraph(item, p, reduced)
+		elif item.source == "neutral":
+			_draw_enemy_telegraph(item,p,reduced)
 		else:
-			_draw_friendly_telegraph(item, p, colour)
+			_draw_friendly_telegraph(item, p, ArenaCombat.colour(item.type))
 
 		if item.options.has("origin"):
 			var orig_pt := Vector2(item.options.origin)

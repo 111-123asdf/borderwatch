@@ -48,16 +48,16 @@ static func defense_offer(kind: String) -> Dictionary:
 	var data:=ArenaDefinitions.tower(kind)
 	if kind=="archer":
 		data.name="弓箭塔"
-		data.description="全自动贯穿飞箭，附加+28%英雄易伤破绽"
+		data.description="全自动贯穿飞箭，命中的敌人承伤 +28%"
 	elif kind=="mage":
 		data.name="法师塔"
-		data.description="全自动寒霜脉冲：范围减速35%并三层冻结"
+		data.description="全自动寒霜脉冲，叠加减速，三层冻结"
 	elif kind=="cannon":
 		data.name="火炮塔"
-		data.description="全自动震地轰击：大范围击退与眩晕聚怪"
+		data.description="范围炮击，爆炸中心击退并眩晕地面敌人"
 	elif kind=="barracks":
 		data.name="兵营"
-		data.description="高防盾卫拦截，周期升起减速屏障（自动升阶）"
+		data.description="高防盾卫拦截，周期升起减速屏障"
 	return data
 
 static func arrow_scales(level: int) -> Array[float]:

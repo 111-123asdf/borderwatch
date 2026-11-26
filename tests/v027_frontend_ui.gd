@@ -126,6 +126,14 @@ func test_hero_hall_and_tower_workshop() -> void:
 		check(game.hud.menu.get_instance_id() == menu_id, "hero switch preserves menu node: " + hid)
 		check(game.hud.frontend.card.get_instance_id() == card_id, "hero switch preserves card node: " + hid)
 		check(game.hud.frontend.card_art.texture == ArenaMenuArt.v027("hero_card_" + hid), "hero card swaps full-bleed 2:3 art: " + hid)
+		game.campaign.data.levels[hid] = 5
+		game.hud.frontend.select_hall(hid)
+		var talent_rank := int(game.campaign.bonuses(hid).passive)
+		for slot in range(2):
+			game.hud.frontend.select_skill(slot)
+			check(game.hud.frontend.skill_body.text == ArenaDefinitions.skill_text(hid,slot,talent_rank), "hero hall uses the current combat description: "+hid)
+		game.hud.frontend.select_skill(2)
+		check(game.hud.frontend.skill_body.text == ArenaDefinitions.hero_talent_text(hid,talent_rank), "hero hall uses the current talent rank: "+hid)
 
 	# Lock badge check: level 1 has E locked -> lock badge visible; level 4 -> unlocked & badge hidden
 	game.campaign.data.levels["lord"] = 1
@@ -146,7 +154,8 @@ func test_hero_hall_and_tower_workshop() -> void:
 	var first_doc_tex: Texture2D = game.hud.frontend.card_art.texture
 	check(first_doc_tex != null, "Tier 3 showcase displays live pixel tower sprite")
 	game.hud.frontend.select_route(1)
-	check(game.hud.frontend.card_art.texture != first_doc_tex, "switching Tier 3 doctrine updates live tower showcase art")
+	check(game.hud.frontend.card_art.texture != first_doc_tex and game.hud.frontend.route_name.text == "巡光镜", "previewing a specialization updates its artwork")
+	check(game.hud.frontend.enhancement_list.get_node("Enhancement_0/Title").text == "首光棱镜" and game.campaign.tower_doctrine("lens") == "focus", "enhancements follow the preview while the saved choice stays put")
 
 	game.hud.frontend.settings()
 	await frames(1)

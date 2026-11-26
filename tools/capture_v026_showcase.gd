@@ -30,7 +30,7 @@ func _save_shot(filename: String) -> void:
 	print("SAVED ", filename)
 
 
-func _spawn_game(stage: String, hero_id: String, towers_list: Array[String], select_first_rule := false) -> ArenaGame:
+func _spawn_game(stage: String, hero_id: String, towers_list: Array[String]) -> ArenaGame:
 	var game := load("res://scenes/arena.tscn").instantiate() as ArenaGame
 	game.campaign = ArenaCampaign.new("", false)
 	root.add_child(game)
@@ -39,10 +39,6 @@ func _spawn_game(stage: String, hero_id: String, towers_list: Array[String], sel
 	game.run_towers.assign(towers_list)
 	game.start_run(hero_id, stage, true)
 	game.gold = 3500
-	if select_first_rule and not game.rule_offers.is_empty():
-		game.choose_defense_rule(str(game.rule_offers[0].id))
-	else:
-		game.choose_defense_rule("")
 	await process_frame
 	return game
 
@@ -70,7 +66,7 @@ func run() -> void:
 
 func _shot_01_portraits_and_wave_upgrade() -> void:
 	var list: Array[String] = ["storm", "lens", "snare", "barracks"]
-	var game := await _spawn_game("forest", "lord", list, true)
+	var game := await _spawn_game("forest", "lord", list)
 	game.build_tower(0, "storm")
 	var st := game.site_tower(0)
 	st.finish_project()
@@ -96,7 +92,7 @@ func _shot_01_portraits_and_wave_upgrade() -> void:
 
 func _shot_02_barracks_blocking_heavy() -> void:
 	var list: Array[String] = ["archer", "barracks", "mage", "cannon"]
-	var game := await _spawn_game("forest", "lord", list, false)
+	var game := await _spawn_game("forest", "lord", list)
 	game.hero.position = Vector2(180.0, 220.0)
 	game.build_tower(2, "barracks")
 	var camp := game.site_tower(2)
@@ -125,7 +121,7 @@ func _shot_02_barracks_blocking_heavy() -> void:
 
 func _shot_03_organic_vfx_zero_circles() -> void:
 	var list: Array[String] = ["cannon", "mage", "storm", "barracks"]
-	var game := await _spawn_game("forest", "werewolf", list, false)
+	var game := await _spawn_game("forest", "werewolf", list)
 	game.feel.enabled = true
 	game.hero.position = Vector2(540.0, 415.0)
 	game.hero.facing = Vector2.RIGHT
@@ -164,7 +160,7 @@ func _shot_03_organic_vfx_zero_circles() -> void:
 
 func _shot_04_open_exit_twin_pillars() -> void:
 	var list: Array[String] = ["archer", "storm", "lens", "barracks"]
-	var game := await _spawn_game("forest", "lord", list, false)
+	var game := await _spawn_game("forest", "lord", list)
 	game.hero.position = Vector2(1320.0, 565.0)
 	game.build_tower(6, "storm")
 	var st := game.site_tower(6)
@@ -188,7 +184,7 @@ func _shot_04_open_exit_twin_pillars() -> void:
 
 func _shot_05_creek_exit_and_revive() -> void:
 	var list: Array[String] = ["archer", "mage", "lens", "barracks"]
-	var game := await _spawn_game("creek", "healer", list, false)
+	var game := await _spawn_game("creek", "healer", list)
 	game.hero.position = Vector2(1260.0, 540.0)
 	game.hero.knocked_out = true
 	game.hero.revive_clock = 0.04

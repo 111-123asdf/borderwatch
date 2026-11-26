@@ -11,6 +11,8 @@ const GRID_ROWS := 5
 const CELL_STEP := Vector2(1080.0, 760.0)
 const GRID_MARGIN := Vector2(560.0, 440.0)
 const CORRIDOR_HALF_W := 74.0
+const LAYOUT_ATTEMPTS := 48
+const DIRECTIONS := [Vector2i.UP, Vector2i.LEFT, Vector2i.RIGHT, Vector2i.DOWN]
 
 const SHAPES := {
 	"hub": Vector2i(12, 8),
@@ -41,160 +43,172 @@ const BIOME_TITLES := {
 }
 
 
-static func _cell_key(col: int, row: int) -> String:
-	return "%d_%d" % [col, row]
-
-
 static func _edge_key(a: String, b: String) -> String:
 	return (a + ":" + b) if a < b else (b + ":" + a)
+
+
+static func _new_topology(hub: Vector2i) -> Dictionary:
+	return {
+		"occupied": {hub: "hub"},
+		"cells": [{"rid": "hub", "col": hub.x, "row": hub.y}],
+		"edges": {},
+		"adjacency": {"hub": []}
+	}
+
+
+static func _connect(topology: Dictionary, a: String, b: String) -> void:
+	topology.edges[_edge_key(a,b)] = [a,b]
+	topology.adjacency[a].append(b)
+	topology.adjacency[b].append(a)
+
+
+static func _grow_room(topology: Dictionary, point: Vector2i, parent: String) -> Dictionary:
+	var id := "r_%d_%d" % [point.x,point.y]
+	var cell := {"rid": id, "col": point.x, "row": point.y}
+	topology.occupied[point] = id
+	topology.cells.append(cell)
+	topology.adjacency[id] = []
+	_connect(topology,parent,id)
+	return cell
+
+
+static func _random_topology(prng: RandomNumberGenerator, target_count: int, theme_key: String) -> Dictionary:
+	var hub := Vector2i(prng.randi_range(1,3),GRID_ROWS-1)
+	var topology := _new_topology(hub)
+	var occupied: Dictionary = topology.occupied
+	var cells: Array = topology.cells
+	var frontier: Array = [cells[0]]
+	while cells.size() < target_count and not frontier.is_empty():
+		var pick_idx := prng.randi_range(0,frontier.size()-1)
+		var base: Dictionary = frontier[pick_idx]
+		var origin := Vector2i(base.col,base.row)
+		var candidates: Array[Vector2i] = []
+		for direction: Vector2i in DIRECTIONS:
+			var point := origin + direction
+			if not Rect2i(0,0,GRID_COLS,GRID_ROWS).has_point(point) or occupied.has(point):
+				continue
+			candidates.append(point)
+			if (theme_key == "wilds" and direction.x != 0) or (theme_key == "void" and direction.y < 0) or (theme_key == "abyss" and direction.y <= 0):
+				candidates.append(point)
+		if candidates.is_empty():
+			frontier.remove_at(pick_idx)
+			continue
+		frontier.append(_grow_room(topology,candidates[prng.randi_range(0,candidates.size()-1)],str(base.rid)))
+
+	var shortcuts: Array[Array] = []
+	for cell: Dictionary in cells:
+		for direction: Vector2i in [Vector2i.RIGHT,Vector2i.UP]:
+			var neighbor: String = occupied.get(Vector2i(cell.col,cell.row)+direction,"")
+			if not neighbor.is_empty() and not topology.edges.has(_edge_key(str(cell.rid),neighbor)):
+				shortcuts.append([cell.rid,neighbor])
+	for _index in mini(prng.randi_range(1,2),shortcuts.size()):
+		var edge: Array = shortcuts.pop_at(prng.randi_range(0,shortcuts.size()-1))
+		_connect(topology,edge[0],edge[1])
+	return topology
+
+
+static func _paths_from_hub(adjacency: Dictionary) -> Dictionary:
+	var paths := {"hub": ["hub"]}
+	var frontier: Array[String] = ["hub"]
+	while not frontier.is_empty():
+		var room: String = frontier.pop_front()
+		for neighbor: String in adjacency[room]:
+			if not paths.has(neighbor):
+				paths[neighbor] = paths[room] + [neighbor]
+				frontier.append(neighbor)
+	return paths
+
+
+static func _place_landmarks(topology: Dictionary, prng: RandomNumberGenerator) -> Dictionary:
+	var adjacent: Dictionary = topology.adjacency
+	var paths := _paths_from_hub(adjacent)
+	if paths.size() < 9 or paths.size() != adjacent.size() or topology.edges.size() < adjacent.size():
+		return {}
+	var columns := {}
+	var rows := {}
+	var ends: Array[String] = []
+	for cell: Dictionary in topology.cells:
+		columns[cell.col] = true
+		rows[cell.row] = true
+		if cell.rid != "hub" and adjacent[cell.rid].size() == 1:
+			ends.append(cell.rid)
+	if columns.size() < 3 or rows.size() < 3 or ends.size() < 2 or ends.size() > 4:
+		return {}
+	if adjacent.hub.size() < 2 and adjacent[adjacent.hub[0]].size() < 3:
+		return {}
+	var bosses: Array[String] = []
+	for id in ends:
+		if paths[id].size() in range(5,8):
+			bosses.append(id)
+	while not bosses.is_empty():
+		var boss: String = bosses.pop_at(prng.randi_range(0,bosses.size()-1))
+		var main: Array = paths[boss]
+		var minibosses: Array[String] = []
+		for id in ends:
+			if id not in main and paths[id].size() >= 3:
+				minibosses.append(id)
+		while not minibosses.is_empty():
+			var miniboss: String = minibosses.pop_at(prng.randi_range(0,minibosses.size()-1))
+			var early: Array[String] = []
+			var side: Array[String] = []
+			for id: String in paths:
+				if id in main or id == miniboss:
+					continue
+				side.append(id)
+				if paths[id].size() <= 4:
+					early.append(id)
+			if side.size() < 2 or early.is_empty():
+				continue
+			early.sort_custom(func(a,b): return paths[a].size() < paths[b].size())
+			var nearest := early.filter(func(id):return paths[id].size() == paths[early[0]].size())
+			var chest: String = nearest[prng.randi_range(0,nearest.size()-1)]
+			side.erase(chest)
+			return {"boss": boss, "miniboss": miniboss, "chest": chest, "event": side[prng.randi_range(0,side.size()-1)], "main_path": main, "paths": paths}
+	return {}
+
+
+static func _backbone_topology(prng: RandomNumberGenerator, target_count: int) -> Dictionary:
+	var hub := Vector2i(prng.randi_range(1,3),GRID_ROWS-1)
+	var side := -1 if prng.randi_range(0,1) == 0 else 1
+	var topology := _new_topology(hub)
+	var offsets := [Vector2i.ZERO, Vector2i(0,-1), Vector2i(0,-2), Vector2i(0,-3), Vector2i(0,-4), Vector2i(side,0), Vector2i(side,-1), Vector2i(-side,-1), Vector2i(-side,-2), Vector2i(side,-2), Vector2i(side,-3), Vector2i(-side,-3)]
+	var parents := [0,0,1,2,3,0,5,1,7,6,9,8]
+	var ids: Array[String] = ["hub"]
+	for index in range(1,target_count):
+		ids.append(str(_grow_room(topology,hub+offsets[index],ids[parents[index]]).rid))
+	_connect(topology,ids[1],ids[6])
+	return topology
 
 
 static func generate_floor(seed_val: int, stage_id: String, theme_key: String, floor_idx: int, rift_origin: Vector2) -> Dictionary:
 	var prng := RandomNumberGenerator.new()
 	prng.seed = int(hash(str(seed_val) + "|" + stage_id + "|floor_" + str(floor_idx)))
-
-	var target_count := clampi(9 + (floor_idx - 1) + prng.randi_range(0, 2), 9, 12)
-	var hub_col := clampi(1 + prng.randi_range(0, 2), 1, 3)
-	var hub_row := GRID_ROWS - 1
-	var occupied: Dictionary = {} # cell_key -> {col, row, rid}
-	var cells: Array[Dictionary] = []
-	var edges: Dictionary = {} # edge_key -> [rid_a, rid_b]
-	var adjacency: Dictionary = {} # rid -> Array[String]
-
+	var target_count := clampi(9 + (floor_idx - 1) + prng.randi_range(0,2),9,12)
+	var topology: Dictionary
+	var landmarks := {}
+	for _attempt in LAYOUT_ATTEMPTS:
+		topology = _random_topology(prng,target_count,theme_key)
+		landmarks = _place_landmarks(topology,prng)
+		if not landmarks.is_empty():
+			break
+	if landmarks.is_empty():
+		topology = _backbone_topology(prng,target_count)
+		landmarks = _place_landmarks(topology,prng)
+	var cells: Array = topology.cells
+	var edges: Dictionary = topology.edges
+	var adjacency: Dictionary = topology.adjacency
+	var paths: Dictionary = landmarks.paths
 	var hub_id := "hub"
-	occupied[_cell_key(hub_col, hub_row)] = hub_id
-	cells.append({"rid": hub_id, "col": hub_col, "row": hub_row})
-	adjacency[hub_id] = []
-
-	var dirs := [Vector2i(0, -1), Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, 1)]
-	var room_counter := 1
-	var frontier: Array[Dictionary] = [{"rid": hub_id, "col": hub_col, "row": hub_row}]
-	var safety := 0
-
-	# Stage-biased spanning tree growth on 5x5 grid
-	while cells.size() < target_count and safety < 240:
-		safety += 1
-		if frontier.is_empty():
-			frontier = cells.duplicate()
-		var pick_idx: int = prng.randi_range(0, frontier.size() - 1)
-		if theme_key == "void" and frontier.size() > 1 and prng.randf() < 0.55:
-			# Void favors branching from northernmost / newest frontier
-			pick_idx = frontier.size() - 1
-		var base_node: Dictionary = frontier[pick_idx]
-		var b_col := int(base_node.col)
-		var b_row := int(base_node.row)
-
-		var candidates: Array[Vector2i] = []
-		for d: Vector2i in dirs:
-			var nc := b_col + d.x
-			var nr := b_row + d.y
-			if nc >= 0 and nc < GRID_COLS and nr >= 0 and nr < GRID_ROWS:
-				if not occupied.has(_cell_key(nc, nr)):
-					candidates.append(d)
-					# Stage-specific directional bias via weighted duplicate candidates
-					if theme_key == "wilds" and abs(d.x) > 0:
-						candidates.append(d)
-					elif theme_key == "void" and d.y < 0:
-						candidates.append(d)
-					elif theme_key == "abyss" and (d.y < 0 or abs(d.x) > 0):
-						candidates.append(d)
-		if candidates.is_empty():
-			frontier.remove_at(pick_idx)
-			continue
-		var chosen_d: Vector2i = candidates[prng.randi_range(0, candidates.size() - 1)]
-		var next_c := b_col + chosen_d.x
-		var next_r := b_row + chosen_d.y
-		var new_rid := "r_%d_%d" % [next_c, next_r]
-		room_counter += 1
-		occupied[_cell_key(next_c, next_r)] = new_rid
-		var new_entry := {"rid": new_rid, "col": next_c, "row": next_r}
-		cells.append(new_entry)
-		frontier.append(new_entry)
-		adjacency[new_rid] = [str(base_node.rid)]
-		(adjacency[str(base_node.rid)] as Array).append(new_rid)
-		edges[_edge_key(str(base_node.rid), new_rid)] = [str(base_node.rid), new_rid]
-
-	# Add 1..2 loop shortcut corridors between adjacent cells for tactical variety
-	var extra_loops := prng.randi_range(1, 2)
-	var loop_cands: Array[Array] = []
-	for cell_d: Dictionary in cells:
-		var cid := str(cell_d.rid)
-		var cc := int(cell_d.col)
-		var cr := int(cell_d.row)
-		for d: Vector2i in [Vector2i(1, 0), Vector2i(0, -1)]:
-			var nk := _cell_key(cc + d.x, cr + d.y)
-			if occupied.has(nk):
-				var nid := str(occupied[nk])
-				var ek := _edge_key(cid, nid)
-				if not edges.has(ek):
-					loop_cands.append([cid, nid, ek])
-	for _l in range(extra_loops):
-		if loop_cands.is_empty():
-			break
-		var li: int = prng.randi_range(0, loop_cands.size() - 1)
-		var pair: Array = loop_cands[li]
-		loop_cands.remove_at(li)
-		edges[str(pair[2])] = [str(pair[0]), str(pair[1])]
-		(adjacency[str(pair[0])] as Array).append(str(pair[1]))
-		(adjacency[str(pair[1])] as Array).append(str(pair[0]))
-
-	# BFS distance map from hub
-	var dist_map: Dictionary = {hub_id: 0}
-	var bfs_q: Array[String] = [hub_id]
-	while not bfs_q.is_empty():
-		var cur_id: String = bfs_q.pop_front()
-		var cur_d: int = int(dist_map[cur_id])
-		for nb: String in adjacency[cur_id]:
-			if not dist_map.has(nb):
-				dist_map[nb] = cur_d + 1
-				bfs_q.append(nb)
-
-	# Assign special rooms cleanly by BFS depth
-	var sorted_by_dist: Array[String] = []
-	for cell_d: Dictionary in cells:
-		var cid := str(cell_d.rid)
-		if cid != hub_id:
-			sorted_by_dist.append(cid)
-	sorted_by_dist.sort_custom(func(a: String, b: String) -> bool:
-		var da := int(dist_map.get(a, 0))
-		var db := int(dist_map.get(b, 0))
-		return da > db if da != db else a < b
-	)
-
-	var boss_rid := sorted_by_dist[0] if not sorted_by_dist.is_empty() else hub_id
-	var used_special := {hub_id: true, boss_rid: true}
-
-	var mb_rid := ""
-	for cid in sorted_by_dist:
-		if not used_special.has(cid) and int(dist_map.get(cid, 0)) >= 2:
-			mb_rid = cid
-			used_special[cid] = true
-			break
-	if mb_rid.is_empty() and sorted_by_dist.size() >= 2:
-		mb_rid = sorted_by_dist[1]
-		used_special[mb_rid] = true
-
-	var event_rid := ""
-	var mid_idx := clampi(sorted_by_dist.size() / 2, 0, maxi(0, sorted_by_dist.size() - 1))
-	for offset in range(sorted_by_dist.size()):
-		var cid: String = sorted_by_dist[(mid_idx + offset) % sorted_by_dist.size()]
-		if not used_special.has(cid):
-			event_rid = cid
-			used_special[cid] = true
-			break
-
-	var chest_rid := ""
-	for cid in sorted_by_dist:
-		if not used_special.has(cid):
-			chest_rid = cid
-			used_special[cid] = true
-			break
+	var boss_rid := str(landmarks.boss)
+	var mb_rid := str(landmarks.miniboss)
+	var event_rid := str(landmarks.event)
+	var chest_rid := str(landmarks.chest)
 
 	# Build full Room Dictionaries
 	var rooms: Dictionary = {}
 	var room_order: Array[String] = [hub_id]
-	for cid in sorted_by_dist:
-		room_order.append(cid)
+	for cid: String in paths:
+		if cid != hub_id:room_order.append(cid)
 
 	var titles_bank: Array = BIOME_TITLES.get(theme_key, BIOME_TITLES["wilds"])
 	var min_col := GRID_COLS
@@ -209,6 +223,9 @@ static func generate_floor(seed_val: int, stage_id: String, theme_key: String, f
 
 	var elite_quota := 2 + (1 if floor_idx >= 2 else 0)
 	var elites_assigned := 0
+	var tall_rooms := {}
+	for cell: Dictionary in cells:
+		if cell.rid == boss_rid:tall_rooms[Vector2i(cell.col,cell.row)] = true
 	for c_i in range(cells.size()):
 		var c_entry: Dictionary = cells[c_i]
 		var rid := str(c_entry.rid)
@@ -270,6 +287,8 @@ static func generate_floor(seed_val: int, stage_id: String, theme_key: String, f
 				shape_choices = ["tall_arena", "wide_hall", "standard"]
 			shape_key = str(shape_choices[prng.randi_range(0, shape_choices.size() - 1)])
 			template_id = str(TEMPLATES[prng.randi_range(0, TEMPLATES.size() - 1)])
+			if floor_idx == 1 and paths[rid].size() <= 2:
+				template_id = "twin_barricades" if prng.randf() < 0.6 else "open_arena"
 			if prng.randf() < (0.58 if floor_idx == 1 else 0.75):
 				mutator_id = str(MUTATOR_POOL[prng.randi_range(0, MUTATOR_POOL.size() - 1)])
 				if theme_key == "wilds" and prng.randf() < 0.35:
@@ -277,6 +296,12 @@ static func generate_floor(seed_val: int, stage_id: String, theme_key: String, f
 				elif theme_key == "void" and prng.randf() < 0.35:
 					mutator_id = "elemental_surge"
 
+		if shape_key == "tall_arena":
+			var point := Vector2i(col,row)
+			if tall_rooms.has(point+Vector2i.UP) or tall_rooms.has(point+Vector2i.DOWN):
+				shape_key = "standard"
+			else:
+				tall_rooms[point] = true
 		var tiles: Vector2i = SHAPES[shape_key]
 		var inner_size := Vector2(float(tiles.x) * TILE_SIZE, float(tiles.y) * TILE_SIZE)
 		var inner_rect := Rect2(center - inner_size * 0.5, inner_size)
@@ -291,6 +316,7 @@ static func generate_floor(seed_val: int, stage_id: String, theme_key: String, f
 			"row": row,
 			"kind": kind,
 			"shape_key": shape_key,
+			"main_route": rid in landmarks.main_path,
 			"tile_cols": tiles.x,
 			"tile_rows": tiles.y,
 			"room_seed": prng.randi(),

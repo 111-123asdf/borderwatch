@@ -170,7 +170,7 @@ func test_monster_abilities_and_bosses() -> void:
 	shaman.ability_clock = 0.0
 	shaman._physics_process(0.02)
 	check(shaman.ability_kind == "heal" and shaman.ability_windup > 0.0, "turtle shaman begins healing chant")
-	for _i in range(42):
+	for _i in range(51):
 		shaman._physics_process(0.02)
 	check(pig.health > pig.max_health * 0.60 and pig.slow == 0.0, "turtle shaman heals ally and cleanses slow")
 	# 3. Bear Woodsman enrages below 65% HP

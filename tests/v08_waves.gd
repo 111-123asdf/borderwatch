@@ -17,14 +17,24 @@ func run() -> void:
 	print("V08 WAVE CHECKS: %d, FAILURES: %d"%[checks,failures]);quit(0 if failures==0 else 1)
 func check_elite_data() -> void:
 	for stage in ["forest","creek"]:
+		var level := ArenaLevelCatalog.definition(stage)
 		var total := ArenaLevelCatalog.total_waves(stage)
 		for number in range(1,total+1):
+			var pattern := ArenaLevelCatalog.wave(stage,number)
 			var expected:=0
-			for group in ArenaLevelCatalog.wave(stage,number).units:
+			var preview_counts := {}
+			for group in pattern.units:
 				var amount:=int(group[1]);var elite_count:=int(group[2]) if group.size()>2 else 0
 				check(elite_count<=amount,"%s W%d elite count fits the group"%[stage,number])
 				expected+=elite_count
-			var profile:=ArenaLevelCatalog.wave_profile(stage,number)
+				var kind := str(group[0])
+				preview_counts[kind] = preview_counts.get(kind,Vector2i.ZERO) + Vector2i(amount,elite_count)
+			var scheduled_counts := {}
+			for packet in ArenaLevelCatalog.plan_wave(pattern,level,number,-1,null,95.0):
+				var kind := str(packet.kind)
+				scheduled_counts[kind] = scheduled_counts.get(kind,Vector2i.ZERO) + Vector2i(1,int(packet.elite))
+			check(preview_counts==scheduled_counts,"%s W%d preview matches the scheduled enemies and elites"%[stage,number])
+			var profile:=ArenaLevelCatalog.wave_profile(stage,number,pattern)
 			check(profile.elites==expected,"%s W%d profile matches authored elites"%[stage,number])
 			check(expected>=0 and expected<=28,"%s W%d keeps elites bounded"%[stage,number])
 	check(ArenaLevelCatalog.elite_kinds("forest",3).size()>=1,"forest W3 authors elite units")

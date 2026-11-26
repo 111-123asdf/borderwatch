@@ -4,32 +4,32 @@ extends RefCounted
 # Every doctrine needs a role, a real drawback and at least one numeric effect.
 const LIST: Array=[
 	{"id":"sentinel","tower":"archer","name":"哨戒塔","role":"标记 · 反重甲",
-		"summary":"射程 +50%，攻速 −20%；优先攻击最耐打的敌人；命中标记 2.5 秒，所有来源对其 +15% 伤害。",
+		"summary":"射程 +50%，攻速 −20%，优先攻击当前血量最高的敌人。箭矢穿透一名敌人并施加持续 3.5 秒的 28% 易伤。",
 		"drawback":"攻速 −20%",
-		"effects":{"range_mult":1.5,"interval_mult":1.25,"target":"strongest","mark_time":2.5,"mark_bonus":0.15}},
+		"effects":{"range_mult":1.5,"interval_mult":1.25,"target":"strongest","mark_time":3.5,"mark_bonus":0.28}},
 	{"id":"repeater","tower":"archer","name":"连弩阵","role":"反群 · 爆发",
 		"summary":"射程 −15%，攻速 +60%；25% 概率一次射出 3 箭。",
 		"drawback":"射程 −15%",
 		"effects":{"range_mult":0.85,"interval_mult":0.625,"triple_chance":0.25}},
 	{"id":"piercer","tower":"archer","name":"穿甲塔","role":"反重甲",
-		"summary":"无视 40% 护甲；对重甲目标额外 +25%；攻速 −10%。",
+		"summary":"物理穿透 40 个百分点；瞄准重甲目标时箭矢伤害额外 +25%；攻速 −10%。",
 		"drawback":"攻速 −10%",
 		"effects":{"interval_mult":1.111,"armour_pen":0.4,"bonus_armour":0.25}},
 	{"id":"frost","tower":"mage","name":"霜咒塔","role":"控制",
-		"summary":"命中减速 30%；同一目标叠 5 层冻结 1.5 秒；伤害 −20%。",
+		"summary":"命中减速 38%，叠 3 层冻结 1.8 秒，伤害 −20%。",
 		"drawback":"伤害 −20%",
-		"effects":{"damage_mult":0.8,"slow_amount":0.3,"slow_time":2.0,"frost_stacks":5,"freeze_time":1.5}},
+		"effects":{"damage_mult":0.8,"slow_amount":0.38,"slow_time":2.0,"frost_stacks":3,"freeze_time":1.8}},
 	{"id":"arcfire","tower":"mage","name":"奥火塔","role":"清群",
 		"summary":"伤害 +15%；击杀目标时在 60 半径内爆开，造成 60% 伤害。",
 		"drawback":"无控制",
 		"effects":{"damage_mult":1.15,"explode_radius":60,"explode_mult":0.6}},
 	{"id":"breaker","tower":"mage","name":"破法塔","role":"反法抗",
-		"summary":"无视 40% 法抗；对高法抗目标额外 +25%；单体伤害。",
+		"summary":"单体攻击优先选择法抗最高的敌人，法术穿透 40 个百分点，对高法抗目标额外 +25%。",
 		"drawback":"单体 · 对低法抗无额外收益",
 		"effects":{"resist_pen":0.4,"bonus_resist":0.25}},
 	{"id":"siege","tower":"cannon","name":"攻城炮","role":"反首领",
-		"summary":"伤害 +50%；对精英与首领额外 +40%；溅射 −40%，攻速 −15%。",
-		"drawback":"溅射 −40% · 攻速 −15%",
+		"summary":"伤害 +50%；瞄准精英或首领时额外 +40%；溅射半径 −40%，攻击间隔 +15%。",
+		"drawback":"溅射半径 −40% · 攻击间隔 +15%",
 		"effects":{"damage_mult":1.5,"splash_mult":0.6,"bonus_elite":0.4,"interval_mult":1.15}},
 	{"id":"burning","tower":"cannon","name":"燃烧炮","role":"区域封锁",
 		"summary":"直接伤害 −20%；落点留下 4 秒火焰，每秒 30 伤害。",
@@ -69,78 +69,119 @@ const EFFECT_KEYS: Array[String]=["range_mult","interval_mult","damage_mult","sp
 	"soldier_count","soldier_health","soldier_speed","soldier_range","block_capacity","taunt","charge_stun","chain_reach","chain_count","focus_step"]
 const HEAVY_ARMOUR:=0.4
 const HIGH_RESIST:=0.4
-const BRANCH_PRICES: Array[int]=[45,60,75]
-const BRANCHES: Dictionary={
-	"sentinel":[
-		{"id":"a","name":"猎鹰视界","summary":"射程+12% · 攻速+9%","delta":{"range_mult":0.12,"interval_mult":-0.09}},
-		{"id":"b","name":"弱点印记","summary":"易伤+10% · 破甲+15% · 精英伤+10%","delta":{"mark_bonus":0.10,"armour_pen":0.15,"bonus_elite":0.10}},
+const ENHANCEMENT_PRICES := [55, 85, 115]
+const AUTO_DEFAULT := {"archer":"sentinel", "mage":"frost", "cannon":"frag", "barracks":"shield", "storm":"fork", "lens":"focus", "snare":"net"}
+const ENHANCEMENTS := {
+	"sentinel": [
+		{"name":"猎鹰远望","icon":"farsight","summary":"基础射程 +14%，箭矢标记多持续 0.6 秒。","delta":{"range_mult":0.14,"mark_time":0.6}},
+		{"name":"裂甲箭簇","icon":"pierce","summary":"物理穿透 +16 个百分点。","delta":{"armour_pen":0.16}},
+		{"name":"交叉校射","icon":"focus","summary":"标记易伤从 28% 提高到 36%。","delta":{"mark_bonus":0.08}}
 	],
-	"repeater":[
-		{"id":"a","name":"疾风连矢","summary":"连射+12% · 攻速+6%(满级4箭)","delta":{"triple_chance":0.12,"interval_mult":-0.06}},
-		{"id":"b","name":"致命箭簇","summary":"伤害+16% · 破甲+10%","delta":{"damage_mult":0.16,"armour_pen":0.10}},
+	"repeater": [
+		{"name":"并弦齐射","icon":"rapid","summary":"三箭齐射概率从 25% 提高到 43%。","delta":{"triple_chance":0.18}},
+		{"name":"贯阵排矢","icon":"piercearrow","summary":"每支箭额外穿透一名敌人。","delta":{"arrow_pierce":1.0}},
+		{"name":"回弦棘轮","icon":"warmachine","summary":"射击间隔再缩短约 13%。","delta":{"interval_mult":-0.08}}
 	],
-	"piercer":[
-		{"id":"a","name":"重弩破钢","summary":"破甲+18% · 重甲伤+18%","delta":{"armour_pen":0.18,"bonus_armour":0.18}},
-		{"id":"b","name":"精准狙杀","summary":"伤害+18% · 攻速+9%","delta":{"damage_mult":0.18,"interval_mult":-0.09}},
+	"piercer": [
+		{"name":"碎钢弩头","icon":"pierce","summary":"物理穿透再提高 16 个百分点。","delta":{"armour_pen":0.16}},
+		{"name":"斩铁追击","icon":"executioner","summary":"瞄准重甲敌人时，额外伤害从 25% 提高到 45%。","delta":{"bonus_armour":0.20}}
 	],
-	"frost":[
-		{"id":"a","name":"极寒蔓延","summary":"减速+7% · 冻结+0.35s · 叠层-1","delta":{"slow_amount":0.07,"freeze_time":0.35,"frost_stacks":-1.0}},
-		{"id":"b","name":"冰晶碎裂","summary":"法伤+18% · 法穿+12%","delta":{"damage_mult":0.18,"resist_pen":0.12}},
+	"frost": [
+		{"name":"长冬咒文","icon":"frostheart","summary":"减速增强 6 个百分点，冻结延长 0.3 秒。","delta":{"slow_amount":0.06,"freeze_time":0.3}},
+		{"name":"裂冰法印","icon":"starcore","summary":"伤害加成 +18 个百分点，法术穿透 +12 个百分点。","delta":{"damage_mult":0.18,"resist_pen":0.12}},
+		{"name":"外环刻纹","icon":"enchant","summary":"外圈伤害从内圈的 50% 提高到 65%。","delta":{"outer_power":0.15}}
 	],
-	"arcfire":[
-		{"id":"a","name":"连环爆焰","summary":"殉爆范围+16 · 爆伤+22%","delta":{"explode_radius":16.0,"explode_mult":0.22}},
-		{"id":"b","name":"奥能过载","summary":"法伤+16% · 攻速+8%","delta":{"damage_mult":0.16,"interval_mult":-0.08}},
+	"arcfire": [
+		{"name":"扩焰刻印","icon":"burn","summary":"击杀殉爆半径从 60 扩大到 84。","delta":{"explode_radius":24.0}},
+		{"name":"余烬爆燃","icon":"starcore","summary":"殉爆伤害从基础攻击的 60% 提高到 92%。","delta":{"explode_mult":0.32}}
 	],
-	"breaker":[
-		{"id":"a","name":"法盾崩解","summary":"法穿+18% · 高抗伤+20%","delta":{"resist_pen":0.18,"bonus_resist":0.20}},
-		{"id":"b","name":"秘法洪流","summary":"射程+10% · 攻速+9% · 法伤+10%","delta":{"range_mult":0.10,"interval_mult":-0.09,"damage_mult":0.10}},
+	"breaker": [
+		{"name":"法盾裂隙","icon":"pierce","summary":"法术穿透 +16 个百分点，高法抗目标的额外伤害提高到 45%。","delta":{"resist_pen":0.16,"bonus_resist":0.20}},
+		{"name":"追魔法眼","icon":"farsight","summary":"基础射程 +15%，攻击间隔缩短 9%。","delta":{"range_mult":0.15,"interval_mult":-0.09}}
 	],
-	"siege":[
-		{"id":"a","name":"震天巨炮","summary":"精英首领伤+22% · 炮伤+18%","delta":{"bonus_elite":0.22,"damage_mult":0.18}},
-		{"id":"b","name":"迅捷装填","summary":"射程+10% · 攻速+10% · 破甲+10%","delta":{"range_mult":0.10,"interval_mult":-0.10,"armour_pen":0.10}},
+	"frag": [
+		{"name":"重装破片","icon":"warmachine","summary":"基础溅射半径 +15%，击退距离 +7。","delta":{"splash_mult":0.15,"knockback":7.0}},
+		{"name":"震地引信","icon":"ironwall","summary":"爆炸中心的眩晕延长 0.2 秒。","delta":{"shell_stun":0.2}},
+		{"name":"广角破片","icon":"piercearrow","summary":"爆炸边缘的伤害从全额的 50% 提高到 70%。","delta":{"shell_edge_power":0.20}}
 	],
-	"burning":[
-		{"id":"a","name":"焦土火海","summary":"火域半径+12 · 持续+1.0s","delta":{"burn_radius":12.0,"burn_time":1.0}},
-		{"id":"b","name":"烈焰高爆","summary":"灼伤+14/s · 炮伤+14%","delta":{"burn_dps":14.0,"damage_mult":0.14}},
+	"siege": [
+		{"name":"猎首装药","icon":"executioner","summary":"瞄准精英或首领时，额外伤害从 40% 提高到 65%。","delta":{"bonus_elite":0.25}},
+		{"name":"钨芯重弹","icon":"pierce","summary":"物理穿透 +18 个百分点。","delta":{"armour_pen":0.18}},
+		{"name":"远端测距","icon":"farsight","summary":"基础射程 +14%，攻击间隔再缩短约 9%。","delta":{"range_mult":0.14,"interval_mult":-0.10}}
 	],
-	"frag":[
-		{"id":"a","name":"广域震荡","summary":"溅射+18% · 击退+6","delta":{"splash_mult":0.18,"knockback":6.0}},
-		{"id":"b","name":"暴雨弹幕","summary":"攻速+9% · 炮伤+15%","delta":{"interval_mult":-0.09,"damage_mult":0.15}},
+	"burning": [
+		{"name":"蔓焰油囊","icon":"burn","summary":"火区半径从 64 提高到 84，持续时间延长 1.5 秒。","delta":{"burn_radius":20.0,"burn_time":1.5}},
+		{"name":"高温炉芯","icon":"starcore","summary":"火区每秒伤害从 30 提高到 42。","delta":{"burn_dps":12.0}}
 	],
-	"shield":[
-		{"id":"a","name":"铁壁增援","summary":"士兵生命+25% · 3级增兵+1","delta":{"soldier_health":0.25,"soldier_count":0.34}},
-		{"id":"b","name":"磐石防线","summary":"阻挡数+1 · 移速+10%","delta":{"block_capacity":1.0,"soldier_speed":0.10}},
+	"shield": [
+		{"name":"加固塔盾","icon":"ironwall","summary":"盾卫的基础生命加成再提高 22 个百分点。","delta":{"soldier_health":0.22}},
+		{"name":"拒马加固","icon":"warmachine","summary":"集结点屏障半径 +12，持续时间延长 1 秒。","delta":{"barrier_radius":12.0,"barrier_duration":1.0}},
+		{"name":"盾卫预备队","icon":"rapid","summary":"增加一名盾卫，阵亡盾卫的补员速度 +20%。","delta":{"soldier_count":1.0,"respawn_speed":0.2}}
 	],
-	"hunter":[
-		{"id":"a","name":"群猎伏击","summary":"射程+25 · 2级+1猎手","delta":{"soldier_range":25.0,"soldier_count":0.50}},
-		{"id":"b","name":"荆棘毒箭","summary":"减速+8% · 持续+0.4s · 生命+20%","delta":{"slow_amount":0.08,"slow_time":0.40,"soldier_health":0.20}},
+	"hunter": [
+		{"name":"钩索猎箭","icon":"piercearrow","summary":"猎箭减速增强 10 个百分点，持续时间延长 0.6 秒。","delta":{"slow_amount":0.10,"slow_time":0.60}},
+		{"name":"高射弓架","icon":"farsight","summary":"猎手射程 +44，箭矢伤害 +20%。","delta":{"soldier_range":44.0,"soldier_damage_mult":0.20}},
+		{"name":"后备猎手","icon":"rapid","summary":"额外增派一名猎手，维持远程封锁。","delta":{"soldier_count":1.0}}
 	],
-	"charge":[
-		{"id":"a","name":"雷霆冲锋","summary":"冲锋眩晕+0.4s · 移速+15%","delta":{"charge_stun":0.40,"soldier_speed":0.15}},
-		{"id":"b","name":"先锋战甲","summary":"士兵生命+28% · 3级增兵+1","delta":{"soldier_health":0.28,"soldier_count":0.34}},
+	"charge": [
+		{"name":"雷霆冲锋","icon":"starlight","summary":"冲锋眩晕延长 0.35 秒，士兵移速加成 +15 个百分点。","delta":{"charge_stun":0.35,"soldier_speed":0.15}},
+		{"name":"先锋护具","icon":"ironwall","summary":"士兵基础生命 +24%，补员速度 +20%。","delta":{"soldier_health":0.24,"respawn_speed":0.20}}
 	],
+	"fork": [
+		{"name":"接力导线","icon":"starlight","summary":"闪电多跳一名敌人，跳跃距离 +12。","delta":{"chain_count":1.0,"chain_reach":12.0}},
+		{"name":"稳压线圈","icon":"starcore","summary":"每次跳跃保留的伤害从 72% 提高到 79%。","delta":{"chain_retention":0.07}}
+	],
+	"relay": [
+		{"name":"高空接线","icon":"farsight","summary":"跳跃距离从 165 提高到 193。","delta":{"chain_reach":28.0}},
+		{"name":"中继稳流","icon":"starcore","summary":"每跳伤害保留提高到 83%，攻击间隔缩短约 12%。","delta":{"chain_retention":0.11,"interval_mult":-0.14}}
+	],
+	"surge": [
+		{"name":"蓄压电芯","icon":"starcore","summary":"连锁伤害加成再提高 22 个百分点。","delta":{"damage_mult":0.22}},
+		{"name":"滞电极板","icon":"starlight","summary":"每次电击附带的基础硬直从 0.18 秒延长到 0.4 秒。","delta":{"chain_stagger":0.22}}
+	],
+	"focus": [
+		{"name":"灼焦镜面","icon":"starcore","summary":"聚焦上限增加一层，每层额外增伤 7 个百分点。","delta":{"focus_limit":1.0,"focus_step":0.07}},
+		{"name":"显影棱镜","icon":"farsight","summary":"光束标记易伤 +5 个百分点，持续时间延长 0.5 秒。","delta":{"lens_mark":0.05,"lens_mark_time":0.5}}
+	],
+	"sweep": [
+		{"name":"首光棱镜","icon":"starlight","summary":"换目标后第一击伤害 +30%。","delta":{"first_light":0.30}},
+		{"name":"巡光齿轮","icon":"rapid","summary":"攻击间隔缩短 14%，更快再次出光。","delta":{"interval_mult":-0.14}}
+	],
+	"far_lens": [
+		{"name":"展臂镜筒","icon":"farsight","summary":"基础射程 +18%。","delta":{"range_mult":0.18}},
+		{"name":"遥光标定","icon":"frostheart","summary":"照射减速从 25% 提高到 35%，持续时间延长 0.5 秒。","delta":{"lens_slow":0.10,"lens_slow_time":0.5}}
+	],
+	"net": [
+		{"name":"绳网加宽","icon":"warmachine","summary":"基础收网和触发半径再提高 20%。","delta":{"splash_mult":0.20}},
+		{"name":"缠足网坠","icon":"frostheart","summary":"减速增强 10 个百分点，并延长 0.65 秒。","delta":{"net_slow":0.10,"net_duration":0.65}}
+	],
+	"barb": [
+		{"name":"刃齿咬合","icon":"pierce","summary":"物理穿透再提高 20 个百分点。","delta":{"armour_pen":0.20}},
+		{"name":"密刺绊索","icon":"executioner","summary":"收网直接伤害 +25%。","delta":{"damage_mult":0.25}}
+	],
+	"ratchet": [
+		{"name":"双向快轮","icon":"rapid","summary":"装填间隔再缩短约 21%。","delta":{"interval_mult":-0.15}},
+		{"name":"回网导槽","icon":"warmachine","summary":"补回快轮索缩减的 15% 收网半径。","delta":{"splash_mult":0.15}}
+	]
 }
-const TOWER_BRANCHES := {
-	"storm":[
-		{"id":"a","name":"延伸导线","summary":"跳跃距离 +15","delta":{"chain_reach":15}},
-		{"id":"b","name":"增强电压","summary":"法伤 +12%","delta":{"damage_mult":0.12}}],
-	"lens":[
-		{"id":"a","name":"精磨镜面","summary":"每层聚焦增伤 +8%","delta":{"focus_step":0.08}},
-		{"id":"b","name":"增距镜筒","summary":"射程 +10%","delta":{"range_mult":0.10}}],
-	"snare":[
-		{"id":"a","name":"加长绊索","summary":"收网范围 +12%","delta":{"splash_mult":0.12}},
-		{"id":"b","name":"棘齿绞盘","summary":"破甲 +12%","delta":{"armour_pen":0.12}}]}
 
-static func branches(id: String,kind: String="") -> Array:
-	if BRANCHES.has(id): return BRANCHES[id]
-	if id.is_empty(): return []
-	return TOWER_BRANCHES.get(kind if not kind.is_empty() else by_id(id).get("tower",""),[])
-static func branch_price(rank: int) -> int:
-	return BRANCH_PRICES[clampi(rank,0,BRANCH_PRICES.size()-1)]
+static func enhancements(doctrine_id: String) -> Array:
+	return ENHANCEMENTS.get(doctrine_id, [])
+
+static func is_for_tower(kind: String, doctrine_id: String) -> bool:
+	return str(by_id(doctrine_id).get("tower","")) == kind and not kind.is_empty()
+
 static func by_id(id: String) -> Dictionary:
 	for entry in LIST:
 		if str(entry.id)==id:return entry
 	return {}
+
+static func field_summary(id: String) -> String:
+	match id:
+		"frost": return "范围减速 38%，伤害 −20%。内圈命中叠两层霜冻，外圈叠一层并造成一半伤害，叠满三层冻结 1.8 秒。"
+		"fork": return "一道闪电最多击中五名敌人，比基础形态多命中一名，伤害 −15%。"
+		_: return str(by_id(id).get("summary",""))
+
 static func for_tower(kind: String) -> Array:
 	var result: Array=[]
 	for entry in LIST:

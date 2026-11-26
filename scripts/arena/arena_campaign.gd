@@ -5,9 +5,9 @@ const SAVE_PATH:="user://campaign_v3.cfg"
 const PLAYTEST_PATH:="user://playtest_v013.cfg"
 const TOWER_TRIAL_PATH:="user://tower_lab_v020.cfg"
 const PLAYTEST_GEMS:=9999
-const COSTS:=[0,2,3,5,8]
-const HP:=[0.0,0.0,0.03,0.03,0.06,0.08]
-const ATTACK:=[0.0,0.0,0.0,0.03,0.03,0.06]
+const COSTS:=[0,2,3,4,7]
+const HP:=[0.0,0.0,0.03,0.03,0.06,0.12]
+const ATTACK:=[0.0,0.0,0.0,0.03,0.03,0.09]
 const DEFAULT_KEYBINDS:={"dodge":KEY_V,"recall":KEY_R,"portal":KEY_T}
 var data: Dictionary={"gems":0,"levels":{"lord":1,"druid":1,"healer":1,"werewolf":1,"gunner":1},"cleared":{"forest":false,"creek":false,"saltport":false,"lighthouse":false,"ruins":false,"sanctum":false},"last_run":"","settled":{},"tutorial_done":false,"volume":0.8,"reduced_motion":false,"selected_hero":"lord","equipped_towers":["archer","mage","cannon","barracks"],"keybinds":{"dodge":KEY_V,"recall":KEY_R,"portal":KEY_T}}
 var path: String
@@ -28,6 +28,17 @@ func tower_loadout() -> Array[String]:
 	var result: Array[String]=[]
 	for key in data.get("equipped_towers",ArenaDefinitions.DEFAULT_TOWERS):result.append(str(key))
 	return result
+func tower_doctrine(kind: String) -> String:
+	var choices: Dictionary = data.get("tower_doctrines",{})
+	return str(choices.get(kind,ArenaDoctrines.AUTO_DEFAULT.get(kind,"")))
+func select_tower_doctrine(kind: String, doctrine_id: String) -> bool:
+	if locked or not ArenaDoctrines.is_for_tower(kind,doctrine_id):
+		return false
+	var candidate := data.duplicate(true)
+	var choices: Dictionary = candidate.get("tower_doctrines",{})
+	choices[kind] = doctrine_id
+	candidate.tower_doctrines = choices
+	return _commit(candidate)
 func select_hero(hero_id: String) -> bool:
 	if locked or not ArenaDefinitions.is_valid_hero_id(hero_id):return false
 	var resolved := ArenaDefinitions.resolve_hero_id(hero_id)
@@ -58,7 +69,7 @@ func bonuses(hero_id: String) -> Dictionary:
 	var rank:=level(hero_id)
 	return {"health":HP[rank],"attack":ATTACK[rank],"passive":2 if rank==5 else (1 if rank>=3 else 0)}
 func skill_unlocked(hero_id: String,slot: int) -> bool:
-	return slot in [0,1] and level(hero_id)>=(2 if slot==0 else 4)
+	return slot in [0,1] and level(hero_id)>=ArenaDefinitions.SKILL_UNLOCK_LEVELS[slot]
 func upgrade(hero_id: String) -> bool:
 	if locked or not ArenaDefinitions.is_valid_hero_id(hero_id):return false
 	var resolved := ArenaDefinitions.resolve_hero_id(hero_id)
@@ -66,28 +77,31 @@ func upgrade(hero_id: String) -> bool:
 	var candidate:=data.duplicate(true)
 	candidate.gems-=price(resolved);candidate.levels[resolved]+=1
 	return _commit(candidate)
+func victory_reward(stage: String) -> int:
+	return 6 if bool(data.cleared.get(stage,false)) else 8
 func settle(run_id: String,stage: String,won: bool,completed: int) -> Dictionary:
 	if locked:return {"ok":false,"amount":0,"error":last_error}
 	var max_waves := ArenaLevelCatalog.total_waves(stage)
 	if run_id=="" or stage not in ArenaLevelCatalog.IDS or completed<0 or completed>max_waves or (won and completed!=max_waves):return {"ok":false,"amount":0,"error":"无效结算"}
 	if data.settled.has(run_id):return {"ok":true,"amount":0,"duplicate":true}
 	var ratio := float(completed) / float(maxi(1, max_waves))
-	var amount: int=6 if won else (3 if ratio>=0.75 else (2 if ratio>=0.50 else 0))
+	var amount: int=victory_reward(stage) if won else (3 if ratio>=0.75 else (2 if ratio>=0.50 else 0))
 	var first: bool=won and not bool(data.cleared.get(stage,false))
-	if first:amount+=2
 	var candidate:=data.duplicate(true)
 	candidate.gems+=amount;candidate.last_run=run_id;candidate.settled[run_id]=amount
 	if won:candidate.cleared[stage]=true
 	if not _commit(candidate):return {"ok":false,"amount":0,"error":last_error}
 	return {"ok":true,"amount":amount,"first_clear":first}
-func settings(volume: float,reduced: bool) -> bool:
+func settings(volume: float,reduced: bool,bindings: Dictionary={}) -> bool:
 	var candidate:=data.duplicate(true);candidate.volume=clampf(volume,0,1);candidate.reduced_motion=reduced
+	if not bindings.is_empty():candidate.keybinds=bindings.duplicate()
 	return _commit(candidate)
 func keybind(action: String) -> int:
 	var kb: Dictionary=data.get("keybinds",DEFAULT_KEYBINDS)
 	return int(kb.get(action,DEFAULT_KEYBINDS.get(action,KEY_V)))
 func keybind_label(action: String) -> String:
-	var code:=keybind(action)
+	return format_keybind(keybind(action))
+static func format_keybind(code: int) -> String:
 	if code==KEY_SPACE:return "Space"
 	if code==KEY_SHIFT:return "Shift"
 	var txt:=OS.get_keycode_string(code)
@@ -130,6 +144,12 @@ func _valid(candidate: Dictionary) -> bool:
 		for act in DEFAULT_KEYBINDS:
 			if candidate.keybinds.has(act) and (typeof(candidate.keybinds[act])!=TYPE_INT or int(candidate.keybinds[act])<=0):
 				return false
+	var choices: Variant = candidate.get("tower_doctrines",{})
+	if not choices is Dictionary:
+		return false
+	for kind in choices:
+		if not kind is String or not choices[kind] is String or not ArenaDoctrines.is_for_tower(kind,choices[kind]):
+			return false
 	return typeof(candidate.get("settled"))==TYPE_DICTIONARY and typeof(candidate.get("last_run"))==TYPE_STRING and typeof(candidate.get("volume"))==TYPE_FLOAT and is_finite(candidate.volume) and candidate.volume>=0 and candidate.volume<=1 and typeof(candidate.get("reduced_motion"))==TYPE_BOOL
 func _commit(candidate: Dictionary) -> bool:
 	for key in ArenaLevelCatalog.IDS:
